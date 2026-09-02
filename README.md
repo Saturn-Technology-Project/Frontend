@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Saturn Control Plane
 
-## Getting Started
+Desktop-first frontend for the Saturn enterprise AI control plane.
 
-First, run the development server:
+The console talks to the backend in `../backend` through a Next.js rewrite: `/saturn-api/*` → `http://localhost:8000/*`.
+
+## Run locally
 
 ```bash
+# backend
+cd ../backend
+docker compose up --build
+
+# frontend
+cd ../frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). It redirects to Overview.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Override the API origin with `API_URL` (see `.env.example`). Restart `next dev` after changing it.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Path
 
-## Learn More
+1. Overview
+2. Agents → Customer Operations
+3. Run a refund prompt (the seeded agent plans CRM + billing tools)
+4. Human approval for `billing.refund` when amount is between $100 and $1000
+5. Agent wallet pays the tool via x402 (0.05 USDC on Base Sepolia)
+6. Activity audit timeline
 
-To learn more about Next.js, take a look at the following resources:
+Wallets live at `/wallets`. Paid tools show an x402 price. Facilitator: `GET /x402/supported`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Frontend is Next.js on Vercel. Backend stays on GCP.

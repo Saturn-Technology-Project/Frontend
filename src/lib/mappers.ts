@@ -1,0 +1,549 @@
+import { session } from "@/lib/auth";
+import type {
+  ApiAction,
+  ApiActivity,
+  ApiAgent,
+  ApiApproval,
+  ApiHealth,
+  ApiPayment,
+  ApiPolicy,
+  ApiRun,
+  ApiTool,
+  ApiWallet,
+  ApiX402Supported,
+} from "@/lib/api";
+import { parseAmount } from "@/lib/format";
+import type {
+  ActivityEvent,
+  ActorKind,
+  Agent,
+  AgentRun,
+  AgentWallet,
+  Approval,
+  ConsoleData,
+  Integration,
+  Payment,
+  PaymentStatus,
+  Policy,
+  PolicyCheck,
+  PolicyRule,
+  ProposedAction,
+  RunStatus,
+  RunStep,
+  SystemService,
+  ToolPermission,
+  X402Price,
+  X402Support,
+} from "@/types";
+
+const EVENT_META: Record<string, { title: string; titleKey: string }> = {
+  run_created: { title: "Started run", titleKey: "event.runCreated" },
+  agent_started: { title: "Agent started", titleKey: "event.agentStarted" },
+  tool_requested: { title: "Requested tool", titleKey: "event.toolRequested" },
+  policy_evaluated: { title: "Policy evaluated", titleKey: "event.policyEvaluated" },
+  approval_requested: {
+    title: "Approval requested",
+    titleKey: "event.approvalRequested",
+  },
+  approval_granted: { title: "Approved", titleKey: "event.approvalGranted" },
+  approval_rejected: { title: "Rejected", titleKey: "event.approvalRejected" },
+  tool_executed: { title: "Tool executed", titleKey: "event.toolExecuted" },
+  run_completed: { title: "Run completed", titleKey: "event.runCompleted" },
+  run_failed: { title: "Run failed", titleKey: "event.runFailed" },
+  x402_payment_required: {
+    title: "x402 payment required",
+    titleKey: "event.x402PaymentRequired",
+  },
+  wallet_evaluated: {
+    title: "Wallet evaluated",
+    titleKey: "event.walletEvaluated",
+  },
+  x402_settled: { title: "x402 settled", titleKey: "event.x402Settled" },
+  x402_failed: { title: "x402 failed", titleKey: "event.x402Failed" },
+};
+
+function money(value: unknown): string {
+  return parseAmount(value).toFixed(2);
+}
+
+function mapX402(config: Record<string, unknown> | null | undefined): X402Price | undefined {
+  if (!config) return undefined;
+  const price = config.price;
+  if (price == null || price === "") return undefined;
+  return {
+    price: String(price),
+    network: String(config.network ?? "base-sepolia"),
+    asset: String(config.asset ?? "USDC"),
+    payTo: config.pay_to ? String(config.pay_to) : undefined,
+    scheme: config.scheme ? String(config.scheme) : undefined,
+  };
+}
+
+function mapWallet(wallet: ApiWallet): AgentWallet {
+  return {
+    id: wallet.id,
+    agentId: wallet.agent_id,
+    address: wallet.address,
+    network: wallet.network,
+    asset: wallet.asset,
+    balance: money(wallet.balance),
+    dailySpendLimit: money(wallet.daily_spend_limit),
+    perTxLimit: money(wallet.per_tx_limit),
+    spentToday: money(wallet.spent_today),
+    status: wallet.status === "paused" ? "paused" : "active",
+    updatedAt: wallet.updated_at,
+  };
+}
+
+function mapPayment(payment: ApiPayment): Payment {
+  const status = (
+    ["pending", "verified", "settled", "denied", "failed"].includes(payment.status)
+      ? payment.status
+      : "pending"
+  ) as PaymentStatus;
+  return {
+    id: payment.id,
+    walletId: payment.wallet_id,
+    runId: payment.run_id ?? undefined,
+    actionId: payment.action_id ?? undefined,
+    tool: payment.tool ?? undefined,
+    amount: money(payment.amount),
+    asset: payment.asset,
+    network: payment.network,
+    payTo: payment.pay_to,
+    status,
+    txHash: payment.tx_hash ?? undefined,
+    createdAt: payment.created_at,
+    settledAt: payment.settled_at ?? undefined,
+  };
+}
+
+function formatAmount(value: unknown): string | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  return `$${n.toFixed(2)}`;
+}
+
+function decisionPermission(decision: string): ToolPermission {
+  const key = decision.trim().toLowerCase();
+  if (key === "deny") return "denied";
+  if (key === "approval" || key === "approval_required") return "approval";
+  return "allow";
+}
+
+function mapRunStatus(status: string): RunStatus {
+  switch (status) {
+    case "waiting_approval":
+      return "awaiting_approval";
+    case "completed":
+      return "completed";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "rejected";
+    default:
+      return "running";
+  }
+}
+
+function mapStepStatus(status: string): RunStep["status"] {
+  if (
+    status === "completed" ||
+    status === "denied" ||
+    status === "rejected" ||
+    status === "failed"
+  ) {
+    return "completed";
+  }
+  if (status === "waiting_approval") return "running";
+  return "pending";
+}
+
+function actionKind(tool: string): ProposedAction["kind"] {
+  if (tool.includes("refund")) return "refund";
+  if (tool.includes("email")) return "email";
+  if (tool.includes("ticket")) return "ticket";
+  return "update";
+}
+
+function formatActionLabel(action: ApiAction): string {
+  const amount = formatAmount(action.arguments?.amount);
+  if (amount) return `${action.tool}  ${amount}`;
+  return action.tool;
+}
+
+function thoughtFor(run: ApiRun): string {
+  const tools = run.actions.map((action) => action.tool);
+  if (tools.length === 0) return "Evaluating the request.";
+  return `I'll run ${tools.join(", ")}.`;
+}
+
+function findingFor(run: ApiRun): string | undefined {
+  const payment = run.actions.find(
+    (action) => action.tool === "billing.get_payment" && action.result
+  );
+  const result = payment?.result;
+  if (!result) return undefined;
+  const status = result.status ? String(result.status) : "unknown";
+  const paymentId = result.payment_id ? String(result.payment_id) : "";
+  return paymentId
+    ? `Payment ${paymentId} is ${status}.`
+    : `Payment status is ${status}.`;
+}
+
+function policyYaml(policy: ApiPolicy): string {
+  const lines = [`name: ${policy.name}`, "rules:"];
+  if (policy.rules.length === 0) {
+    lines.push("  []");
+    return lines.join("\n");
+  }
+  for (const rule of policy.rules) {
+    lines.push(`  - tool: ${rule.tool}`);
+    lines.push(`    when: ${rule.condition}`);
+    lines.push(`    decision: ${rule.decision}`);
+  }
+  return lines.join("\n");
+}
+
+function mapPolicy(policy: ApiPolicy, agentNames: string[]): Policy {
+  const can: PolicyRule[] = [];
+  const requiresApproval: PolicyRule[] = [];
+  const denied: PolicyRule[] = [];
+
+  for (const rule of policy.rules) {
+    const item: PolicyRule = {
+      key: `${rule.tool}:${rule.condition}:${rule.decision}`,
+      label: rule.tool,
+      detail: rule.condition,
+    };
+    const permission = decisionPermission(rule.decision);
+    if (permission === "allow") can.push(item);
+    else if (permission === "approval") requiresApproval.push(item);
+    else denied.push(item);
+  }
+
+  return {
+    id: policy.id,
+    name: policy.name,
+    version: "",
+    who: agentNames,
+    can,
+    requiresApproval,
+    denied,
+    yaml: policyYaml(policy),
+  };
+}
+
+function mapTools(tools: ApiTool[], policies: ApiPolicy[]): Integration[] {
+  const rules = policies.flatMap((policy) => policy.rules);
+  return tools.map((tool) => {
+    const matched = rules.filter((rule) => rule.tool === tool.name);
+    const functions =
+      matched.length > 0
+        ? matched.map((rule) => ({
+            name: `${tool.name}  ${rule.condition}`,
+            permission: decisionPermission(rule.decision),
+          }))
+        : [
+            {
+              name: tool.name,
+              permission: tool.permissions.some((item) => item === "write")
+                ? ("approval" as const)
+                : ("allow" as const),
+            },
+          ];
+
+    return {
+      id: tool.id,
+      name: tool.name,
+      description: tool.description,
+      endpoint: tool.mcp_endpoint,
+      toolCount: functions.length,
+      status: tool.status === "active" ? "connected" : "disconnected",
+      functions,
+      x402: mapX402(tool.x402),
+    };
+  });
+}
+
+function mapRun(run: ApiRun): AgentRun {
+  const steps: RunStep[] = run.actions.map((action) => ({
+    id: action.id,
+    label: action.tool,
+    tool: action.tool,
+    status: mapStepStatus(action.status),
+    parameters: action.arguments,
+    result: action.result ?? undefined,
+  }));
+
+  const actions: ProposedAction[] = run.actions
+    .filter(
+      (action) =>
+        action.policy_decision === "approval_required" ||
+        action.status === "waiting_approval"
+    )
+    .map((action) => ({
+      id: action.id,
+      label: formatActionLabel(action),
+      kind: actionKind(action.tool),
+      requiresApproval: true,
+    }));
+
+  const policyChecks: PolicyCheck[] = run.actions
+    .filter((action) => action.policy_decision)
+    .map((action) => ({
+      id: action.id,
+      name: action.tool,
+      status:
+        action.policy_decision === "allow"
+          ? "pass"
+          : action.policy_decision === "deny"
+            ? "fail"
+            : "approval",
+    }));
+
+  const done =
+    run.status === "completed" ||
+    run.status === "failed" ||
+    run.status === "cancelled";
+
+  return {
+    id: run.id,
+    agentId: run.agent_id,
+    prompt: run.input,
+    thought: thoughtFor(run),
+    finding: findingFor(run),
+    status: mapRunStatus(run.status),
+    steps,
+    actions,
+    policyChecks,
+    approvalId: run.approval_id ?? undefined,
+    executionNotes:
+      run.status === "completed"
+        ? run.actions
+            .filter((action) => action.status === "completed")
+            .map((action) => {
+              const status = action.result?.status ?? "ok";
+              const x402 = action.result?.x402 as { tx_hash?: string } | undefined;
+              if (x402?.tx_hash) {
+                return `${action.tool} → ${status} · x402 ${x402.tx_hash}`;
+              }
+              return `${action.tool} → ${status}`;
+            })
+        : undefined,
+    startedAt: run.created_at,
+    completedAt: done ? run.updated_at : undefined,
+  };
+}
+
+function mapApproval(
+  approval: ApiApproval,
+  run: ApiRun | undefined,
+  policies: ApiPolicy[]
+): Approval {
+  const action = run?.actions.find((item) => item.id === approval.action_id);
+  const args = action?.arguments ?? {};
+  const customer = String(
+    args.name ?? args.customer ?? args.customer_id ?? "—"
+  );
+  const policy =
+    policies.find((item) =>
+      item.rules.some((rule) => rule.tool === action?.tool)
+    )?.name ?? "Policy";
+
+  return {
+    id: approval.id,
+    runId: approval.run_id,
+    actionId: approval.action_id,
+    agentId: run?.agent_id ?? "",
+    action: action?.tool ?? "Action",
+    amount: formatAmount(approval.requested_amount ?? args.amount),
+    currency: approval.requested_amount != null || args.amount != null ? "USD" : undefined,
+    customer,
+    reason: run?.input ?? "",
+    policy,
+    status: (["pending", "approved", "rejected"].includes(approval.status)
+      ? approval.status
+      : "pending") as Approval["status"],
+    requestedAt: approval.created_at,
+    resolvedAt: approval.resolved_at ?? undefined,
+    resolvedBy:
+      approval.resolved_by === session.user.id
+        ? session.user.name
+        : (approval.resolved_by ?? undefined),
+  };
+}
+
+function actorKindFor(event: string, actorType: string): ActorKind {
+  if (event === "tool_executed") return "tool";
+  if (
+    actorType === "wallet" ||
+    event.startsWith("x402_") ||
+    event === "wallet_evaluated"
+  ) {
+    return "wallet";
+  }
+  if (actorType === "user") return "human";
+  if (actorType === "agent") return "agent";
+  return "saturn";
+}
+
+function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
+  const meta = EVENT_META[event.event] ?? {
+    title: event.event.replaceAll("_", " "),
+    titleKey: undefined,
+  };
+  const kind = actorKindFor(event.event, event.actor_type);
+  const payload = event.payload ?? {};
+  const agent = agents.find((item) => item.id === event.actor_id);
+
+  let actor = "Saturn";
+  let actorId: string | undefined;
+  if (kind === "tool") {
+    actor = event.tool ?? "Tool";
+  } else if (kind === "agent") {
+    actor = agent?.name ?? event.actor_id ?? "Agent";
+    actorId = event.actor_id ?? undefined;
+  } else if (kind === "wallet") {
+    actor = "Wallet";
+    actorId = event.actor_id ?? undefined;
+  } else if (kind === "human") {
+    actor =
+      event.actor_id === session.user.id ? session.user.name : (event.actor_id ?? "User");
+  }
+
+  const approvalId =
+    typeof payload.approval_id === "string" ? payload.approval_id : undefined;
+  const paymentId =
+    typeof payload.payment_id === "string" ? payload.payment_id : undefined;
+
+  return {
+    id: event.id,
+    at: event.created_at,
+    event: event.event,
+    actor,
+    actorId,
+    actorKind: kind,
+    title: meta.title,
+    titleKey: meta.titleKey,
+    detail: event.result ?? event.tool ?? undefined,
+    runId: event.run_id ?? undefined,
+    approvalId,
+    payload: {
+      input: payload.input,
+      policy: payload.policy_id
+        ? { policy_id: payload.policy_id, decision: event.result }
+        : undefined,
+      tool: event.tool ?? undefined,
+      parameters: payload.arguments,
+      result: payload.result ?? event.result ?? undefined,
+      approval: approvalId
+        ? { id: approvalId, status: event.result }
+        : undefined,
+      payment: paymentId
+        ? {
+            id: paymentId,
+            tx_hash: payload.tx_hash,
+            amount: payload.amount,
+            reason: payload.reason,
+          }
+        : payload.requirements
+          ? payload.requirements
+          : undefined,
+    },
+  };
+}
+
+function mapServices(health: ApiHealth | undefined): SystemService[] {
+  const fallback: SystemService[] = [
+    { id: "runtime", name: "Agent Runtime", status: "down" },
+    { id: "gateway", name: "MCP Gateway", status: "down" },
+    { id: "policy", name: "Policy Engine", status: "down" },
+    { id: "wallet", name: "Wallet", status: "down" },
+  ];
+  if (!health || health.status !== "ok") return fallback;
+  if (health.services?.length) {
+    return health.services
+      .filter((service): service is SystemService =>
+        ["runtime", "gateway", "policy", "wallet"].includes(service.id)
+      )
+      .map((service) => ({
+        id: service.id as SystemService["id"],
+        name: service.name,
+        status:
+          service.status === "operational" ||
+          service.status === "degraded" ||
+          service.status === "down"
+            ? service.status
+            : "operational",
+      }));
+  }
+  return fallback.map((service) => ({ ...service, status: "operational" }));
+}
+
+function mapAgent(
+  agent: ApiAgent,
+  tools: ApiTool[],
+  policies: ApiPolicy[],
+  runs: ApiRun[],
+  wallets: ApiWallet[]
+): Agent {
+  const live = runs.some(
+    (run) =>
+      run.agent_id === agent.id &&
+      (run.status === "queued" ||
+        run.status === "running" ||
+        run.status === "waiting_approval")
+  );
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    title: "Agent",
+    description: agent.description,
+    status: agent.status === "paused" ? "paused" : "active",
+    running: live,
+    model: agent.model,
+    toolIds: tools.map((tool) => tool.id),
+    policyIds: policies.map((policy) => policy.id),
+    walletId: wallets.find((wallet) => wallet.agent_id === agent.id)?.id,
+  };
+}
+
+export function mapConsole(input: {
+  agents: ApiAgent[];
+  tools: ApiTool[];
+  policies: ApiPolicy[];
+  runs: ApiRun[];
+  approvals: ApiApproval[];
+  activity: ApiActivity[];
+  wallets: ApiWallet[];
+  payments: ApiPayment[];
+  x402: ApiX402Supported | null;
+  health: ApiHealth;
+}): ConsoleData {
+  const agentNames = input.agents.map((agent) => agent.name);
+  const runsById = new Map(input.runs.map((run) => [run.id, run]));
+  const kind = input.x402?.kinds?.[0];
+  const x402: X402Support | null = kind
+    ? { scheme: kind.scheme, network: kind.network }
+    : null;
+
+  return {
+    agents: input.agents.map((agent) =>
+      mapAgent(agent, input.tools, input.policies, input.runs, input.wallets)
+    ),
+    integrations: mapTools(input.tools, input.policies),
+    policies: input.policies.map((policy) => mapPolicy(policy, agentNames)),
+    runs: input.runs.map(mapRun),
+    approvals: input.approvals.map((approval) =>
+      mapApproval(approval, runsById.get(approval.run_id), input.policies)
+    ),
+    events: input.activity.map((event) => mapActivity(event, input.agents)),
+    services: mapServices(input.health),
+    wallets: input.wallets.map(mapWallet),
+    payments: input.payments.map(mapPayment),
+    x402,
+  };
+}
