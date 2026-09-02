@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { useConsole } from "@/hooks/use-console";
+import { useAuthStore } from "@/lib/auth";
+import { canAccess } from "@/lib/access";
 
 const primary = [
   { href: "/overview", key: "nav.overview" },
@@ -14,6 +16,7 @@ const primary = [
   { href: "/approvals", key: "nav.approvals" },
   { href: "/wallets", key: "nav.wallets" },
   { href: "/activity", key: "nav.activity" },
+  { href: "/team", key: "nav.team", team: true },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -25,15 +28,19 @@ export function Sidebar() {
   const pathname = usePathname();
   const { t } = useI18n();
   const { data } = useConsole();
+  const permissions = useAuthStore((state) => state.user?.permissions);
+  const canReadTeam = canAccess(permissions, "team", "read");
   const pending = (data?.approvals ?? []).filter(
     (approval) => approval.status === "pending"
   ).length;
+
+  const items = primary.filter((item) => !("team" in item && item.team) || canReadTeam);
 
   return (
     <aside className="flex w-[196px] shrink-0 flex-col border-r border-border bg-background">
       <nav className="flex flex-1 flex-col px-3 py-5">
         <div className="flex flex-col gap-0.5">
-          {primary.map((item) => {
+          {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
               <Link

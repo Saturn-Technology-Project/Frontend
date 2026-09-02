@@ -3,8 +3,10 @@
 import type { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import { usePanelSocket } from "@/hooks/use-panel-socket";
 
 export function AppShell({ children }: { children: ReactNode }) {
+  usePanelSocket();
   return (
     <div className="flex min-h-screen min-w-[1024px] flex-col bg-background">
       <Header />

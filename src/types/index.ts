@@ -22,6 +22,7 @@ export interface Agent {
   description: string;
   status: AgentStatus;
   running: boolean;
+  connected: boolean;
   model: string;
   toolIds: string[];
   policyIds: string[];
@@ -130,14 +131,11 @@ export interface AgentRun {
   id: string;
   agentId: string;
   prompt: string;
-  thought: string;
-  finding?: string;
   status: RunStatus;
   steps: RunStep[];
   actions: ProposedAction[];
   policyChecks: PolicyCheck[];
   approvalId?: string;
-  executionNotes?: string[];
   startedAt: string;
   completedAt?: string;
 }
@@ -172,6 +170,9 @@ export interface ActivityEvent {
   detailKey?: string;
   runId?: string;
   approvalId?: string;
+  tool?: string;
+  result?: string;
+  raw?: Record<string, unknown> | null;
   payload?: {
     input?: unknown;
     policy?: unknown;
@@ -184,7 +185,7 @@ export interface ActivityEvent {
 }
 
 export interface SystemService {
-  id: "runtime" | "gateway" | "policy" | "wallet";
+  id: string;
   name: string;
   status: ServiceStatus;
 }

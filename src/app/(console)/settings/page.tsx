@@ -6,12 +6,14 @@ import { QueryGate } from "@/components/layout/query-gate";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole } from "@/hooks/use-console";
-import { session } from "@/lib/auth";
+import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
 export default function SettingsPage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
+  const sessionUser = useAuthStore((state) => state.user);
+  const sessionOrg = useAuthStore((state) => state.org);
   const { data, isPending, isError } = useConsole();
   const apiOk = data?.services.every((service) => service.status === "operational");
 
@@ -23,10 +25,26 @@ export default function SettingsPage() {
         <section className="mt-10 border-t border-border pt-8">
           <SectionLabel>{t("settings.workspace")}</SectionLabel>
           <div className="mt-4 grid grid-cols-[140px_1fr] gap-y-3 text-[13px]">
-            <div className="text-muted-foreground">{t("settings.organization")}</div>
-            <div>{session.org.name}</div>
+            <div className="text-muted-foreground">{t("settings.enterprise")}</div>
+            <div>{sessionOrg?.name}</div>
+            <div className="text-muted-foreground">{t("settings.employee")}</div>
+            <div>{sessionUser?.employeeTitle || sessionUser?.name}</div>
             <div className="text-muted-foreground">{t("settings.operator")}</div>
-            <div>{session.user.name}</div>
+            <div>{sessionUser?.name}</div>
+            <div className="text-muted-foreground">{t("login.email")}</div>
+            <div>{sessionUser?.email}</div>
+            <div className="text-muted-foreground">{t("settings.agents")}</div>
+            <div>
+              {sessionUser?.agents?.length
+                ? sessionUser.agents.map((agent) => agent.name).join(", ")
+                : "—"}
+            </div>
+            <div className="text-muted-foreground">{t("settings.mcpServers")}</div>
+            <div>
+              {sessionUser?.mcpServers?.length
+                ? sessionUser.mcpServers.map((server) => server.name).join(", ")
+                : "—"}
+            </div>
           </div>
         </section>
 

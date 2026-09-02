@@ -1,11 +1,7 @@
-export const session = {
-  user: {
-    id: "user_operator",
-    name: "Rick",
-    email: "rick@saturn.ai",
-  },
-  org: {
-    id: "org_saturn",
-    name: "Saturn",
-  },
-};
+export {
+  getSession,
+  useAuthStore,
+  type AuthOrg,
+  type AuthSession,
+  type AuthUser,
+} from "@/stores/auth-store";

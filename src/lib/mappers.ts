@@ -1,4 +1,4 @@
-import { session } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import type {
   ApiAction,
   ApiActivity,
@@ -72,8 +72,8 @@ function mapX402(config: Record<string, unknown> | null | undefined): X402Price 
   if (price == null || price === "") return undefined;
   return {
     price: String(price),
-    network: String(config.network ?? "base-sepolia"),
-    asset: String(config.asset ?? "USDC"),
+    network: config.network != null ? String(config.network) : "",
+    asset: config.asset != null ? String(config.asset) : "",
     payTo: config.pay_to ? String(config.pay_to) : undefined,
     scheme: config.scheme ? String(config.scheme) : undefined,
   };
@@ -173,25 +173,6 @@ function formatActionLabel(action: ApiAction): string {
   return action.tool;
 }
 
-function thoughtFor(run: ApiRun): string {
-  const tools = run.actions.map((action) => action.tool);
-  if (tools.length === 0) return "Evaluating the request.";
-  return `I'll run ${tools.join(", ")}.`;
-}
-
-function findingFor(run: ApiRun): string | undefined {
-  const payment = run.actions.find(
-    (action) => action.tool === "billing.get_payment" && action.result
-  );
-  const result = payment?.result;
-  if (!result) return undefined;
-  const status = result.status ? String(result.status) : "unknown";
-  const paymentId = result.payment_id ? String(result.payment_id) : "";
-  return paymentId
-    ? `Payment ${paymentId} is ${status}.`
-    : `Payment status is ${status}.`;
-}
-
 function policyYaml(policy: ApiPolicy): string {
   const lines = [`name: ${policy.name}`, "rules:"];
   if (policy.rules.length === 0) {
@@ -248,9 +229,7 @@ function mapTools(tools: ApiTool[], policies: ApiPolicy[]): Integration[] {
         : [
             {
               name: tool.name,
-              permission: tool.permissions.some((item) => item === "write")
-                ? ("approval" as const)
-                : ("allow" as const),
+              permission: "allow" as const,
             },
           ];
 
@@ -312,26 +291,11 @@ function mapRun(run: ApiRun): AgentRun {
     id: run.id,
     agentId: run.agent_id,
     prompt: run.input,
-    thought: thoughtFor(run),
-    finding: findingFor(run),
     status: mapRunStatus(run.status),
     steps,
     actions,
     policyChecks,
     approvalId: run.approval_id ?? undefined,
-    executionNotes:
-      run.status === "completed"
-        ? run.actions
-            .filter((action) => action.status === "completed")
-            .map((action) => {
-              const status = action.result?.status ?? "ok";
-              const x402 = action.result?.x402 as { tx_hash?: string } | undefined;
-              if (x402?.tx_hash) {
-                return `${action.tool} → ${status} · x402 ${x402.tx_hash}`;
-              }
-              return `${action.tool} → ${status}`;
-            })
-        : undefined,
     startedAt: run.created_at,
     completedAt: done ? run.updated_at : undefined,
   };
@@ -345,19 +309,19 @@ function mapApproval(
   const action = run?.actions.find((item) => item.id === approval.action_id);
   const args = action?.arguments ?? {};
   const customer = String(
-    args.name ?? args.customer ?? args.customer_id ?? "—"
+    args.name ?? args.customer ?? args.customer_id ?? ""
   );
   const policy =
     policies.find((item) =>
       item.rules.some((rule) => rule.tool === action?.tool)
-    )?.name ?? "Policy";
+    )?.name ?? "";
 
   return {
     id: approval.id,
     runId: approval.run_id,
     actionId: approval.action_id,
     agentId: run?.agent_id ?? "",
-    action: action?.tool ?? "Action",
+    action: action?.tool ?? approval.action_id,
     amount: formatAmount(approval.requested_amount ?? args.amount),
     currency: approval.requested_amount != null || args.amount != null ? "USD" : undefined,
     customer,
@@ -369,8 +333,8 @@ function mapApproval(
     requestedAt: approval.created_at,
     resolvedAt: approval.resolved_at ?? undefined,
     resolvedBy:
-      approval.resolved_by === session.user.id
-        ? session.user.name
+      approval.resolved_by === getSession()?.user.id
+        ? getSession()?.user.name
         : (approval.resolved_by ?? undefined),
   };
 }
@@ -410,7 +374,9 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
     actorId = event.actor_id ?? undefined;
   } else if (kind === "human") {
     actor =
-      event.actor_id === session.user.id ? session.user.name : (event.actor_id ?? "User");
+      event.actor_id === getSession()?.user.id
+        ? getSession()?.user.name ?? "User"
+        : (event.actor_id ?? "User");
   }
 
   const approvalId =
@@ -430,6 +396,9 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
     detail: event.result ?? event.tool ?? undefined,
     runId: event.run_id ?? undefined,
     approvalId,
+    tool: event.tool ?? undefined,
+    result: event.result ?? undefined,
+    raw: event.payload,
     payload: {
       input: payload.input,
       policy: payload.policy_id
@@ -448,38 +417,25 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
             amount: payload.amount,
             reason: payload.reason,
           }
-        : payload.requirements
-          ? payload.requirements
-          : undefined,
+        : payload.requirements ?? undefined,
     },
   };
 }
 
 function mapServices(health: ApiHealth | undefined): SystemService[] {
-  const fallback: SystemService[] = [
-    { id: "runtime", name: "Agent Runtime", status: "down" },
-    { id: "gateway", name: "MCP Gateway", status: "down" },
-    { id: "policy", name: "Policy Engine", status: "down" },
-    { id: "wallet", name: "Wallet", status: "down" },
-  ];
-  if (!health || health.status !== "ok") return fallback;
-  if (health.services?.length) {
-    return health.services
-      .filter((service): service is SystemService =>
-        ["runtime", "gateway", "policy", "wallet"].includes(service.id)
-      )
-      .map((service) => ({
-        id: service.id as SystemService["id"],
-        name: service.name,
-        status:
-          service.status === "operational" ||
-          service.status === "degraded" ||
-          service.status === "down"
-            ? service.status
-            : "operational",
-      }));
-  }
-  return fallback.map((service) => ({ ...service, status: "operational" }));
+  const list = health?.services ?? [];
+  const ok = health?.status === "ok";
+  return list.map((service) => ({
+    id: service.id,
+    name: service.name,
+    status: ok
+      ? service.status === "degraded" || service.status === "down"
+        ? service.status
+        : service.status === "operational"
+          ? "operational"
+          : "degraded"
+      : "down",
+  }));
 }
 
 function mapAgent(
@@ -504,6 +460,7 @@ function mapAgent(
     description: agent.description,
     status: agent.status === "paused" ? "paused" : "active",
     running: live,
+    connected: Boolean(agent.connected),
     model: agent.model,
     toolIds: tools.map((tool) => tool.id),
     policyIds: policies.map((policy) => policy.id),

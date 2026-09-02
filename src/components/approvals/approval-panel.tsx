@@ -54,13 +54,22 @@ export function ApprovalPanel({
         </div>
 
         <div className="divide-y divide-border px-6">
-          <Field
-            label={t("approvals.refund")}
-            value={`${approval.amount ?? approval.action} ${approval.currency ?? ""}`.trim()}
-          />
-          <Field label={t("approvals.customer")} value={approval.customer} />
-          <Field label={t("approvals.reason")} value={approval.reason || "—"} />
-          <Field label={t("approvals.policy")} value={approval.policy} />
+          <Field label={t("approvals.action")} value={approval.action} />
+          {approval.amount ? (
+            <Field
+              label={t("approvals.amount")}
+              value={`${approval.amount} ${approval.currency ?? ""}`.trim()}
+            />
+          ) : null}
+          {approval.customer ? (
+            <Field label={t("approvals.customer")} value={approval.customer} />
+          ) : null}
+          {approval.reason ? (
+            <Field label={t("approvals.reason")} value={approval.reason} />
+          ) : null}
+          {approval.policy ? (
+            <Field label={t("approvals.policy")} value={approval.policy} />
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">

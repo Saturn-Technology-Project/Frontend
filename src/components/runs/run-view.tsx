@@ -82,11 +82,7 @@ export function RunView({ run }: { run: AgentRun }) {
 
       <section className="mt-10">
         <SectionLabel>{t("run.agent")}</SectionLabel>
-        <div className="mt-3 border-t border-border pt-4 text-[15px] leading-7 text-foreground">
-          {run.thought}
-        </div>
-
-        <ul className="mt-5 space-y-2">
+        <ul className="mt-3 space-y-2 border-t border-border pt-4">
           {run.steps.map((step) => {
             const done = step.status === "completed";
             const expanded = openStep === step.id;
@@ -122,12 +118,6 @@ export function RunView({ run }: { run: AgentRun }) {
           })}
         </ul>
       </section>
-
-      {run.finding && showActions ? (
-        <p className="mt-8 text-[14px] leading-6 text-muted-foreground">
-          {run.finding}
-        </p>
-      ) : null}
 
       {showActions ? (
         <section className="mt-10">
@@ -203,17 +193,6 @@ export function RunView({ run }: { run: AgentRun }) {
             ))}
           </ul>
         </section>
-      ) : null}
-
-      {run.executionNotes?.length ? (
-        <ul className="mt-10 space-y-2">
-          {run.executionNotes.map((note) => (
-            <li key={note} className="flex items-center gap-2.5 text-[13px]">
-              <Check className="size-3.5 text-success" />
-              {note}
-            </li>
-          ))}
-        </ul>
       ) : null}
 
       <div className="mt-10 flex items-center gap-3">

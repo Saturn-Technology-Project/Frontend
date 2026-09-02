@@ -37,7 +37,10 @@ export default function OverviewPage() {
             {greeting(locale)}
           </h1>
           <p className="mt-2 text-[15px] text-muted-foreground">
-            {t("overview.opsNormal")}
+            {services.length > 0 &&
+            services.every((service) => service.status === "operational")
+              ? t("overview.opsNormal")
+              : t("overview.opsIssue")}
           </p>
 
           <div className="mt-12 grid grid-cols-4 gap-8 border-y border-border py-7">
@@ -72,7 +75,11 @@ export default function OverviewPage() {
                 key={service.id}
                 className="flex items-center justify-between gap-3 text-[13px]"
               >
-                <span>{t(`service.${service.id}`)}</span>
+                <span>
+                  {t(`service.${service.id}`) === `service.${service.id}`
+                    ? service.name
+                    : t(`service.${service.id}`)}
+                </span>
                 <StatusLabel tone={service.status}>
                   {service.status === "operational"
                     ? t("overview.operational")
@@ -109,8 +116,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function eventState(event: ActivityEvent) {
   if (
     event.event === "approval_requested" ||
-    event.titleKey === "event.approvalRequested" ||
-    event.detailKey === "event.approvalRequired"
+    event.titleKey === "event.approvalRequested"
   ) {
     return "approval" as const;
   }

@@ -92,7 +92,8 @@ function ApprovalRow({
         <span className="text-[13px] font-medium">{name}</span>
         <span className="text-[13px]">
           {approval.action}
-          {approval.amount ? ` ${approval.amount}` : ""} · {approval.customer}
+          {approval.amount ? ` ${approval.amount}` : ""}
+          {approval.customer ? ` · ${approval.customer}` : ""}
         </span>
         <span className="text-[12px] text-muted-foreground">
           {relativeTime(approval.requestedAt, locale)}

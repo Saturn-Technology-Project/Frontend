@@ -4,11 +4,14 @@ import Link from "next/link";
 import { QueryGate } from "@/components/layout/query-gate";
 import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole } from "@/hooks/use-console";
+import { agentPresence } from "@/lib/agent-presence";
 import { agentCopy, useI18n } from "@/lib/i18n";
+import { usePanelStore } from "@/stores/panel-store";
 
 export default function AgentsPage() {
   const { t, locale } = useI18n();
   const { data, isPending, isError } = useConsole();
+  const live = usePanelStore((state) => state.agents);
   const agents = data?.agents ?? [];
 
   return (
@@ -21,6 +24,7 @@ export default function AgentsPage() {
         <ul className="mt-8 divide-y divide-border border-y border-border">
           {agents.map((agent) => {
             const copy = agentCopy(locale, agent.id, agent);
+            const presence = agentPresence(agent, live, t);
             return (
               <li key={agent.id}>
                 <Link
@@ -31,11 +35,8 @@ export default function AgentsPage() {
                   <span className="truncate text-[13px] text-muted-foreground">
                     {copy.description}
                   </span>
-                  <StatusLabel
-                    tone={agent.running ? "running" : "active"}
-                    className="justify-self-end"
-                  >
-                    {agent.running ? t("agents.running") : t("agents.active")}
+                  <StatusLabel tone={presence.tone} className="justify-self-end">
+                    {presence.label}
                   </StatusLabel>
                 </Link>
               </li>

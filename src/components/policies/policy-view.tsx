@@ -11,6 +11,11 @@ import type { Policy, PolicyRule } from "@/types";
 export function PolicyView({ policy }: { policy: Policy }) {
   const { t } = useI18n();
   const [mode, setMode] = useState("visual");
+  const allRules = [
+    ...policy.can.map((rule) => ({ ...rule, decision: "allow" })),
+    ...policy.requiresApproval.map((rule) => ({ ...rule, decision: "approval" })),
+    ...policy.denied.map((rule) => ({ ...rule, decision: "deny" })),
+  ];
 
   return (
     <div className="mx-auto w-full max-w-[680px]">
@@ -51,17 +56,17 @@ export function PolicyView({ policy }: { policy: Policy }) {
           />
           <PolicyBlock
             label={t("policies.can")}
-            items={localizeRules(policy.can, t)}
+            items={ruleItems(policy.can)}
             icon="allow"
           />
           <PolicyBlock
             label={t("policies.requiresApproval")}
-            items={localizeRules(policy.requiresApproval, t)}
+            items={ruleItems(policy.requiresApproval)}
             icon="approval"
           />
           <PolicyBlock
             label={t("policies.denied")}
-            items={localizeRules(policy.denied, t)}
+            items={ruleItems(policy.denied)}
             icon="deny"
           />
         </TabsContent>
@@ -70,11 +75,30 @@ export function PolicyView({ policy }: { policy: Policy }) {
           <p className="text-[13px] leading-6 text-muted-foreground">
             {t("policies.advancedBody")}
           </p>
-          <div className="mt-5 space-y-3 rounded-md border border-border bg-card px-4 py-4 text-[13px]">
-            <div>{t("policies.amountThreshold")}</div>
-            <div>{t("policies.externalComm")}</div>
-            <div>{t("policies.destructive")}</div>
-          </div>
+          <ul className="mt-5 divide-y divide-border rounded-md border border-border bg-card text-[13px]">
+            {allRules.length === 0 ? (
+              <li className="px-4 py-3 text-muted-foreground">{t("policies.noRules")}</li>
+            ) : (
+              allRules.map((rule) => (
+                <li
+                  key={rule.key}
+                  className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3"
+                >
+                  <span>
+                    {rule.label}
+                    {rule.detail ? (
+                      <span className="ml-2 font-mono text-muted-foreground">
+                        {rule.detail}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="font-mono text-[12px] text-muted-foreground">
+                    {rule.decision}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
         </TabsContent>
 
         <TabsContent value="yaml" className="mt-8">
@@ -93,13 +117,10 @@ export function PolicyView({ policy }: { policy: Policy }) {
   );
 }
 
-function localizeRules(
-  rules: PolicyRule[],
-  t: (path: string) => string
-) {
+function ruleItems(rules: PolicyRule[]) {
   return rules.map((rule) => ({
     key: rule.key,
-    label: rule.label ?? t(`policyRule.${rule.key}`),
+    label: rule.label ?? rule.key,
     detail: rule.detail,
   }));
 }

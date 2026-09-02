@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -12,17 +11,20 @@ import {
   fetchConsole,
   rejectApproval,
 } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 export const consoleQueryKey = ["console"] as const;
 
 export function useConsole() {
+  const token = useAuthStore((state) => state.token);
   return useQuery({
     queryKey: consoleQueryKey,
     queryFn: fetchConsole,
-    staleTime: 5_000,
-    refetchInterval: 12_000,
+    enabled: Boolean(token),
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
-    placeholderData: keepPreviousData,
   });
 }
 

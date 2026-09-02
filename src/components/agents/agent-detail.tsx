@@ -7,25 +7,30 @@ import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole, useCreateRun } from "@/hooks/use-console";
+import { agentPresence } from "@/lib/agent-presence";
 import { relativeTime, formatUsdc } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
+import { usePanelStore } from "@/stores/panel-store";
 import type { Agent } from "@/types";
 
 export function AgentDetail({ agent }: { agent: Agent }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const { data } = useConsole();
+  const live = usePanelStore((state) => state.agents);
   const createRun = useCreateRun();
   const agentRuns = (data?.runs ?? []).filter((run) => run.agentId === agent.id);
   const wallet = data?.wallets.find((item) => item.agentId === agent.id);
-  const defaultPrompt = t("script.acme.prompt");
-  const [customPrompt, setCustomPrompt] = useState<string | null>(null);
-  const prompt = customPrompt ?? defaultPrompt;
+  const [prompt, setPrompt] = useState("");
   const copy = agentCopy(locale, agent.id, agent);
+  const presence = agentPresence(agent, live, t);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const run = await createRun.mutateAsync({ agentId: agent.id, prompt });
+    const run = await createRun.mutateAsync({
+      agentId: agent.id,
+      prompt: prompt.trim(),
+    });
     router.push(`/agents/${agent.id}/runs/${run.id}`);
   }
 
@@ -38,7 +43,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
             {copy.name}
           </h1>
         </div>
-        <StatusLabel tone="active">{t("agents.active")}</StatusLabel>
+        <StatusLabel tone={presence.tone}>{presence.label}</StatusLabel>
       </div>
 
       <p className="mt-6 max-w-md text-[15px] leading-7 text-muted-foreground">
@@ -103,7 +108,8 @@ export function AgentDetail({ agent }: { agent: Agent }) {
         <SectionLabel>{t("agents.dispatch")}</SectionLabel>
         <textarea
           value={prompt}
-          onChange={(event) => setCustomPrompt(event.target.value)}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder={t("agents.promptPlaceholder")}
           rows={3}
           className="mt-3 w-full resize-none rounded-md border border-border bg-card px-3 py-3 text-[14px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
@@ -111,7 +117,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           <p className="mt-2 text-[13px] text-destructive">{t("common.apiError")}</p>
         ) : null}
         <div className="mt-3">
-          <Button type="submit" disabled={createRun.isPending}>
+          <Button type="submit" disabled={createRun.isPending || !prompt.trim()}>
             {t("agents.runAgent")}
           </Button>
         </div>

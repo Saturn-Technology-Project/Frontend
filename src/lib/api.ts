@@ -1,4 +1,4 @@
-import { session } from "@/lib/auth";
+import { useAuthStore } from "@/lib/auth";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy } from "@/types";
 
@@ -20,6 +20,8 @@ export interface ApiAgent {
   description: string;
   model: string;
   status: string;
+  connected?: boolean;
+  last_seen_at?: string | null;
 }
 
 export interface ApiTool {
@@ -133,18 +135,87 @@ export interface ApiHealth {
   services?: { id: string; name: string; status: string }[];
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export interface AccessPermissions {
+  agents: "none" | "read" | "write";
+  policies: "none" | "read" | "write";
+  approvals: "none" | "read" | "write";
+  team: "none" | "read" | "write";
+}
+
+export interface AuthUserResponse {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  role: string | null;
+  permissions: AccessPermissions;
+  is_platform_admin?: boolean;
+  organization: { id: string; name: string };
+  enterprise: { id: string; name: string };
+  employee: { id: string; title: string; status: string; role: string; permissions: AccessPermissions } | null;
+  agents: { id: string; name: string; status: string }[];
+  mcp_servers: {
+    id: string;
+    name: string;
+    endpoint: string;
+    status: string;
+    connected?: boolean;
+    tools: string[];
+  }[];
+  users?: { id: string; email: string; name: string; title: string; role: string; status: string }[];
+  assigned_agent_ids?: string[];
+  assigned_mcp_server_ids?: string[];
+  mcp_gateway?: { status: string; connected: number; total: number };
+}
+
+export interface LoginResponse {
+  token: string;
+  user: AuthUserResponse;
+}
+
+export function toAuthSession(token: string, user: AuthUserResponse) {
+  return {
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      status: user.status,
+      employeeTitle: user.employee?.title,
+      role: user.role ?? user.employee?.role ?? undefined,
+      permissions: user.permissions,
+      agents: user.agents.map((agent) => ({ id: agent.id, name: agent.name })),
+      mcpServers: user.mcp_servers.map((server) => ({
+        id: server.id,
+        name: server.name,
+      })),
+    },
+    org: user.enterprise ?? user.organization,
+  };
+}
+
+async function request<T>(path: string, init?: RequestInit, auth = true): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
   }
-  headers.set("X-Actor-Id", session.user.id);
+  const token = useAuthStore.getState().token;
+  if (auth && token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
     cache: "no-store",
   });
+
+  if (response.status === 401 && auth && path !== "/auth/login") {
+    useAuthStore.getState().clear();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.assign("/login");
+    }
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -162,11 +233,125 @@ function get<T>(path: string) {
   return request<T>(path);
 }
 
-function post<T>(path: string, body?: unknown) {
-  return request<T>(path, {
-    method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+function post<T>(path: string, body?: unknown, auth = true) {
+  return request<T>(
+    path,
+    {
+      method: "POST",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    auth
+  );
+}
+
+function patch<T>(path: string, body: unknown) {
+  return request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+function del(path: string) {
+  return request<void>(path, { method: "DELETE" });
+}
+
+export async function login(email: string, password: string) {
+  const result = await post<LoginResponse>("/auth/login", { email, password }, false);
+  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  return result;
+}
+
+export async function logout() {
+  try {
+    await post<void>("/auth/logout");
+  } finally {
+    useAuthStore.getState().clear();
+  }
+}
+
+export async function fetchMe() {
+  const user = await get<AuthUserResponse>("/auth/me");
+  const token = useAuthStore.getState().token;
+  if (token) {
+    useAuthStore.getState().setSession(toAuthSession(token, user));
+  }
+  return user;
+}
+
+export interface OrgMember {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  title: string;
+  role: string;
+  status: string;
+  permissions: AccessPermissions;
+  agent_ids: string[];
+  mcp_server_ids: string[];
+  created_at: string;
+}
+
+export interface OrgInvite {
+  id: string;
+  email: string;
+  name: string;
+  title: string;
+  role: string;
+  status: string;
+  permissions: AccessPermissions;
+  token?: string | null;
+  expires_at: string;
+}
+
+export async function fetchOrg() {
+  return get<{
+    organization: { id: string; name: string };
+    catalog: { resources: { id: string; actions: string[] }[]; roles: { id: string; permissions: AccessPermissions }[] };
+    me: OrgMember | null;
+  }>("/org");
+}
+
+export async function fetchOrgMembers() {
+  return get<OrgMember[]>("/org/members");
+}
+
+export async function fetchOrgInvites() {
+  return get<OrgInvite[]>("/org/invites");
+}
+
+export async function inviteOrgMember(body: {
+  email: string;
+  name: string;
+  title?: string;
+  role?: string;
+  permissions?: AccessPermissions;
+  agent_ids?: string[];
+  mcp_server_ids?: string[];
+}) {
+  return post<OrgInvite>("/org/invites", body);
+}
+
+export async function updateOrgMember(
+  employeeId: string,
+  body: Partial<{
+    name: string;
+    title: string;
+    role: string;
+    permissions: AccessPermissions;
+    status: string;
+    agent_ids: string[];
+    mcp_server_ids: string[];
+  }>
+) {
+  return patch<OrgMember>(`/org/members/${employeeId}`, body);
+}
+
+export async function revokeOrgInvite(inviteId: string) {
+  return del(`/org/invites/${inviteId}`);
+}
+
+export async function acceptInvite(token: string, password: string) {
+  const result = await post<LoginResponse>("/auth/accept-invite", { token, password }, false);
+  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  return result;
 }
 
 export async function fetchConsole(): Promise<ConsoleData> {
@@ -178,10 +363,10 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiRun[]>("/runs"),
       get<ApiApproval[]>("/approvals"),
       get<ApiActivity[]>("/activity"),
-      get<ApiWallet[]>("/wallets").catch(() => [] as ApiWallet[]),
-      get<ApiPayment[]>("/payments").catch(() => [] as ApiPayment[]),
-      get<ApiX402Supported>("/x402/supported").catch(() => null),
-      get<ApiHealth>("/health").catch(() => ({ status: "down" }) as ApiHealth),
+      get<ApiWallet[]>("/wallets"),
+      get<ApiPayment[]>("/payments"),
+      get<ApiX402Supported>("/x402/supported"),
+      get<ApiHealth>("/health"),
     ]);
 
   return mapConsole({

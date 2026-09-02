@@ -19,20 +19,17 @@ const actorTone: Record<ActorKind, "running" | "completed" | "pending" | "info">
 
 function payloadRows(event: ActivityEvent) {
   const rows: { label: string; value: string }[] = [];
-  const payload = event.payload;
-  if (!payload) return rows;
-  if (payload.input) rows.push({ label: "INPUT", value: JSON.stringify(payload.input) });
-  if (payload.policy) rows.push({ label: "POLICY", value: JSON.stringify(payload.policy) });
-  if (payload.tool) rows.push({ label: "TOOL", value: payload.tool });
-  if (payload.parameters) {
-    rows.push({ label: "PARAMETERS", value: JSON.stringify(payload.parameters) });
-  }
-  if (payload.result) rows.push({ label: "RESULT", value: JSON.stringify(payload.result) });
-  if (payload.approval) {
-    rows.push({ label: "APPROVAL", value: JSON.stringify(payload.approval) });
-  }
-  if (payload.payment) {
-    rows.push({ label: "x402", value: JSON.stringify(payload.payment) });
+  if (event.tool) rows.push({ label: "TOOL", value: event.tool });
+  if (event.result) rows.push({ label: "RESULT", value: event.result });
+  const raw = event.raw;
+  if (raw) {
+    for (const [key, value] of Object.entries(raw)) {
+      if (value == null) continue;
+      rows.push({
+        label: key.replaceAll("_", " ").toUpperCase(),
+        value: typeof value === "string" ? value : JSON.stringify(value),
+      });
+    }
   }
   return rows;
 }

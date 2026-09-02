@@ -49,9 +49,9 @@ export function agentCopy(
   fallback?: { name?: string; description?: string }
 ) {
   return {
-    name: lookup(locale, `agent.${id}.name`) ?? fallback?.name ?? id,
+    name: fallback?.name || lookup(locale, `agent.${id}.name`) || id,
     description:
-      lookup(locale, `agent.${id}.description`) ?? fallback?.description ?? "",
+      fallback?.description || lookup(locale, `agent.${id}.description`) || "",
   };
 }
 
@@ -65,9 +65,6 @@ export function eventActor(
 ) {
   if (event.actorKind === "wallet") {
     return lookup(locale, "actor.wallet") ?? event.actor;
-  }
-  if (event.actorKind === "agent" && event.actorId) {
-    return lookup(locale, `agent.${event.actorId}.name`) ?? event.actor;
   }
   return event.actor;
 }

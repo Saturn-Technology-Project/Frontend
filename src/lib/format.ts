@@ -1,9 +1,3 @@
-export const DEMO_NOW = new Date("2026-09-02T13:31:00+08:00").getTime();
-
-export function minutesAgo(minutes: number, from = DEMO_NOW) {
-  return new Date(from - minutes * 60_000).toISOString();
-}
-
 export function relativeTime(iso: string, locale: "en" | "zh" = "en") {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.max(0, Math.floor(diff / 60_000));
