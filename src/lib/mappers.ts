@@ -4,7 +4,9 @@ import type {
   ApiActivity,
   ApiAgent,
   ApiApproval,
+  ApiConnector,
   ApiHealth,
+  ApiMcpServer,
   ApiPayment,
   ApiPolicy,
   ApiRun,
@@ -13,6 +15,12 @@ import type {
   ApiX402Supported,
 } from "@/lib/api";
 import { parseAmount } from "@/lib/format";
+import { normalizeSettings } from "@/lib/agent-config";
+import {
+  approvalRisk,
+  formatMatchedRule,
+  normalizeDecision,
+} from "@/lib/policy";
 import type {
   ActivityEvent,
   ActorKind,
@@ -20,12 +28,16 @@ import type {
   AgentRun,
   AgentWallet,
   Approval,
+  Connector,
   ConsoleData,
   Integration,
+  McpServer,
   Payment,
   PaymentStatus,
   Policy,
   PolicyCheck,
+  PolicyCondition,
+  PolicyEvaluation,
   PolicyRule,
   ProposedAction,
   RunStatus,
@@ -173,46 +185,46 @@ function formatActionLabel(action: ApiAction): string {
   return action.tool;
 }
 
-function policyYaml(policy: ApiPolicy): string {
-  const lines = [`name: ${policy.name}`, "rules:"];
-  if (policy.rules.length === 0) {
-    lines.push("  []");
-    return lines.join("\n");
-  }
-  for (const rule of policy.rules) {
-    lines.push(`  - tool: ${rule.tool}`);
-    lines.push(`    when: ${rule.condition}`);
-    lines.push(`    decision: ${rule.decision}`);
-  }
-  return lines.join("\n");
+function mapPolicyRule(rule: ApiPolicy["rules"][number]): PolicyRule {
+  const conditions: PolicyCondition[] = (rule.conditions ?? []).map((item) => ({
+    field: item.field,
+    operator: item.operator,
+    value: item.value,
+  }));
+  return {
+    id: rule.id,
+    tool: rule.tool,
+    condition: rule.condition,
+    conditions,
+    decision: normalizeDecision(rule.decision),
+    position: rule.position ?? 0,
+  };
 }
 
-function mapPolicy(policy: ApiPolicy, agentNames: string[]): Policy {
-  const can: PolicyRule[] = [];
-  const requiresApproval: PolicyRule[] = [];
-  const denied: PolicyRule[] = [];
-
-  for (const rule of policy.rules) {
-    const item: PolicyRule = {
-      key: `${rule.tool}:${rule.condition}:${rule.decision}`,
-      label: rule.tool,
-      detail: rule.condition,
-    };
-    const permission = decisionPermission(rule.decision);
-    if (permission === "allow") can.push(item);
-    else if (permission === "approval") requiresApproval.push(item);
-    else denied.push(item);
-  }
-
+function mapPolicy(
+  policy: ApiPolicy,
+  agents: ApiAgent[]
+): Policy {
+  const rules = [...policy.rules]
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map(mapPolicyRule);
+  const agentIds = policy.agent_ids ?? [];
+  const agentNames = agentIds.map(
+    (id) => agents.find((agent) => agent.id === id)?.name ?? id
+  );
   return {
     id: policy.id,
     name: policy.name,
-    version: "",
-    who: agentNames,
-    can,
-    requiresApproval,
-    denied,
-    yaml: policyYaml(policy),
+    description: policy.description ?? "",
+    status: policy.status === "paused" ? "paused" : "active",
+    version: policy.version ?? 1,
+    environment: policy.environment ?? "production",
+    agentIds,
+    agents: agentNames,
+    tools: Array.from(new Set(rules.map((rule) => rule.tool).filter(Boolean))),
+    rules,
+    createdAt: policy.created_at ?? undefined,
+    updatedAt: policy.updated_at ?? undefined,
   };
 }
 
@@ -246,7 +258,11 @@ function mapTools(tools: ApiTool[], policies: ApiPolicy[]): Integration[] {
   });
 }
 
-function mapRun(run: ApiRun): AgentRun {
+function mapRun(
+  run: ApiRun,
+  policies: ApiPolicy[],
+  approvals: ApiApproval[]
+): AgentRun {
   const steps: RunStep[] = run.actions.map((action) => ({
     id: action.id,
     label: action.tool,
@@ -282,6 +298,40 @@ function mapRun(run: ApiRun): AgentRun {
             : "approval",
     }));
 
+  const evaluations: PolicyEvaluation[] = run.actions.map((action) => {
+    const policy =
+      policies.find((item) => item.id === action.policy_id) ??
+      policies.find((item) => item.rules.some((rule) => rule.tool === action.tool));
+    const matched = policy?.rules.find((rule) => rule.id === action.policy_rule_id);
+    const approval = approvals.find((item) => item.action_id === action.id);
+    return {
+      id: action.id,
+      tool: action.tool,
+      arguments: action.arguments,
+      status: action.status,
+      result: action.result ?? undefined,
+      decision: action.policy_decision,
+      policyId: action.policy_id,
+      policyName: policy?.name,
+      policyVersion: action.policy_version ?? policy?.version ?? null,
+      matchedRuleId: action.policy_rule_id,
+      matchedRule: matched
+        ? matched.conditions && matched.conditions.length > 0
+          ? formatMatchedRule(matched.conditions)
+          : matched.condition
+        : undefined,
+      reason: action.policy_reason,
+      approvalId: approval?.id,
+      approvalStatus: approval
+        ? ((["pending", "approved", "rejected"].includes(approval.status)
+            ? approval.status
+            : "pending") as Approval["status"])
+        : undefined,
+      resolvedBy: approval?.resolved_by ?? undefined,
+      resolvedAt: approval?.resolved_at ?? undefined,
+    };
+  });
+
   const done =
     run.status === "completed" ||
     run.status === "failed" ||
@@ -295,6 +345,7 @@ function mapRun(run: ApiRun): AgentRun {
     steps,
     actions,
     policyChecks,
+    evaluations,
     approvalId: run.approval_id ?? undefined,
     startedAt: run.created_at,
     completedAt: done ? run.updated_at : undefined,
@@ -312,9 +363,12 @@ function mapApproval(
     args.name ?? args.customer ?? args.customer_id ?? ""
   );
   const policy =
+    policies.find((item) => item.id === action?.policy_id) ??
     policies.find((item) =>
       item.rules.some((rule) => rule.tool === action?.tool)
-    )?.name ?? "";
+    );
+  const matched = policy?.rules.find((rule) => rule.id === action?.policy_rule_id);
+  const amountValue = approval.requested_amount ?? args.amount;
 
   return {
     id: approval.id,
@@ -322,11 +376,20 @@ function mapApproval(
     actionId: approval.action_id,
     agentId: run?.agent_id ?? "",
     action: action?.tool ?? approval.action_id,
-    amount: formatAmount(approval.requested_amount ?? args.amount),
-    currency: approval.requested_amount != null || args.amount != null ? "USD" : undefined,
+    amount: formatAmount(amountValue),
+    currency: amountValue != null ? "USD" : undefined,
     customer,
-    reason: run?.input ?? "",
-    policy,
+    reason:
+      action?.policy_reason ||
+      String(args.reason ?? run?.input ?? ""),
+    policy: policy?.name ?? "",
+    policyVersion: action?.policy_version ?? policy?.version,
+    triggeredRule: matched
+      ? matched.conditions && matched.conditions.length > 0
+        ? formatMatchedRule(matched.conditions)
+        : matched.condition
+      : undefined,
+    risk: approvalRisk(amountValue),
     status: (["pending", "approved", "rejected"].includes(approval.status)
       ? approval.status
       : "pending") as Approval["status"],
@@ -402,7 +465,13 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
     payload: {
       input: payload.input,
       policy: payload.policy_id
-        ? { policy_id: payload.policy_id, decision: event.result }
+        ? {
+            policy_id: payload.policy_id,
+            policy_version: payload.policy_version,
+            matched_rule_id: payload.matched_rule_id,
+            reason: payload.reason,
+            decision: event.result,
+          }
         : undefined,
       tool: event.tool ?? undefined,
       parameters: payload.arguments,
@@ -453,6 +522,10 @@ function mapAgent(
         run.status === "waiting_approval")
   );
 
+  const assigned = Array.isArray(agent.settings?.tools)
+    ? new Set(agent.settings.tools)
+    : null;
+
   return {
     id: agent.id,
     name: agent.name,
@@ -461,11 +534,46 @@ function mapAgent(
     status: agent.status === "paused" ? "paused" : "active",
     running: live,
     connected: Boolean(agent.connected),
+    enrolled: Boolean(agent.enrolled),
+    connectorId: agent.connector_id ?? null,
+    runtimeId: agent.runtime_id ?? null,
+    lastHeartbeatAt: agent.last_seen_at ?? null,
     model: agent.model,
-    toolIds: tools.map((tool) => tool.id),
-    policyIds: policies.map((policy) => policy.id),
+    toolIds: tools
+      .filter((tool) => (assigned ? assigned.has(tool.name) : true))
+      .map((tool) => tool.id),
+    policyIds: policies
+      .filter((policy) => {
+        const ids = policy.agent_ids ?? [];
+        return ids.length === 0 || ids.includes(agent.id);
+      })
+      .map((policy) => policy.id),
     walletId: wallets.find((wallet) => wallet.agent_id === agent.id)?.id,
+    settings: normalizeSettings(agent.settings, agent.model),
   };
+}
+
+function mapConnector(connector: ApiConnector | null): Connector | null {
+  if (!connector) return null;
+  return {
+    id: connector.id,
+    name: connector.name || "Saturn Connector",
+    enrolled: Boolean(connector.enrolled),
+    connected: Boolean(connector.connected),
+    environmentId: connector.environment_id || "",
+    lastHeartbeatAt: connector.last_seen_at ?? null,
+  };
+}
+
+function mapMcpServers(servers: ApiMcpServer[]): McpServer[] {
+  return servers.map((server) => ({
+    id: server.id,
+    name: server.name,
+    endpoint: server.endpoint,
+    status: server.connected || server.status === "active" ? "connected" : "disconnected",
+    tools: server.tools ?? [],
+    connected: Boolean(server.connected),
+  }));
 }
 
 export function mapConsole(input: {
@@ -479,8 +587,9 @@ export function mapConsole(input: {
   payments: ApiPayment[];
   x402: ApiX402Supported | null;
   health: ApiHealth;
+  connector?: ApiConnector | null;
+  mcpServers?: ApiMcpServer[];
 }): ConsoleData {
-  const agentNames = input.agents.map((agent) => agent.name);
   const runsById = new Map(input.runs.map((run) => [run.id, run]));
   const kind = input.x402?.kinds?.[0];
   const x402: X402Support | null = kind
@@ -492,8 +601,10 @@ export function mapConsole(input: {
       mapAgent(agent, input.tools, input.policies, input.runs, input.wallets)
     ),
     integrations: mapTools(input.tools, input.policies),
-    policies: input.policies.map((policy) => mapPolicy(policy, agentNames)),
-    runs: input.runs.map(mapRun),
+    mcpServers: mapMcpServers(input.mcpServers ?? []),
+    connector: mapConnector(input.connector ?? null),
+    policies: input.policies.map((policy) => mapPolicy(policy, input.agents)),
+    runs: input.runs.map((run) => mapRun(run, input.policies, input.approvals)),
     approvals: input.approvals.map((approval) =>
       mapApproval(approval, runsById.get(approval.run_id), input.policies)
     ),

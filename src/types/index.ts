@@ -15,6 +15,37 @@ export type ServiceStatus = "operational" | "degraded" | "down";
 export type WalletStatus = "active" | "paused";
 export type PaymentStatus = "pending" | "verified" | "settled" | "denied" | "failed";
 
+export type AgentResponseStyle = "concise" | "professional" | "detailed";
+export type AgentAutonomy =
+  | "suggest_only"
+  | "execute_when_allowed"
+  | "fully_autonomous";
+export type AgentProvider = "openai" | "anthropic" | "google";
+
+export interface AgentKnowledgeSource {
+  id: string;
+  name: string;
+  kind: "document";
+  enabled: boolean;
+}
+
+export interface AgentSettings {
+  instructions: string;
+  responseStyle: AgentResponseStyle;
+  autonomy: AgentAutonomy;
+  tools: string[] | null;
+  knowledge: AgentKnowledgeSource[];
+  provider: AgentProvider;
+  model: string;
+  temperature: number;
+  maxOutput: number;
+  environment: string;
+  region: string;
+  maxConcurrentRuns: number;
+  maxToolCalls: number;
+  maxRuntimeMinutes: number;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -23,10 +54,15 @@ export interface Agent {
   status: AgentStatus;
   running: boolean;
   connected: boolean;
+  enrolled?: boolean;
+  connectorId?: string | null;
+  runtimeId?: string | null;
+  lastHeartbeatAt?: string | null;
   model: string;
   toolIds: string[];
   policyIds: string[];
   walletId?: string;
+  settings: AgentSettings;
 }
 
 export interface ToolFunction {
@@ -51,6 +87,25 @@ export interface Integration {
   status: ToolConnection;
   functions: ToolFunction[];
   x402?: X402Price;
+  connectorId?: string | null;
+}
+
+export interface Connector {
+  id: string | null;
+  name: string;
+  enrolled: boolean;
+  connected: boolean;
+  environmentId?: string;
+  lastHeartbeatAt?: string | null;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  endpoint: string;
+  status: ToolConnection;
+  tools: string[];
+  connected: boolean;
 }
 
 export interface AgentWallet {
@@ -88,21 +143,37 @@ export interface X402Support {
   network: string;
 }
 
+export type PolicyAction = "allow" | "approval_required" | "deny";
+export type PolicyStatus = "active" | "paused";
+
+export interface PolicyCondition {
+  field: string;
+  operator: string;
+  value: string | number | boolean;
+}
+
 export interface PolicyRule {
-  key: string;
-  label?: string;
-  detail?: string;
+  id: string;
+  tool: string;
+  condition: string;
+  conditions: PolicyCondition[];
+  decision: PolicyAction;
+  position: number;
 }
 
 export interface Policy {
   id: string;
   name: string;
-  version: string;
-  who: string[];
-  can: PolicyRule[];
-  requiresApproval: PolicyRule[];
-  denied: PolicyRule[];
-  yaml: string;
+  description: string;
+  status: PolicyStatus;
+  version: number;
+  environment: string;
+  agentIds: string[];
+  agents: string[];
+  tools: string[];
+  rules: PolicyRule[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface RunStep {
@@ -127,6 +198,25 @@ export interface PolicyCheck {
   status: "pass" | "approval" | "fail";
 }
 
+export interface PolicyEvaluation {
+  id: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+  status: string;
+  result?: Record<string, unknown>;
+  decision: string | null;
+  policyId?: string | null;
+  policyName?: string;
+  policyVersion?: number | null;
+  matchedRuleId?: string | null;
+  matchedRule?: string;
+  reason?: string | null;
+  approvalId?: string;
+  approvalStatus?: ApprovalStatus;
+  resolvedBy?: string;
+  resolvedAt?: string;
+}
+
 export interface AgentRun {
   id: string;
   agentId: string;
@@ -135,6 +225,7 @@ export interface AgentRun {
   steps: RunStep[];
   actions: ProposedAction[];
   policyChecks: PolicyCheck[];
+  evaluations: PolicyEvaluation[];
   approvalId?: string;
   startedAt: string;
   completedAt?: string;
@@ -151,6 +242,9 @@ export interface Approval {
   customer: string;
   reason: string;
   policy: string;
+  policyVersion?: number;
+  triggeredRule?: string;
+  risk?: "low" | "medium" | "high";
   status: ApprovalStatus;
   requestedAt: string;
   resolvedAt?: string;
@@ -193,6 +287,8 @@ export interface SystemService {
 export interface ConsoleData {
   agents: Agent[];
   integrations: Integration[];
+  mcpServers: McpServer[];
+  connector: Connector | null;
   policies: Policy[];
   runs: AgentRun[];
   approvals: Approval[];

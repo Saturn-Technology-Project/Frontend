@@ -22,6 +22,10 @@ const notoSansTC = Noto_Sans_TC({
 export const metadata: Metadata = {
   title: "Saturn",
   description: "Enterprise AI control plane",
+  icons: {
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansTC.variable} h-full`}
       suppressHydrationWarning
     >
-      <body className="min-h-full font-sans">
+      <body className="h-full overflow-hidden font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>

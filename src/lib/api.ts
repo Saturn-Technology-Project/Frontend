@@ -1,6 +1,7 @@
 import { useAuthStore } from "@/lib/auth";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy } from "@/types";
+import type { ApiAgentSettings } from "@/lib/agent-config";
 
 const API_BASE = "/saturn-api";
 
@@ -21,7 +22,12 @@ export interface ApiAgent {
   model: string;
   status: string;
   connected?: boolean;
+  enrolled?: boolean;
+  connector_id?: string | null;
+  runtime_id?: string | null;
   last_seen_at?: string | null;
+  settings?: ApiAgentSettings;
+  pushed?: boolean | null;
 }
 
 export interface ApiTool {
@@ -35,16 +41,32 @@ export interface ApiTool {
   status: string;
 }
 
+export interface ApiPolicyCondition {
+  field: string;
+  operator: string;
+  value: string | number | boolean;
+}
+
 export interface ApiPolicyRule {
+  id: string;
   tool: string;
   condition: string;
+  conditions?: ApiPolicyCondition[];
   decision: string;
+  position?: number;
 }
 
 export interface ApiPolicy {
   id: string;
   name: string;
+  description?: string;
+  status?: string;
+  version?: number;
+  environment?: string;
+  agent_ids?: string[];
   rules: ApiPolicyRule[];
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ApiAction {
@@ -53,6 +75,10 @@ export interface ApiAction {
   tool: string;
   arguments: Record<string, unknown>;
   policy_decision: string | null;
+  policy_id?: string | null;
+  policy_rule_id?: string | null;
+  policy_version?: number | null;
+  policy_reason?: string | null;
   status: string;
   result: Record<string, unknown> | null;
 }
@@ -303,10 +329,53 @@ export interface OrgInvite {
 
 export async function fetchOrg() {
   return get<{
-    organization: { id: string; name: string };
+    organization: {
+      id: string;
+      name: string;
+      plan?: string;
+      addons?: { id: string; name: string; href?: string | null }[];
+    };
     catalog: { resources: { id: string; actions: string[] }[]; roles: { id: string; permissions: AccessPermissions }[] };
     me: OrgMember | null;
   }>("/org");
+}
+
+export interface SubscriptionLine {
+  kind: "plan" | "addon" | string;
+  id: string;
+  name: string;
+  amount: string;
+}
+
+export interface SubscriptionInvoice {
+  id: string;
+  number: string;
+  period: string;
+  issued_at: string;
+  paid_at?: string | null;
+  amount: string;
+  currency: string;
+  status: "open" | "paid" | string;
+  lines: SubscriptionLine[];
+}
+
+export interface Subscription {
+  organization_id: string;
+  organization_name: string;
+  status: string;
+  plan: SubscriptionLine;
+  addons: SubscriptionLine[];
+  renews_on: string;
+  payment: { brand: string; last4: string; exp: string; demo: boolean };
+  invoices: SubscriptionInvoice[];
+}
+
+export async function fetchSubscription() {
+  return get<Subscription>("/org/subscription");
+}
+
+export async function paySubscriptionInvoice(invoiceId: string) {
+  return post<Subscription>(`/org/subscription/invoices/${invoiceId}/pay`);
 }
 
 export async function fetchOrgMembers() {
@@ -355,7 +424,7 @@ export async function acceptInvite(token: string, password: string) {
 }
 
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health] =
+  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, connector, mcpServers] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
@@ -367,6 +436,8 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiPayment[]>("/payments"),
       get<ApiX402Supported>("/x402/supported"),
       get<ApiHealth>("/health"),
+      get<ApiConnector>("/connectors").catch(() => null),
+      get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
     ]);
 
   return mapConsole({
@@ -380,6 +451,8 @@ export async function fetchConsole(): Promise<ConsoleData> {
     payments,
     x402,
     health,
+    connector,
+    mcpServers: mcpServers ?? [],
   });
 }
 
@@ -416,6 +489,119 @@ export async function fetchPolicy(id: string): Promise<Policy | null> {
 export async function fetchSystemStatus() {
   const data = await fetchConsole();
   return data.services;
+}
+
+export async function createAgent(body: {
+  name: string;
+  description?: string;
+  model?: string;
+}): Promise<ApiAgent> {
+  return post<ApiAgent>("/agents", body);
+}
+
+export interface AgentUpdateBody {
+  name?: string;
+  description?: string;
+  model?: string;
+  runtime_id?: string | null;
+  settings?: Partial<ApiAgentSettings>;
+  daily_spend_limit?: string | number;
+  per_tx_limit?: string | number;
+}
+
+export async function updateAgent(
+  id: string,
+  body: AgentUpdateBody
+): Promise<ApiAgent> {
+  return patch<ApiAgent>(`/agents/${id}`, body);
+}
+
+export interface ApiAgentEnroll {
+  agent_id: string;
+  token: string;
+  ws_url: string;
+}
+
+export interface ApiConnector {
+  id: string | null;
+  name: string;
+  enrolled: boolean;
+  connected: boolean;
+  environment_id?: string;
+  version?: string;
+  capabilities?: string[];
+  last_seen_at?: string | null;
+  organization_id?: string | null;
+}
+
+export interface ApiConnectorEnroll {
+  connector_id: string;
+  token: string;
+  ws_url: string;
+}
+
+export interface ApiMcpServer {
+  id: string;
+  name: string;
+  endpoint: string;
+  status: string;
+  connected?: boolean;
+  gateway?: string;
+  organization_id?: string | null;
+  tools: string[];
+}
+
+export async function enrollAgent(agentId: string): Promise<ApiAgentEnroll> {
+  return post<ApiAgentEnroll>(`/agents/${agentId}/enroll`);
+}
+
+export async function fetchEnrollment(agentId: string): Promise<ApiAgentEnroll | null> {
+  try {
+    return await get<ApiAgentEnroll>(`/agents/${agentId}/enrollment`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function fetchConnector(): Promise<ApiConnector> {
+  return get<ApiConnector>("/connectors");
+}
+
+export async function enrollConnector(): Promise<ApiConnectorEnroll> {
+  return post<ApiConnectorEnroll>("/connectors/enroll");
+}
+
+export async function fetchConnectorEnrollment(): Promise<ApiConnectorEnroll | null> {
+  try {
+    return await get<ApiConnectorEnroll>("/connectors/enrollment");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export interface PolicyWrite {
+  name: string;
+  description?: string;
+  environment?: string;
+  status?: string;
+  agent_ids?: string[];
+  tool?: string;
+  rules: {
+    tool?: string;
+    condition?: string;
+    conditions?: { field: string; operator: string; value: string | number | boolean }[];
+    decision: string;
+  }[];
+}
+
+export async function createPolicy(body: PolicyWrite): Promise<ApiPolicy> {
+  return post<ApiPolicy>("/policies", body);
+}
+
+export async function updatePolicy(id: string, body: Partial<PolicyWrite>): Promise<ApiPolicy> {
+  return patch<ApiPolicy>(`/policies/${id}`, body);
 }
 
 export async function createRun(agentId: string, prompt: string): Promise<ApiRun> {

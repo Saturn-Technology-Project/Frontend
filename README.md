@@ -30,15 +30,17 @@ npm run dev
 
 Override the API origin with `API_URL` (see `.env.example`). Restart `next dev` after changing it. In Docker the rewrite target is `http://api:8000`.
 
+See [`DEPLOY.md`](DEPLOY.md) for Cloud Run.
+
 ## Path
 
 1. Sign in
 2. Overview
-3. Create agents, MCP servers, tools, and policies
-4. Connect an Agent runtime over WebSocket, then dispatch a run from the Panel
+3. Connect Saturn Connector from Agents or MCP, then wait for it to register agents and tools
+4. Dispatch a run to a specific agent over the Panel WebSocket
 5. Human approval when policy requires it
 6. Activity audit timeline
 
 Wallets live at `/wallets`. Paid tools show an x402 price. Facilitator: `GET /x402/supported`.
 
-Frontend is Next.js on Vercel. Backend stays on GCP.
+Frontend is Next.js on Cloud Run. Backend is FastAPI on Cloud Run. See `DEPLOY.md`.

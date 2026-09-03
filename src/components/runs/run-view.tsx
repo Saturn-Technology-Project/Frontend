@@ -1,17 +1,18 @@
 "use client";
 
-import { Check, Circle } from "lucide-react";
+import { Check } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ApprovalPanel } from "@/components/approvals/approval-panel";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
-import { StatusDot, StatusLabel } from "@/components/ui/status-dot";
+import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole, useResolveApproval } from "@/hooks/use-console";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { formatUsdc, shortAddress } from "@/lib/format";
-import type { AgentRun, PaymentStatus, RunStatus } from "@/types";
+import { formatUsdc, relativeTime, shortAddress } from "@/lib/format";
+import { formatMoney, normalizeDecision } from "@/lib/policy";
+import type { AgentRun, PaymentStatus, PolicyEvaluation, RunStatus } from "@/types";
 
 const statusTone: Record<
   RunStatus,
@@ -34,6 +35,141 @@ const paymentTone: Record<PaymentStatus, "pending" | "completed" | "rejected" | 
   failed: "failed",
 };
 
+function decisionStamp(decision: string | null) {
+  if (!decision) return null;
+  const key = normalizeDecision(decision);
+  if (key === "allow") return "ALLOW";
+  if (key === "deny") return "DENY";
+  return "APPROVAL REQUIRED";
+}
+
+function Connector() {
+  return <div className="py-3 pl-1 text-[13px] text-muted-foreground">↓</div>;
+}
+
+function argumentLines(args: Record<string, unknown>) {
+  return Object.entries(args).map(([key, value]) => {
+    const label = key.replaceAll("_", " ");
+    const rendered =
+      key === "amount" ? formatMoney(value) : typeof value === "string" ? value : JSON.stringify(value);
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${rendered}`;
+  });
+}
+
+function EvaluationBlock({
+  item,
+  index,
+  locale,
+}: {
+  item: PolicyEvaluation;
+  index: number;
+  locale: "en" | "zh";
+}) {
+  const { t } = useI18n();
+  const stamp = decisionStamp(item.decision);
+  const executed = item.status === "completed";
+  const denied = item.status === "denied" || item.status === "rejected";
+  const waiting = item.status === "waiting_approval";
+
+  return (
+    <div>
+      <SectionLabel>{t("run.actionN", { n: String(index + 1).padStart(2, "0") })}</SectionLabel>
+      <div className="mt-3 border-t border-border pt-4">
+        <div className="text-[15px]">{item.tool}</div>
+        <div className="mt-2 space-y-1 text-[13px] text-muted-foreground">
+          {argumentLines(item.arguments).map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+        </div>
+
+        {item.decision ? (
+          <>
+            <Connector />
+            <SectionLabel>{t("run.policyEvaluation")}</SectionLabel>
+            <div className="mt-3">
+              {item.policyName ? (
+                <StatusLabel tone="active">
+                  {item.policyName}
+                  {item.policyVersion ? ` ${t("policies.version", { n: item.policyVersion })}` : ""}
+                </StatusLabel>
+              ) : null}
+              {item.matchedRule ? (
+                <div className="mt-4">
+                  <div className="text-[12px] text-muted-foreground">{t("run.ruleMatched")}</div>
+                  <div className="mt-2 whitespace-pre-line text-[15px] leading-7">
+                    {item.matchedRule.replaceAll(" AND ", "\nAND\n")}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-5">
+                <div className="text-[12px] text-muted-foreground">{t("run.decision")}</div>
+                <div
+                  className={cn(
+                    "mt-2 text-[13px] tracking-[0.08em]",
+                    normalizeDecision(item.decision) === "allow"
+                      ? "text-success"
+                      : normalizeDecision(item.decision) === "deny"
+                        ? "text-destructive"
+                        : "text-warning"
+                  )}
+                >
+                  {stamp}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {item.approvalId ? (
+          <>
+            <Connector />
+            <SectionLabel>{t("run.humanApproval")}</SectionLabel>
+            <div className="mt-3 text-[15px]">
+              {item.approvalStatus === "approved" && item.resolvedBy ? (
+                <>
+                  <div>{t("approvals.approvedBy", { name: item.resolvedBy })}</div>
+                  {item.resolvedAt ? (
+                    <div className="mt-1 text-[13px] text-muted-foreground">
+                      {relativeTime(item.resolvedAt, locale)}
+                    </div>
+                  ) : null}
+                </>
+              ) : item.approvalStatus === "rejected" && item.resolvedBy ? (
+                <>
+                  <div>{t("approvals.rejectedBy", { name: item.resolvedBy })}</div>
+                  {item.resolvedAt ? (
+                    <div className="mt-1 text-[13px] text-muted-foreground">
+                      {relativeTime(item.resolvedAt, locale)}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-warning">{t("run.status.awaiting_approval")}</div>
+              )}
+            </div>
+          </>
+        ) : null}
+
+        <Connector />
+        <SectionLabel>{t("run.toolExecution")}</SectionLabel>
+        <div className="mt-3 flex items-center gap-2.5 text-[15px]">
+          {executed ? <Check className="size-3.5 text-success" /> : null}
+          <span>{item.tool}</span>
+        </div>
+        <div className="mt-2 text-[13px] tracking-[0.08em] text-muted-foreground">
+          {executed
+            ? t("run.completed")
+            : denied
+              ? t("run.denied")
+              : waiting
+                ? t("run.waiting")
+                : t("run.status.running")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RunView({ run }: { run: AgentRun }) {
   const { t, locale } = useI18n();
   const { data } = useConsole();
@@ -42,28 +178,19 @@ export function RunView({ run }: { run: AgentRun }) {
   const copy = agent ? agentCopy(locale, agent.id, agent) : null;
   const approval = data?.approvals.find((item) => item.id === run.approvalId);
   const payments = (data?.payments ?? []).filter((item) => item.runId === run.id);
-  const [approvalOpen, setApprovalOpen] = useState(
-    run.status === "awaiting_approval"
-  );
-  const [openStep, setOpenStep] = useState<string | null>(null);
-
-  const showActions =
-    run.actions.length > 0 &&
-    (run.status === "awaiting_approval" ||
-      run.status === "completed" ||
-      run.status === "failed" ||
-      run.status === "rejected");
+  const [approvalOpen, setApprovalOpen] = useState(run.status === "awaiting_approval");
 
   return (
     <div className="mx-auto w-full max-w-[680px] px-8 py-10">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <div className="text-[11px] text-muted-foreground">
-            {t("agents.role")}
-          </div>
+          <div className="text-[11px] text-muted-foreground">{t("agents.role")}</div>
           <h1 className="mt-1 text-[22px] font-medium tracking-tight">
             {copy?.name ?? agent?.name ?? t("run.agent")}
           </h1>
+          <div className="mt-1 font-mono text-[12px] text-muted-foreground">
+            {run.id.replace(/^run_/, "Run ")}
+          </div>
         </div>
         <StatusLabel
           tone={statusTone[run.status]}
@@ -80,89 +207,11 @@ export function RunView({ run }: { run: AgentRun }) {
         </div>
       </section>
 
-      <section className="mt-10">
-        <SectionLabel>{t("run.agent")}</SectionLabel>
-        <ul className="mt-3 space-y-2 border-t border-border pt-4">
-          {run.steps.map((step) => {
-            const done = step.status === "completed";
-            const expanded = openStep === step.id;
-            return (
-              <li key={step.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpenStep(expanded ? null : step.id)}
-                  className="flex w-full items-center gap-2.5 py-1 text-left text-[13px]"
-                >
-                  {done ? (
-                    <Check className="size-3.5 text-success" />
-                  ) : (
-                    <Circle className="size-3.5 text-[#d0d0ca]" />
-                  )}
-                  <span className={done ? "text-foreground" : "text-muted-foreground"}>
-                    {step.label}
-                  </span>
-                </button>
-                {expanded && (done || step.parameters) ? (
-                  <div className="mb-2 ml-6 grid gap-2 rounded-md border border-border bg-card px-3 py-3 font-mono text-[11px] leading-5 text-muted-foreground">
-                    {step.tool ? <div>TOOL  {step.tool}</div> : null}
-                    {step.parameters ? (
-                      <div>PARAMS  {JSON.stringify(step.parameters)}</div>
-                    ) : null}
-                    {step.result ? (
-                      <div>RESULT  {JSON.stringify(step.result)}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {showActions ? (
-        <section className="mt-10">
-          <SectionLabel>{t("run.actionProposed")}</SectionLabel>
-          <div className="mt-3 border-t border-border pt-4">
-            <ul className="space-y-2 text-[15px] leading-7">
-              {run.actions.map((action) => (
-                <li
-                  key={action.id}
-                  className="flex items-center justify-between gap-4"
-                >
-                  <span>{action.label}</span>
-                  {action.requiresApproval ? (
-                    <span className="text-[11px] text-warning">
-                      {t("run.approval")}
-                    </span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      ) : null}
-
-      {run.policyChecks.length > 0 ? (
-        <section className="mt-10">
-          <SectionLabel>{t("run.policyCheck")}</SectionLabel>
-          <div className="mt-3 space-y-2 border-t border-border pt-4">
-            {run.policyChecks.map((check) => (
-              <div key={check.id} className="flex items-center gap-2.5 text-[13px]">
-                <StatusDot
-                  tone={
-                    check.status === "pass"
-                      ? "pass"
-                      : check.status === "fail"
-                        ? "failed"
-                        : "approval"
-                  }
-                />
-                <span>{check.name}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <div className="mt-10 space-y-10">
+        {run.evaluations.map((item, index) => (
+          <EvaluationBlock key={item.id} item={item} index={index} locale={locale} />
+        ))}
+      </div>
 
       {payments.length > 0 ? (
         <section className="mt-10">
@@ -197,9 +246,7 @@ export function RunView({ run }: { run: AgentRun }) {
 
       <div className="mt-10 flex items-center gap-3">
         {run.status === "awaiting_approval" ? (
-          <Button onClick={() => setApprovalOpen(true)}>
-            {t("run.reviewApproval")}
-          </Button>
+          <Button onClick={() => setApprovalOpen(true)}>{t("run.reviewApproval")}</Button>
         ) : null}
         {run.status === "completed" || run.status === "failed" || run.status === "rejected" ? (
           <Link

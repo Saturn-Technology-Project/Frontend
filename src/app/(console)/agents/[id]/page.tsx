@@ -20,7 +20,7 @@ export default function AgentPage() {
         </div>
       ) : (
         <div className="px-10 py-10">
-          <AgentDetail agent={agent} />
+          <AgentDetail key={agent.id} agent={agent} />
         </div>
       )}
     </QueryGate>

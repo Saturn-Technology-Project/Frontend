@@ -1,161 +1,85 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Circle, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { PolicyRuleDisplay } from "@/components/policies/policy-rule-display";
 import { SectionLabel } from "@/components/ui/section-label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StatusLabel } from "@/components/ui/status-dot";
 import { useI18n } from "@/lib/i18n";
-import type { Policy, PolicyRule } from "@/types";
+import { canAccess } from "@/lib/access";
+import { useAuthStore } from "@/lib/auth";
+import type { Policy } from "@/types";
 
 export function PolicyView({ policy }: { policy: Policy }) {
   const { t } = useI18n();
-  const [mode, setMode] = useState("visual");
-  const allRules = [
-    ...policy.can.map((rule) => ({ ...rule, decision: "allow" })),
-    ...policy.requiresApproval.map((rule) => ({ ...rule, decision: "approval" })),
-    ...policy.denied.map((rule) => ({ ...rule, decision: "deny" })),
-  ];
+  const canWrite = canAccess(
+    useAuthStore((state) => state.user?.permissions),
+    "policies",
+    "write"
+  );
+  const agents = policy.agents.length > 0 ? policy.agents : [t("policies.allAgents")];
+  const tools = policy.tools.length > 0 ? policy.tools : ["—"];
 
   return (
     <div className="mx-auto w-full max-w-[680px]">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <div className="text-[11px] text-muted-foreground">
-            {t("policies.role")}
-          </div>
-          <h1 className="mt-1 text-[22px] font-medium tracking-tight">
-            {policy.name}
-          </h1>
+          <div className="text-[11px] text-muted-foreground">{t("policies.role")}</div>
+          <h1 className="mt-1 text-[22px] font-medium tracking-tight">{policy.name}</h1>
+          {policy.description ? (
+            <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{policy.description}</p>
+          ) : null}
         </div>
-        {policy.version ? (
-          <div className="text-[12px] text-muted-foreground">{policy.version}</div>
-        ) : null}
+        <StatusLabel tone={policy.status === "active" ? "active" : "paused"}>
+          {t(policy.status === "active" ? "policies.active" : "policies.paused")}
+        </StatusLabel>
       </div>
 
-      <Tabs
-        value={mode}
-        onValueChange={(value) => {
-          if (value) setMode(value);
-        }}
-        className="mt-8"
-      >
-        <TabsList variant="line">
-          <TabsTrigger value="visual">{t("policies.visual")}</TabsTrigger>
-          <TabsTrigger value="advanced">{t("policies.advanced")}</TabsTrigger>
-          <TabsTrigger value="yaml">{t("policies.yaml")}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="visual" className="mt-8 space-y-8">
-          <PolicyBlock
-            label={t("policies.who")}
-            items={policy.who.map((name) => ({
-              key: name,
-              label: name,
-            }))}
-          />
-          <PolicyBlock
-            label={t("policies.can")}
-            items={ruleItems(policy.can)}
-            icon="allow"
-          />
-          <PolicyBlock
-            label={t("policies.requiresApproval")}
-            items={ruleItems(policy.requiresApproval)}
-            icon="approval"
-          />
-          <PolicyBlock
-            label={t("policies.denied")}
-            items={ruleItems(policy.denied)}
-            icon="deny"
-          />
-        </TabsContent>
-
-        <TabsContent value="advanced" className="mt-8">
-          <p className="text-[13px] leading-6 text-muted-foreground">
-            {t("policies.advancedBody")}
-          </p>
-          <ul className="mt-5 divide-y divide-border rounded-md border border-border bg-card text-[13px]">
-            {allRules.length === 0 ? (
-              <li className="px-4 py-3 text-muted-foreground">{t("policies.noRules")}</li>
-            ) : (
-              allRules.map((rule) => (
-                <li
-                  key={rule.key}
-                  className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3"
-                >
-                  <span>
-                    {rule.label}
-                    {rule.detail ? (
-                      <span className="ml-2 font-mono text-muted-foreground">
-                        {rule.detail}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="font-mono text-[12px] text-muted-foreground">
-                    {rule.decision}
-                  </span>
-                </li>
-              ))
+      <section className="mt-10">
+        <SectionLabel>{t("policies.appliesTo")}</SectionLabel>
+        <dl className="mt-3 divide-y divide-border border-t border-border">
+          <Row label={t("policies.agent")} value={agents.join(", ")} />
+          <Row label={t("policies.tools")} value={tools.join(", ")} />
+          <Row
+            label={t("policies.environment")}
+            value={t(
+              policy.environment === "staging"
+                ? "policies.env.staging"
+                : "policies.env.production"
             )}
-          </ul>
-        </TabsContent>
+          />
+        </dl>
+      </section>
 
-        <TabsContent value="yaml" className="mt-8">
-          <pre className="overflow-auto rounded-md border border-border bg-card p-4 font-mono text-[12px] leading-6 text-foreground">
-            {policy.yaml}
-          </pre>
-        </TabsContent>
-      </Tabs>
+      <section className="mt-10">
+        <SectionLabel>{t("policies.rules")}</SectionLabel>
+        <div className="mt-4 space-y-3 border-t border-border pt-5">
+          {policy.rules.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">{t("policies.noRules")}</p>
+          ) : (
+            policy.rules.map((rule) => <PolicyRuleDisplay key={rule.id} rule={rule} />)
+          )}
+        </div>
+      </section>
 
-      <div className="mt-10">
-        <Button variant="outline" disabled>
-          {t("policies.edit")}
-        </Button>
-      </div>
+      {canWrite ? (
+        <div className="mt-10">
+          <Link
+            href={`/policies/${policy.id}/edit`}
+            className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-sm hover:bg-muted"
+          >
+            {t("policies.edit")}
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ruleItems(rules: PolicyRule[]) {
-  return rules.map((rule) => ({
-    key: rule.key,
-    label: rule.label ?? rule.key,
-    detail: rule.detail,
-  }));
-}
-
-function PolicyBlock({
-  label,
-  items,
-  icon,
-}: {
-  label: string;
-  items: { key: string; label: string; detail?: string }[];
-  icon?: "allow" | "approval" | "deny";
-}) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <section>
-      <SectionLabel>{label}</SectionLabel>
-      <ul className="mt-3 space-y-2 border-t border-border pt-4">
-        {items.map((item) => (
-          <li key={item.key} className="flex items-center gap-2.5 text-[15px]">
-            {icon === "allow" ? (
-              <Check className="size-3.5 text-success" />
-            ) : icon === "deny" ? (
-              <X className="size-3.5 text-destructive" />
-            ) : icon === "approval" ? (
-              <Circle className="size-3 text-warning" />
-            ) : null}
-            <span>{item.label}</span>
-            {item.detail ? (
-              <span className="ml-auto font-mono text-[13px] text-muted-foreground">
-                {item.detail}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="grid grid-cols-[140px_1fr] gap-4 py-3">
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
+      <dd className="text-[15px]">{value}</dd>
+    </div>
   );
 }

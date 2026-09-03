@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useConsole } from "@/hooks/use-console";
 import { useAuthStore } from "@/lib/auth";
 import { canAccess } from "@/lib/access";
+import { SidebarAddons } from "@/components/layout/sidebar-addons";
 
 const primary = [
   { href: "/overview", key: "nav.overview" },
@@ -14,6 +15,7 @@ const primary = [
   { href: "/tools", key: "nav.tools" },
   { href: "/policies", key: "nav.policies" },
   { href: "/approvals", key: "nav.approvals" },
+  { href: "/runs", key: "nav.runs" },
   { href: "/wallets", key: "nav.wallets" },
   { href: "/activity", key: "nav.activity" },
   { href: "/team", key: "nav.team", team: true },
@@ -37,8 +39,8 @@ export function Sidebar() {
   const items = primary.filter((item) => !("team" in item && item.team) || canReadTeam);
 
   return (
-    <aside className="flex w-[196px] shrink-0 flex-col border-r border-border bg-background">
-      <nav className="flex flex-1 flex-col px-3 py-5">
+    <aside className="flex h-full w-[196px] shrink-0 flex-col overflow-hidden border-r border-border bg-background">
+      <nav className="flex min-h-0 flex-1 flex-col px-3 py-5">
         <div className="flex flex-col gap-0.5">
           {items.map((item) => {
             const active = isActive(pathname, item.href);
@@ -62,6 +64,7 @@ export function Sidebar() {
               </Link>
             );
           })}
+          <SidebarAddons />
         </div>
 
         <div className="mt-auto border-t border-border pt-3">
@@ -75,6 +78,17 @@ export function Sidebar() {
             )}
           >
             {t("nav.settings")}
+          </Link>
+          <Link
+            href="/subscription"
+            className={cn(
+              "flex h-8 items-center rounded-md px-2 text-[13px] transition-colors",
+              isActive(pathname, "/subscription")
+                ? "bg-foreground/[0.06] text-foreground"
+                : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+            )}
+          >
+            {t("nav.subscription")}
           </Link>
         </div>
       </nav>

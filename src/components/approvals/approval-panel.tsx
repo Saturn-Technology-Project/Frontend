@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SectionLabel } from "@/components/ui/section-label";
-import { useI18n } from "@/lib/i18n";
+import { useConsole } from "@/hooks/use-console";
+import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -33,10 +34,19 @@ export function ApprovalPanel({
   onResolve: (decision: "approved" | "rejected") => void;
   resolving?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { data } = useConsole();
   if (!approval) return null;
 
   const pending = approval.status === "pending";
+  const agent = data?.agents.find((item) => item.id === approval.agentId);
+  const agentName = agent ? agentCopy(locale, agent.id, agent).name : approval.agentId;
+  const riskKey =
+    approval.risk === "high"
+      ? "approvals.riskHigh"
+      : approval.risk === "low"
+        ? "approvals.riskLow"
+        : "approvals.riskMedium";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,31 +55,37 @@ export function ApprovalPanel({
         className="w-[420px] max-w-[420px] gap-0 rounded-md p-0 ring-border sm:max-w-[420px]"
       >
         <div className="border-b border-border px-6 py-5">
-          <DialogTitle className="saturn-label">
-            {t("approvals.humanRequired")}
-          </DialogTitle>
+          <DialogTitle className="saturn-label">{t("approvals.request")}</DialogTitle>
           <DialogDescription className="sr-only">
             {t("approvals.reviewAria")}
           </DialogDescription>
         </div>
 
         <div className="divide-y divide-border px-6">
+          <Field label={t("approvals.agent")} value={agentName} />
           <Field label={t("approvals.action")} value={approval.action} />
+          {approval.customer ? (
+            <Field label={t("approvals.customer")} value={approval.customer} />
+          ) : null}
           {approval.amount ? (
             <Field
               label={t("approvals.amount")}
               value={`${approval.amount} ${approval.currency ?? ""}`.trim()}
             />
           ) : null}
-          {approval.customer ? (
-            <Field label={t("approvals.customer")} value={approval.customer} />
-          ) : null}
           {approval.reason ? (
             <Field label={t("approvals.reason")} value={approval.reason} />
           ) : null}
           {approval.policy ? (
-            <Field label={t("approvals.policy")} value={approval.policy} />
+            <Field
+              label={t("approvals.policy")}
+              value={`${approval.policy}${approval.policyVersion ? ` v${approval.policyVersion}` : ""}`}
+            />
           ) : null}
+          {approval.triggeredRule ? (
+            <Field label={t("approvals.triggeredRule")} value={approval.triggeredRule} />
+          ) : null}
+          {approval.risk ? <Field label={t("approvals.risk")} value={t(riskKey)} /> : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
