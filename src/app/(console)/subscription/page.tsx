@@ -102,15 +102,18 @@ export default function SubscriptionPage() {
 
           <section className="mt-10 border-t border-border pt-8">
             <SectionLabel>{t("subscription.payment")}</SectionLabel>
-            <div className="mt-4 flex items-center justify-between gap-4 text-[13px]">
-              <div>
+            {data.payment.last4 && !data.payment.demo ? (
+              <div className="mt-4 text-[13px]">
                 {data.payment.brand.toUpperCase()} ···· {data.payment.last4}
-                <span className="ml-3 text-muted-foreground">{data.payment.exp}</span>
+                {data.payment.exp ? (
+                  <span className="ml-3 text-muted-foreground">{data.payment.exp}</span>
+                ) : null}
               </div>
-              {data.payment.demo ? (
-                <StatusLabel tone="info">{t("subscription.demoCard")}</StatusLabel>
-              ) : null}
-            </div>
+            ) : (
+              <p className="mt-4 text-[13px] text-muted-foreground">
+                {t("subscription.noPayment")}
+              </p>
+            )}
           </section>
 
           <section className="mt-10 border-t border-border pt-8">
@@ -139,7 +142,7 @@ export default function SubscriptionPage() {
                           ? t("subscription.paid")
                           : t("subscription.open")}
                       </StatusLabel>
-                      {item.status === "open" ? (
+                      {item.status === "open" && data.payment.last4 && !data.payment.demo ? (
                         <Button
                           size="sm"
                           variant="outline"
