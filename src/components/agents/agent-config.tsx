@@ -13,6 +13,7 @@ import {
   groupAgentTools,
   isCustomModel,
   newKnowledgeId,
+  PROVIDER_BASE_URLS,
   runtimeLabel,
 } from "@/lib/agent-config";
 import { useI18n } from "@/lib/i18n";
@@ -474,14 +475,26 @@ export function ModelPanel({
               value={baseUrl}
               disabled={!canWrite}
               onChange={(event) => setBaseUrl(event.target.value)}
-              placeholder="https://api.example.com/v1"
+              placeholder="https://llm.example.com"
               className={inputClass}
             />
             <span className="mt-2 block normal-case tracking-normal text-[12px] leading-5 text-muted-foreground">
               {t("agents.config.baseUrlHint")}
             </span>
           </label>
-        ) : null}
+        ) : (
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {t("agents.config.baseUrl")}
+            </div>
+            <div className="mt-2 font-mono text-[12px] leading-5">
+              {PROVIDER_BASE_URLS[provider]}
+            </div>
+            <p className="mt-2 max-w-md text-[12px] leading-5 text-muted-foreground">
+              {t("agents.config.sharedKeyHint")}
+            </p>
+          </div>
+        )}
         <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("agents.config.temperature")}
           <input
@@ -511,7 +524,7 @@ export function ModelPanel({
       </div>
       {canWrite ? (
         <SaveBar
-          disabled={!model.trim()}
+          disabled={!model.trim() || (provider === "custom" && !baseUrl.trim())}
           saving={saving}
           status={status}
           onSave={() =>
@@ -520,7 +533,7 @@ export function ModelPanel({
               settings: {
                 provider,
                 model: model.trim(),
-                base_url: provider === "custom" ? baseUrl.trim() : "",
+                base_url: provider === "custom" ? baseUrl.trim() : PROVIDER_BASE_URLS[provider],
                 temperature: Number(temperature),
                 max_output: Number(maxOutput),
               },

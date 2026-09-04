@@ -16,10 +16,24 @@ export const MODEL_PROVIDERS: {
 }[] = [
   { id: "openai", models: ["gpt-5.6", "gpt-4.1", "gpt-4o"] },
   { id: "google", models: ["gemini-2.5-pro", "gemini-2.5-flash"] },
-  { id: "deepseek", models: ["deepseek-chat", "deepseek-reasoner"] },
   { id: "anthropic", models: ["claude-sonnet", "claude-opus", "claude-haiku"] },
+  { id: "deepseek", models: ["deepseek-chat", "deepseek-reasoner"] },
   { id: "custom", models: [] },
 ];
+
+export const PROVIDER_BASE_URLS: Record<AgentProvider, string> = {
+  openai: "https://api.openai.com",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+  anthropic: "https://api.anthropic.com",
+  deepseek: "https://api.deepseek.com",
+  custom: "",
+};
+
+export function providerBaseUrl(provider: AgentProvider, override = "") {
+  const custom = override.trim().replace(/\/$/, "");
+  if (provider === "custom") return custom;
+  return custom || PROVIDER_BASE_URLS[provider];
+}
 
 export const PROVIDERS = MODEL_PROVIDERS.map((item) => item.id);
 

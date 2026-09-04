@@ -121,18 +121,20 @@ export const en = {
       modelId: "Model ID",
       baseUrl: "Base URL",
       baseUrlHint:
-        "OpenAI-compatible endpoint for this agent. The Connector calls it with the configured credential.",
+        "OpenAI-compatible endpoint. Runtime calls it with the single AGENTS_API_KEY.",
+      sharedKeyHint:
+        "All providers share one General AI Key (AGENTS_API_KEY). Saturn maps this OpenAI-compatible base URL.",
       providers: {
         openai: "OpenAI",
         google: "Gemini",
         deepseek: "DeepSeek",
-        anthropic: "Anthropic",
+        anthropic: "Claude",
         custom: "Custom",
       },
       temperature: "Temperature",
       maxOutput: "Max output",
       modelNote:
-        "Saturn does not sell models. Choose OpenAI, Gemini, DeepSeek, or a custom OpenAI-compatible endpoint.",
+        "Saturn does not sell models. Choose OpenAI, Gemini, Claude, DeepSeek, or a custom OpenAI-compatible endpoint. They share one General AI Key.",
       environment: "Environment",
       region: "Region",
       runtimeStatus: "Status",
@@ -608,18 +610,20 @@ export const zh: DeepString<typeof en> = {
       customModel: "自訂模型",
       modelId: "Model ID",
       baseUrl: "Base URL",
-      baseUrlHint: "這個代理人要呼叫的 OpenAI-compatible endpoint。Connector 會用已設定的憑證去打。",
+      baseUrlHint: "OpenAI-compatible endpoint。Runtime 用同一把 AGENTS_API_KEY 呼叫。",
+      sharedKeyHint:
+        "所有模型共用一把 General AI Key（AGENTS_API_KEY）。Saturn 會對應這個 OpenAI-compatible Base URL。",
       providers: {
         openai: "OpenAI",
         google: "Gemini",
         deepseek: "DeepSeek",
-        anthropic: "Anthropic",
+        anthropic: "Claude",
         custom: "自訂",
       },
       temperature: "Temperature",
       maxOutput: "Max output",
       modelNote:
-        "Saturn 不賣模型。選擇 OpenAI、Gemini、DeepSeek，或自訂 OpenAI-compatible endpoint。",
+        "Saturn 不賣模型。選擇 OpenAI、Gemini、Claude、DeepSeek，或自訂 OpenAI-compatible endpoint。它們共用一把 General AI Key。",
       environment: "Environment",
       region: "Region",
       runtimeStatus: "Status",
