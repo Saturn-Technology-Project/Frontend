@@ -20,7 +20,7 @@ export type AgentAutonomy =
   | "suggest_only"
   | "execute_when_allowed"
   | "fully_autonomous";
-export type AgentProvider = "openai" | "anthropic" | "google";
+export type AgentProvider = "openai" | "google" | "deepseek" | "anthropic" | "custom";
 
 export interface AgentKnowledgeSource {
   id: string;
@@ -37,6 +37,7 @@ export interface AgentSettings {
   knowledge: AgentKnowledgeSource[];
   provider: AgentProvider;
   model: string;
+  baseUrl: string;
   temperature: number;
   maxOutput: number;
   environment: string;

@@ -6,10 +6,12 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { useUpdateAgent } from "@/hooks/use-console";
 import {
   AUTONOMY_LEVELS,
+  CUSTOM_MODEL,
   MODEL_PROVIDERS,
   RESPONSE_STYLES,
+  catalogModels,
   groupAgentTools,
-  modelsForProvider,
+  isCustomModel,
   newKnowledgeId,
   runtimeLabel,
 } from "@/lib/agent-config";
@@ -391,9 +393,18 @@ export function ModelPanel({
   const { save, saving, status } = useConfigSave(agent.id);
   const [provider, setProvider] = useState<AgentProvider>(agent.settings.provider);
   const [model, setModel] = useState(agent.settings.model);
+  const [baseUrl, setBaseUrl] = useState(agent.settings.baseUrl);
   const [temperature, setTemperature] = useState(String(agent.settings.temperature));
   const [maxOutput, setMaxOutput] = useState(String(agent.settings.maxOutput));
-  const models = modelsForProvider(provider, model);
+  const catalog = catalogModels(provider);
+  const customId = isCustomModel(provider, model);
+
+  function onProvider(next: AgentProvider) {
+    setProvider(next);
+    const options = catalogModels(next);
+    if (next === "custom") return;
+    if (!options.includes(model)) setModel(options[0] ?? "");
+  }
 
   return (
     <div>
@@ -407,40 +418,70 @@ export function ModelPanel({
           <select
             value={provider}
             disabled={!canWrite}
-            onChange={(event) => {
-              const next = event.target.value as AgentProvider;
-              setProvider(next);
-              const options = modelsForProvider(next);
-              if (!options.includes(model)) setModel(options[0] ?? model);
-            }}
+            onChange={(event) => onProvider(event.target.value as AgentProvider)}
             className={inputClass}
           >
             {MODEL_PROVIDERS.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.id === "openai"
-                  ? "OpenAI"
-                  : item.id === "anthropic"
-                    ? "Anthropic"
-                    : "Google"}
+                {t(`agents.config.providers.${item.id}`)}
               </option>
             ))}
           </select>
         </label>
-        <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-          {t("agents.model")}
-          <select
-            value={model}
-            disabled={!canWrite}
-            onChange={(event) => setModel(event.target.value)}
-            className={inputClass}
-          >
-            {models.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+        {provider !== "custom" && catalog.length > 0 ? (
+          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("agents.model")}
+            <select
+              value={customId ? CUSTOM_MODEL : model}
+              disabled={!canWrite}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === CUSTOM_MODEL) {
+                  if (!customId) setModel("");
+                  return;
+                }
+                setModel(next);
+              }}
+              className={inputClass}
+            >
+              {catalog.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+              <option value={CUSTOM_MODEL}>{t("agents.config.customModel")}</option>
+            </select>
+          </label>
+        ) : null}
+        {customId ? (
+          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("agents.config.modelId")}
+            <input
+              value={model}
+              disabled={!canWrite}
+              onChange={(event) => setModel(event.target.value)}
+              placeholder={
+                provider === "custom" ? "llama-3.1-70b" : catalog[0] || "model-id"
+              }
+              className={inputClass}
+            />
+          </label>
+        ) : null}
+        {provider === "custom" ? (
+          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("agents.config.baseUrl")}
+            <input
+              value={baseUrl}
+              disabled={!canWrite}
+              onChange={(event) => setBaseUrl(event.target.value)}
+              placeholder="https://api.example.com/v1"
+              className={inputClass}
+            />
+            <span className="mt-2 block normal-case tracking-normal text-[12px] leading-5 text-muted-foreground">
+              {t("agents.config.baseUrlHint")}
+            </span>
+          </label>
+        ) : null}
         <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("agents.config.temperature")}
           <input
@@ -470,14 +511,16 @@ export function ModelPanel({
       </div>
       {canWrite ? (
         <SaveBar
+          disabled={!model.trim()}
           saving={saving}
           status={status}
           onSave={() =>
             void save({
-              model,
+              model: model.trim(),
               settings: {
                 provider,
-                model,
+                model: model.trim(),
+                base_url: provider === "custom" ? baseUrl.trim() : "",
                 temperature: Number(temperature),
                 max_output: Number(maxOutput),
               },

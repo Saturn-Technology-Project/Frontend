@@ -72,6 +72,7 @@ const EVENT_META: Record<string, { title: string; titleKey: string }> = {
   },
   x402_settled: { title: "x402 settled", titleKey: "event.x402Settled" },
   x402_failed: { title: "x402 failed", titleKey: "event.x402Failed" },
+  prompt_updated: { title: "Updated prompt", titleKey: "event.promptUpdated" },
 };
 
 function money(value: unknown): string {

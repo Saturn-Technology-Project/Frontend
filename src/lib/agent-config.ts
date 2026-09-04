@@ -8,14 +8,20 @@ import type {
   McpServer,
 } from "@/types";
 
+export const CUSTOM_MODEL = "__custom__";
+
 export const MODEL_PROVIDERS: {
   id: AgentProvider;
   models: string[];
 }[] = [
   { id: "openai", models: ["gpt-5.6", "gpt-4.1", "gpt-4o"] },
-  { id: "anthropic", models: ["claude-sonnet", "claude-opus", "claude-haiku"] },
   { id: "google", models: ["gemini-2.5-pro", "gemini-2.5-flash"] },
+  { id: "deepseek", models: ["deepseek-chat", "deepseek-reasoner"] },
+  { id: "anthropic", models: ["claude-sonnet", "claude-opus", "claude-haiku"] },
+  { id: "custom", models: [] },
 ];
+
+export const PROVIDERS = MODEL_PROVIDERS.map((item) => item.id);
 
 export const RESPONSE_STYLES: AgentResponseStyle[] = [
   "concise",
@@ -42,6 +48,7 @@ export type ApiAgentSettings = {
   }[];
   provider?: string;
   model?: string;
+  base_url?: string;
   temperature?: number;
   max_output?: number;
   environment?: string;
@@ -63,14 +70,26 @@ function asAutonomy(value: unknown): AgentAutonomy {
     : "execute_when_allowed";
 }
 
-function asProvider(value: unknown, model: string): AgentProvider {
-  if (value === "openai" || value === "anthropic" || value === "google") {
-    return value;
+export function asProvider(value: unknown, model: string): AgentProvider {
+  if (PROVIDERS.includes(value as AgentProvider)) {
+    return value as AgentProvider;
   }
   const name = model.toLowerCase();
   if (name.startsWith("gpt") || name.includes("openai")) return "openai";
-  if (name.includes("gemini")) return "google";
-  return "anthropic";
+  if (name.includes("gemini") || name.startsWith("google")) return "google";
+  if (name.includes("deepseek")) return "deepseek";
+  if (name.includes("claude") || name.includes("anthropic")) return "anthropic";
+  return "custom";
+}
+
+export function catalogModels(provider: AgentProvider) {
+  return MODEL_PROVIDERS.find((item) => item.id === provider)?.models ?? [];
+}
+
+export function isCustomModel(provider: AgentProvider, model: string) {
+  if (provider === "custom") return true;
+  const list = catalogModels(provider);
+  return list.length === 0 || !list.includes(model);
 }
 
 export function emptySettings(model = "claude-sonnet"): AgentSettings {
@@ -82,6 +101,7 @@ export function emptySettings(model = "claude-sonnet"): AgentSettings {
     knowledge: [],
     provider: asProvider(undefined, model),
     model,
+    baseUrl: "",
     temperature: 0.2,
     maxOutput: 4000,
     environment: "",
@@ -116,6 +136,7 @@ export function normalizeSettings(
     knowledge,
     provider: asProvider(raw.provider, String(raw.model || model)),
     model: String(raw.model || model),
+    baseUrl: String(raw.base_url || "").trim(),
     temperature: Number.isFinite(Number(raw.temperature))
       ? Number(raw.temperature)
       : base.temperature,
@@ -137,7 +158,7 @@ export function normalizeSettings(
 }
 
 export function modelsForProvider(provider: AgentProvider, current?: string) {
-  const list = MODEL_PROVIDERS.find((item) => item.id === provider)?.models ?? [];
+  const list = catalogModels(provider);
   if (current && !list.includes(current)) return [current, ...list];
   return list;
 }
