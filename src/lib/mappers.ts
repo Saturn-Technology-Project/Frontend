@@ -554,7 +554,7 @@ function mapAgent(
       })
       .map((policy) => policy.id),
     walletId: wallets.find((wallet) => wallet.agent_id === agent.id)?.id,
-    settings: normalizeSettings(agent.settings, agent.model),
+    settings: normalizeSettings(agent.settings, agent.model, agent),
   };
 }
 

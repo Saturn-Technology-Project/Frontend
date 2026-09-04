@@ -106,9 +106,18 @@ export function isCustomModel(provider: AgentProvider, model: string) {
   return list.length === 0 || !list.includes(model);
 }
 
+export const GENERIC_DUTY =
+  "Your responsibility is to complete the operator's request using your assigned tools.";
+
+export function defaultInstructions(name = "", description = "") {
+  const who = name.trim() || "a Saturn agent";
+  const duty = description.trim() || GENERIC_DUTY;
+  return `You are ${who}.\n\n${duty}\n\nDo not perform actions outside your assigned role.\n\nWhen a tool result is enough, answer in one short sentence.`;
+}
+
 export function emptySettings(model = "claude-sonnet"): AgentSettings {
   return {
-    instructions: "",
+    instructions: defaultInstructions(),
     responseStyle: "professional",
     autonomy: "execute_when_allowed",
     tools: null,
@@ -128,10 +137,16 @@ export function emptySettings(model = "claude-sonnet"): AgentSettings {
 
 export function normalizeSettings(
   raw: ApiAgentSettings | null | undefined,
-  model: string
+  model: string,
+  agent?: { name?: string; description?: string }
 ): AgentSettings {
   const base = emptySettings(model);
-  if (!raw) return base;
+  if (!raw) {
+    return {
+      ...base,
+      instructions: defaultInstructions(agent?.name, agent?.description),
+    };
+  }
   const knowledge: AgentKnowledgeSource[] = Array.isArray(raw.knowledge)
     ? raw.knowledge
         .filter((item) => item && String(item.name || "").trim())
@@ -143,7 +158,9 @@ export function normalizeSettings(
         }))
     : [];
   return {
-    instructions: String(raw.instructions || ""),
+    instructions:
+      String(raw.instructions || "").trim() ||
+      defaultInstructions(agent?.name, agent?.description),
     responseStyle: asStyle(raw.response_style),
     autonomy: asAutonomy(raw.autonomy),
     tools: Array.isArray(raw.tools) ? raw.tools.map(String) : null,
