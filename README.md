@@ -2,7 +2,7 @@
 
 Desktop-first frontend for the Saturn enterprise AI control plane.
 
-The console proxies API calls through a Next.js rewrite (`/saturn-api`) to the backend. Locally that is `API_URL` (default `http://localhost:8000`). Cloud Run sets `API_URL` to the public backend URL at build and deploy time.
+The console proxies HTTP API calls through a Next.js rewrite (`/saturn-api`) to the backend. Connector and Panel WebSockets dial the backend origin directly (`ws://localhost:8000` locally, `wss://saturn-backend-…` on Cloud Run). Do not point `SATURN_CLOUD_WS` at the console.
 
 ## Run locally
 

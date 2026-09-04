@@ -18,6 +18,6 @@ GitHub authenticates with Workload Identity Federation. Set these repository val
 - `FRONTEND_CLOUD_RUN_SERVICE` (`saturn-frontend`)
 - `BACKEND_PUBLIC_URL` (Cloud Run URL of the backend, no trailing slash)
 
-`BACKEND_PUBLIC_URL` is compiled into the `/saturn-api` rewrite. Deploy backend first, then this service.
+`BACKEND_PUBLIC_URL` is compiled into the `/saturn-api` HTTP rewrite and into `NEXT_PUBLIC_WS_URL`. Connector and Panel WebSockets dial that backend origin directly (`wss://saturn-backend-…/ws/connectors`), not the console proxy. Deploy backend first, then this service.
 
 The full GCP bootstrap lives in the backend repo at `infra/gcp/README.md`.

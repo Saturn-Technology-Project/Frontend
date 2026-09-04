@@ -10,7 +10,9 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ARG API_URL=http://api:8000
+ARG NEXT_PUBLIC_WS_URL=
 ENV API_URL=${API_URL}
+ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV DOCKER_BUILD=1
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build

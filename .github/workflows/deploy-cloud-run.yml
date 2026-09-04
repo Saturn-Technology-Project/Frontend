@@ -53,6 +53,7 @@ jobs:
           tags: ${{ steps.image.outputs.uri }}
           build-args: |
             API_URL=${{ env.API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ env.API_URL }}
 
       - name: Deploy to Cloud Run
         run: |
