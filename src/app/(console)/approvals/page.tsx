@@ -86,17 +86,19 @@ function ApprovalCard({
   const { data } = useConsole();
   const agent = data?.agents.find((item) => item.id === approval.agentId);
   const name = agent ? agentCopy(locale, agent.id, agent).name : approval.agentId;
-  const title = approval.amount
-    ? `${t("approvals.refund")} ${approval.amount}`
-    : approval.action;
   const pending = approval.status === "pending";
 
   return (
     <li className="border border-border">
       <button type="button" onClick={onOpen} className="w-full px-5 py-5 text-left">
-        <div className="text-[15px] font-medium">{title}</div>
+        <div className="text-[15px] font-medium">{approval.action}</div>
         <div className="mt-1 text-[13px] text-muted-foreground">{name}</div>
-        <div className="text-[13px] text-muted-foreground">{approval.action}</div>
+        {approval.amount ? (
+          <div className="text-[13px] text-muted-foreground">
+            {t("approvals.amount")}: {approval.amount}
+            {approval.currency ? ` ${approval.currency}` : ""}
+          </div>
+        ) : null}
         {approval.policy ? (
           <div className="mt-4 text-[13px]">
             {t("approvals.policy")}: {approval.policy}

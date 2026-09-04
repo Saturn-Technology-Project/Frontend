@@ -220,6 +220,38 @@ export function toAuthSession(token: string, user: AuthUserResponse) {
   };
 }
 
+function isSafeErrorText(value: string) {
+  const text = value.trim();
+  if (!text || text.length > 280) return false;
+  if (text.startsWith("<")) return false;
+  if (/traceback|exception|stack|at\s+\S+\s+\(/i.test(text)) return false;
+  return true;
+}
+
+async function apiErrorMessage(response: Response): Promise<string> {
+  const fallback = response.statusText || "Request failed";
+  const text = await response.text();
+  if (!text) return fallback;
+  try {
+    const body = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    if (typeof body.detail === "string" && isSafeErrorText(body.detail)) {
+      return body.detail.trim();
+    }
+    if (Array.isArray(body.detail)) {
+      const first = body.detail[0] as { msg?: unknown } | undefined;
+      if (typeof first?.msg === "string" && isSafeErrorText(first.msg)) {
+        return first.msg.trim();
+      }
+    }
+    if (typeof body.message === "string" && isSafeErrorText(body.message)) {
+      return body.message.trim();
+    }
+  } catch {
+    if (isSafeErrorText(text)) return text.trim();
+  }
+  return fallback;
+}
+
 async function request<T>(path: string, init?: RequestInit, auth = true): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type") && init?.body) {
@@ -244,8 +276,7 @@ async function request<T>(path: string, init?: RequestInit, auth = true): Promis
   }
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, text || response.statusText);
+    throw new ApiError(response.status, await apiErrorMessage(response));
   }
 
   if (response.status === 204) {

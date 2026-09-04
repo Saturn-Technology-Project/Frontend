@@ -53,10 +53,6 @@ export function greeting(locale: "en" | "zh" = "en") {
   return "Good evening.";
 }
 
-export function createId(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 export function parseAmount(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;

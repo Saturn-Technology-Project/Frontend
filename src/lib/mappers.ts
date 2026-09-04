@@ -370,6 +370,7 @@ function mapApproval(
     );
   const matched = policy?.rules.find((rule) => rule.id === action?.policy_rule_id);
   const amountValue = approval.requested_amount ?? args.amount;
+  const currencyRaw = args.currency ?? args.asset;
 
   return {
     id: approval.id,
@@ -378,7 +379,10 @@ function mapApproval(
     agentId: run?.agent_id ?? "",
     action: action?.tool ?? approval.action_id,
     amount: formatAmount(amountValue),
-    currency: amountValue != null ? "USD" : undefined,
+    currency:
+      currencyRaw != null && String(currencyRaw).trim()
+        ? String(currencyRaw)
+        : undefined,
     customer,
     reason:
       action?.policy_reason ||

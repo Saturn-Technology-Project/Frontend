@@ -44,14 +44,13 @@ function lookup(locale: Locale, path: string): string | undefined {
 }
 
 export function agentCopy(
-  locale: Locale,
+  _locale: Locale,
   id: string,
   fallback?: { name?: string; description?: string }
 ) {
   return {
-    name: fallback?.name || lookup(locale, `agent.${id}.name`) || id,
-    description:
-      fallback?.description || lookup(locale, `agent.${id}.description`) || "",
+    name: fallback?.name || id,
+    description: fallback?.description || "",
   };
 }
 

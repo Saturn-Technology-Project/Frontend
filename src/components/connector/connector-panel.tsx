@@ -108,7 +108,7 @@ export function ConnectorPanel({
             ) : null}
           </div>
           {enroll.isError || enrollment.isError ? (
-            <p className="mt-2 text-[13px] text-destructive">{t("common.apiError")}</p>
+            <p className="mt-2 text-[13px] text-destructive">{t("common.requestFailed")}</p>
           ) : null}
         </div>
       ) : null}

@@ -2,7 +2,7 @@
 
 Desktop-first frontend for the Saturn enterprise AI control plane.
 
-The console talks to the backend in `../backend` through a Next.js rewrite: `/saturn-api/*` → `http://localhost:8000/*`.
+The console proxies API calls through a Next.js rewrite (`/saturn-api`) to the backend. Locally that is `API_URL` (default `http://localhost:8000`). Cloud Run sets `API_URL` to the public backend URL at build and deploy time.
 
 ## Run locally
 
@@ -16,10 +16,7 @@ docker compose up --build
 - Admin: [http://localhost:3001](http://localhost:3001)
 - API: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-Sign in with the bootstrap operator (empty catalog — create agents, tools, and policies yourself):
-
-- email: `rick@saturn.ai`
-- password: `saturn`
+Sign in with the organization admin account seeded by the backend (see backend env, for example `SEED_USER_EMAIL`). Do not commit or share bootstrap passwords in this repo.
 
 Or run only the frontend against a backend already up on port 8000:
 

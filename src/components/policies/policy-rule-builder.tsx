@@ -21,7 +21,7 @@ export interface DraftRule {
 }
 
 export function emptyCondition(): DraftCondition {
-  return { field: "amount", operator: "gt", value: "100" };
+  return { field: "amount", operator: "gt", value: "" };
 }
 
 export function emptyRule(): DraftRule {
@@ -105,7 +105,7 @@ export function PolicyRuleBuilder({
                 value={condition.value}
                 onChange={(event) => updateCondition(index, { value: event.target.value })}
                 className={inputClass}
-                placeholder={condition.field === "amount" ? "$100" : ""}
+                placeholder=""
               />
             </div>
           </div>

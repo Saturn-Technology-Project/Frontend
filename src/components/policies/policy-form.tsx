@@ -193,7 +193,7 @@ export function PolicyForm({
                 onChange={(event) =>
                   setForm((current) => ({ ...current, tool: event.target.value }))
                 }
-                placeholder="billing.refund"
+                placeholder={t("policies.toolPlaceholder")}
                 className={inputClass}
               />
             )}
@@ -252,7 +252,7 @@ export function PolicyForm({
       </div>
 
       {error ? (
-        <p className="mt-4 text-[12px] text-destructive">{t("common.apiError")}</p>
+        <p className="mt-4 text-[12px] text-destructive">{t("common.requestFailed")}</p>
       ) : null}
 
       <Button

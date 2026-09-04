@@ -47,9 +47,9 @@ export default function ToolsPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-[14px] font-medium">{server.name}</div>
                   <StatusLabel
-                    tone={connected || server.connected ? "connected" : "disconnected"}
+                    tone={server.connected ? "connected" : "disconnected"}
                   >
-                    {connected || server.connected
+                    {server.connected
                       ? t("tools.connected")
                       : t("connector.offline")}
                   </StatusLabel>

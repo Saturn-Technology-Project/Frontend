@@ -62,7 +62,7 @@ function SaveBar({
         {saving ? t("agents.config.saving") : t("agents.config.save")}
       </Button>
       {status === "error" ? (
-        <p className="text-[13px] text-destructive">{t("common.apiError")}</p>
+        <p className="text-[13px] text-destructive">{t("common.requestFailed")}</p>
       ) : null}
       {status === "pushed" ? (
         <p className="text-[13px] text-muted-foreground">{t("agents.config.pushed")}</p>
@@ -461,9 +461,7 @@ export function ModelPanel({
               value={model}
               disabled={!canWrite}
               onChange={(event) => setModel(event.target.value)}
-              placeholder={
-                provider === "custom" ? "llama-3.1-70b" : catalog[0] || "model-id"
-              }
+              placeholder={catalog[0] || t("agents.config.modelId")}
               className={inputClass}
             />
           </label>
@@ -475,7 +473,7 @@ export function ModelPanel({
               value={baseUrl}
               disabled={!canWrite}
               onChange={(event) => setBaseUrl(event.target.value)}
-              placeholder="https://llm.example.com"
+              placeholder="https://"
               className={inputClass}
             />
             <span className="mt-2 block normal-case tracking-normal text-[12px] leading-5 text-muted-foreground">

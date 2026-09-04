@@ -28,7 +28,7 @@ function settle(id: string | undefined, message: PanelCommandResult) {
   if (!waiter) return;
   pending.delete(id);
   if (message.type === "command.error" || message.error) {
-    waiter.reject(new Error(message.error || "command_error"));
+    waiter.reject(new Error("command_error"));
     return;
   }
   waiter.resolve(message);

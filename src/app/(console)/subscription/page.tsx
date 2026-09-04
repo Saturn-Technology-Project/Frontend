@@ -179,7 +179,7 @@ export default function SubscriptionPage() {
               </div>
             ) : null}
             {pay.isError ? (
-              <p className="mt-3 text-[13px] text-destructive">{t("common.apiError")}</p>
+              <p className="mt-3 text-[13px] text-destructive">{t("common.requestFailed")}</p>
             ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4">

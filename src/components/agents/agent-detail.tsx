@@ -169,7 +169,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
                 className="mt-3 w-full resize-none rounded-md border border-border bg-card px-3 py-3 text-[14px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               {dispatchError || createRun.isError ? (
-                <p className="mt-2 text-[13px] text-destructive">{t("common.apiError")}</p>
+                <p className="mt-2 text-[13px] text-destructive">{t("common.requestFailed")}</p>
               ) : null}
               <div className="mt-3">
                 <Button

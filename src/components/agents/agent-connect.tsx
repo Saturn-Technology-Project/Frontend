@@ -10,7 +10,7 @@ import { canAccess } from "@/lib/access";
 import { agentConnected } from "@/lib/agent-presence";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
-import { absoluteWsUrl, runtimeCommand, runtimeEnv } from "@/lib/ws";
+import { absoluteWsUrl, runtimeEnv } from "@/lib/ws";
 import { usePanelStore } from "@/stores/panel-store";
 import type { Agent } from "@/types";
 
@@ -107,7 +107,7 @@ export function AgentConnectPanel({ agent }: { agent: Agent }) {
             ) : null}
           </div>
           {enroll.isError || enrollment.isError ? (
-            <p className="mt-2 text-[13px] text-destructive">{t("common.apiError")}</p>
+            <p className="mt-2 text-[13px] text-destructive">{t("common.requestFailed")}</p>
           ) : null}
         </div>
       ) : null}
@@ -136,10 +136,6 @@ export function AgentConnectPanel({ agent }: { agent: Agent }) {
           <CopyBlock
             label={t("agents.environment")}
             value={runtimeEnv(credentials.agent_id, credentials.token)}
-          />
-          <CopyBlock
-            label={t("agents.connector")}
-            value={runtimeCommand(credentials.agent_id, credentials.token)}
           />
         </div>
       ) : null}

@@ -38,15 +38,6 @@ export function runtimeEnv(agentId: string, token: string): string {
   ].join("\n");
 }
 
-export function runtimeCommand(agentId: string, token: string): string {
-  return [
-    "python scripts/agent_connector.py \\",
-    `  --url ${agentSocketBaseUrl()} \\`,
-    `  --agent-id ${agentId} \\`,
-    `  --token ${token}`,
-  ].join("\n");
-}
-
 export function connectorEnv(connectorId: string, token: string): string {
   return [
     `SATURN_CLOUD_WS=${connectorSocketBaseUrl()}`,
@@ -58,7 +49,7 @@ export function connectorEnv(connectorId: string, token: string): string {
 export function connectorEnrollCommand(connectorId: string, token: string): string {
   const ws = connectorSocketBaseUrl();
   return [
-    "curl -s -X PUT http://localhost:4400/enrollment \\",
+    'curl -s -X PUT "$CONNECTOR_URL/enrollment" \\',
     '  -H "Content-Type: application/json" \\',
     `  -d '{"token":"${token}","cloudWs":"${ws}","connector_id":"${connectorId}"}'`,
   ].join("\n");

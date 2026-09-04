@@ -52,7 +52,7 @@ export default function TeamPage() {
   const [inviteForm, setInviteForm] = useState({
     email: "",
     name: "",
-    title: "Operator",
+    title: "",
     role: "operator",
   });
   const [inviteToken, setInviteToken] = useState("");
@@ -85,11 +85,11 @@ export default function TeamPage() {
                 const result = await invite.mutateAsync({
                   email: inviteForm.email.trim(),
                   name: inviteForm.name.trim(),
-                  title: inviteForm.title.trim() || "Operator",
+                  title: inviteForm.title.trim() || t("team.operator"),
                   role: inviteForm.role,
                 });
                 setInviteToken(result.token ?? "");
-                setInviteForm({ email: "", name: "", title: "Operator", role: "operator" });
+                setInviteForm({ email: "", name: "", title: "", role: "operator" });
               } catch {
                 setInviteToken("");
               }
@@ -111,6 +111,7 @@ export default function TeamPage() {
               <Field
                 label={t("team.titleField")}
                 value={inviteForm.title}
+                required={false}
                 onChange={(value) => setInviteForm((current) => ({ ...current, title: value }))}
               />
               <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -131,7 +132,7 @@ export default function TeamPage() {
               </label>
             </div>
             {invite.isError ? (
-              <p className="mt-3 text-[12px] text-destructive">{t("common.apiError")}</p>
+              <p className="mt-3 text-[12px] text-destructive">{t("common.requestFailed")}</p>
             ) : null}
             <Button type="submit" className="mt-4" disabled={invite.isPending}>
               {t("team.invite")}
@@ -230,11 +231,13 @@ function Field({
   value,
   onChange,
   type = "text",
+  required = true,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -242,9 +245,9 @@ function Field({
       <input
         type={type}
         value={value}
+        required={required}
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
-        required
       />
     </label>
   );
