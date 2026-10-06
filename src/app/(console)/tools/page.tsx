@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { ConnectorPanel } from "@/components/connector/connector-panel";
 import { ToolCard } from "@/components/tools/tool-card";
 import { QueryGate } from "@/components/layout/query-gate";
+import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
-import { useConsole } from "@/hooks/use-console";
+import { useConsole, useDeleteMcpServer } from "@/hooks/use-console";
+import { canAccess } from "@/lib/access";
+import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { groupToolsByPrefix } from "@/lib/mcp";
 import { usePanelStore } from "@/stores/panel-store";
@@ -13,6 +17,9 @@ import { usePanelStore } from "@/stores/panel-store";
 export default function ToolsPage() {
   const { t } = useI18n();
   const { data, isPending, isError } = useConsole();
+  const canAdmin = canAccess(useAuthStore((state) => state.user?.permissions), "team", "write");
+  const remove = useDeleteMcpServer();
+  const [confirming, setConfirming] = useState<string | null>(null);
   const connectorLive = usePanelStore((state) => state.connectorConnected);
   const connector = data?.connector ?? null;
   const enrolled = Boolean(connector?.enrolled);
@@ -46,13 +53,36 @@ export default function ToolsPage() {
               <li key={server.id} className="py-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="text-[14px] font-medium">{server.name}</div>
-                  <StatusLabel
-                    tone={server.connected ? "connected" : "disconnected"}
-                  >
-                    {server.connected
-                      ? t("tools.connected")
-                      : t("connector.offline")}
-                  </StatusLabel>
+                  <div className="flex items-center gap-3">
+                    {canAdmin ? (
+                      confirming === server.id ? (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                            {t("agents.cancel")}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={remove.isPending}
+                            onClick={() => remove.mutate(server.id, { onSuccess: () => setConfirming(null) })}
+                          >
+                            {t("tools.confirmRemove")}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="ghost" size="sm" onClick={() => setConfirming(server.id)}>
+                          {t("tools.remove")}
+                        </Button>
+                      )
+                    ) : null}
+                    <StatusLabel
+                      tone={server.connected ? "connected" : "disconnected"}
+                    >
+                      {server.connected
+                        ? t("tools.connected")
+                        : t("connector.offline")}
+                    </StatusLabel>
+                  </div>
                 </div>
                 {server.endpoint ? (
                   <div className="mt-1 font-mono text-[12px] text-muted-foreground">
@@ -94,6 +124,9 @@ export default function ToolsPage() {
         ) : firstVisit ? null : (
           <p className="mt-10 text-[13px] text-muted-foreground">{t("tools.empty")}</p>
         )}
+        {remove.isError ? (
+          <p className="mt-4 text-[13px] text-destructive">{remove.error.message}</p>
+        ) : null}
       </div>
     </QueryGate>
   );

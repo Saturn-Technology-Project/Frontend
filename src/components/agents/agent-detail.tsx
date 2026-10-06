@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AgentConnectPanel } from "@/components/agents/agent-connect";
+import { ConversationPanel } from "@/components/agents/conversation";
 import {
   BehaviorPanel,
   CONFIG_TABS,
@@ -17,17 +18,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
-import { useConsole, useCreateRun } from "@/hooks/use-console";
+import { useConsole, useCreateRun, useDeleteAgent } from "@/hooks/use-console";
 import { sendPanelCommand } from "@/hooks/use-panel-socket";
 import { canAccess } from "@/lib/access";
-import { agentPresence } from "@/lib/agent-presence";
+import { agentConnected, agentPresence } from "@/lib/agent-presence";
 import { runtimeLabel } from "@/lib/agent-config";
+import { ApiError } from "@/lib/api";
 import { relativeTime, formatUsdc } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/auth";
 import { usePanelStore } from "@/stores/panel-store";
 import { cn } from "@/lib/utils";
-import type { Agent } from "@/types";
+import type { Agent, RunStatus } from "@/types";
+
+const runTone: Record<
+  RunStatus,
+  "running" | "pending" | "completed" | "rejected" | "failed"
+> = {
+  queued: "pending",
+  running: "running",
+  awaiting_execution: "running",
+  awaiting_approval: "pending",
+  executing: "running",
+  completed: "completed",
+  failed: "failed",
+  rejected: "rejected",
+};
 
 export function AgentDetail({ agent }: { agent: Agent }) {
   const { t, locale } = useI18n();
@@ -35,14 +51,22 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   const { data } = useConsole();
   const live = usePanelStore((state) => state.agents);
   const createRun = useCreateRun();
-  const permissions = useAuthStore((state) => state.user?.permissions);
-  const canWrite = canAccess(permissions, "agents", "write");
+  const removeAgent = useDeleteAgent();
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const permissions = user?.permissions;
   const canAdmin = canAccess(permissions, "team", "write");
+  const editIds = user?.agentEditIds;
+  const canWrite = canAdmin || (
+    canAccess(permissions, "agents", "write") && (editIds == null || editIds.includes(agent.id))
+  );
   const agentRuns = (data?.runs ?? []).filter((run) => run.agentId === agent.id);
   const wallet = data?.wallets.find((item) => item.agentId === agent.id);
   const [tab, setTab] = useState<ConfigTab>("overview");
   const [prompt, setPrompt] = useState("");
-  const [dispatchError, setDispatchError] = useState(false);
+  const [dispatchError, setDispatchError] = useState<"offline" | "failed" | null>(
+    null
+  );
   const [dispatching, setDispatching] = useState(false);
   const copy = agentCopy(locale, agent.id, agent);
   const presence = agentPresence(agent, live, t);
@@ -51,9 +75,13 @@ export function AgentDetail({ agent }: { agent: Agent }) {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    setDispatchError(false);
+    setDispatchError(null);
     const text = prompt.trim();
     if (!text) return;
+    if (!agentConnected(agent, live)) {
+      setDispatchError("offline");
+      return;
+    }
     setDispatching(true);
     try {
       try {
@@ -66,6 +94,10 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           router.push(`/agents/${agent.id}/runs/${result.run.id}`);
           return;
         }
+        if (result.delivered === false) {
+          setDispatchError("offline");
+          return;
+        }
       } catch {
         // Panel socket is down; fall back to HTTP.
       }
@@ -74,8 +106,10 @@ export function AgentDetail({ agent }: { agent: Agent }) {
         prompt: text,
       });
       router.push(`/agents/${agent.id}/runs/${run.id}`);
-    } catch {
-      setDispatchError(true);
+    } catch (error) {
+      setDispatchError(
+        error instanceof ApiError && error.status === 409 ? "offline" : "failed"
+      );
     } finally {
       setDispatching(false);
     }
@@ -88,7 +122,33 @@ export function AgentDetail({ agent }: { agent: Agent }) {
         <div className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] text-muted-foreground">
           <StatusLabel tone={presence.tone}>{presence.label}</StatusLabel>
           {runtime ? <span>· {runtime}</span> : null}
+          {canAdmin ? (
+            confirmingRemove ? (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(false)}>
+                  {t("agents.cancel")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={removeAgent.isPending}
+                  onClick={() =>
+                    removeAgent.mutate(agent.id, { onSuccess: () => router.push("/agents") })
+                  }
+                >
+                  {t("agents.confirmRemove")}
+                </Button>
+              </>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingRemove(true)}>
+                {t("agents.remove")}
+              </Button>
+            )
+          ) : null}
         </div>
+        {removeAgent.isError ? (
+          <p className="mt-2 text-[13px] text-destructive">{removeAgent.error.message}</p>
+        ) : null}
       </div>
 
       <div className="mt-10 flex gap-12">
@@ -159,6 +219,8 @@ export function AgentDetail({ agent }: { agent: Agent }) {
               ) : null}
             </div>
 
+            <ConversationPanel agentId={agent.id} />
+
             <form onSubmit={onSubmit} className="mt-10 border-t border-border pt-8">
               <SectionLabel>{t("agents.dispatch")}</SectionLabel>
               <textarea
@@ -168,8 +230,14 @@ export function AgentDetail({ agent }: { agent: Agent }) {
                 rows={3}
                 className="mt-3 w-full resize-none rounded-md border border-border bg-card px-3 py-3 text-[14px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
-              {dispatchError || createRun.isError ? (
-                <p className="mt-2 text-[13px] text-destructive">{t("common.requestFailed")}</p>
+              {dispatchError ? (
+                <p className="mt-2 text-[13px] text-destructive">
+                  {t(
+                    dispatchError === "offline"
+                      ? "run.notConnected"
+                      : "common.requestFailed"
+                  )}
+                </p>
               ) : null}
               <div className="mt-3">
                 <Button
@@ -196,7 +264,10 @@ export function AgentDetail({ agent }: { agent: Agent }) {
                         className="flex items-center justify-between gap-4 py-3.5 text-[13px] hover:bg-muted/40"
                       >
                         <span className="min-w-0 truncate">{run.prompt}</span>
-                        <span className="shrink-0 text-muted-foreground">
+                        <span className="flex shrink-0 items-center gap-3 text-muted-foreground">
+                          <StatusLabel tone={runTone[run.status]}>
+                            {t(`run.status.${run.status}`)}
+                          </StatusLabel>
                           {relativeTime(run.startedAt, locale)}
                         </span>
                       </Link>

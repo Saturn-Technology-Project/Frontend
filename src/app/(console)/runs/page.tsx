@@ -9,6 +9,7 @@ import { agentCopy, useI18n } from "@/lib/i18n";
 import type { RunStatus } from "@/types";
 
 const tone: Record<RunStatus, "running" | "pending" | "completed" | "rejected" | "failed"> = {
+  queued: "pending",
   running: "running",
   awaiting_execution: "running",
   awaiting_approval: "pending",

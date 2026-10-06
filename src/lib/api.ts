@@ -191,6 +191,7 @@ export interface AuthUserResponse {
   users?: { id: string; email: string; name: string; title: string; role: string; status: string }[];
   assigned_agent_ids?: string[];
   assigned_mcp_server_ids?: string[];
+  agent_edit_ids?: string[] | null;
   mcp_gateway?: { status: string; connected: number; total: number };
 }
 
@@ -210,6 +211,7 @@ export function toAuthSession(token: string, user: AuthUserResponse) {
       employeeTitle: user.employee?.title,
       role: user.role ?? user.employee?.role ?? undefined,
       permissions: user.permissions,
+      agentEditIds: user.agent_edit_ids ?? null,
       agents: user.agents.map((agent) => ({ id: agent.id, name: agent.name })),
       mcpServers: user.mcp_servers.map((server) => ({
         id: server.id,
@@ -342,6 +344,7 @@ export interface OrgMember {
   status: string;
   permissions: AccessPermissions;
   agent_ids: string[];
+  agent_edit_ids?: string[] | null;
   mcp_server_ids: string[];
   created_at: string;
 }
@@ -438,6 +441,7 @@ export async function updateOrgMember(
     permissions: AccessPermissions;
     status: string;
     agent_ids: string[];
+    agent_edit_ids: string[];
     mcp_server_ids: string[];
   }>
 ) {
@@ -547,6 +551,14 @@ export async function updateAgent(
   return patch<ApiAgent>(`/agents/${id}`, body);
 }
 
+export function deleteAgent(id: string) {
+  return del(`/agents/${id}`);
+}
+
+export function deleteMcpServer(id: string) {
+  return del(`/mcp-servers/${id}`);
+}
+
 export interface ApiAgentEnroll {
   agent_id: string;
   token: string;
@@ -633,6 +645,26 @@ export async function createPolicy(body: PolicyWrite): Promise<ApiPolicy> {
 
 export async function updatePolicy(id: string, body: Partial<PolicyWrite>): Promise<ApiPolicy> {
   return patch<ApiPolicy>(`/policies/${id}`, body);
+}
+
+export interface ConversationMessage {
+  id: string;
+  agent_id: string;
+  input: string;
+  output: string;
+  status: string;
+  actions: { toolId?: string; status?: string }[];
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchConversation(agentId: string): Promise<ConversationMessage[]> {
+  return get<ConversationMessage[]>(`/agents/${agentId}/messages`);
+}
+
+export async function sendConversation(agentId: string, input: string): Promise<ConversationMessage> {
+  return post<ConversationMessage>(`/agents/${agentId}/messages`, { input });
 }
 
 export async function createRun(agentId: string, prompt: string): Promise<ApiRun> {

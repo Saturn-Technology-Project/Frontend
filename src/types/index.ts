@@ -1,5 +1,6 @@
 export type AgentStatus = "active" | "paused";
 export type RunStatus =
+  | "queued"
   | "running"
   | "awaiting_execution"
   | "awaiting_approval"

@@ -18,6 +18,7 @@ const statusTone: Record<
   RunStatus,
   "running" | "pending" | "completed" | "rejected" | "executing" | "failed"
 > = {
+  queued: "pending",
   running: "running",
   awaiting_execution: "running",
   awaiting_approval: "pending",
@@ -207,11 +208,21 @@ export function RunView({ run }: { run: AgentRun }) {
         </div>
       </section>
 
-      <div className="mt-10 space-y-10">
-        {run.evaluations.map((item, index) => (
-          <EvaluationBlock key={item.id} item={item} index={index} locale={locale} />
-        ))}
-      </div>
+      {run.evaluations.length === 0 ? (
+        <p className="mt-10 text-[13px] text-muted-foreground">
+          {run.status === "queued" || run.status === "running"
+            ? t("run.waitingRuntime")
+            : run.status === "failed"
+              ? t("run.noProgress")
+              : null}
+        </p>
+      ) : (
+        <div className="mt-10 space-y-10">
+          {run.evaluations.map((item, index) => (
+            <EvaluationBlock key={item.id} item={item} index={index} locale={locale} />
+          ))}
+        </div>
+      )}
 
       {payments.length > 0 ? (
         <section className="mt-10">

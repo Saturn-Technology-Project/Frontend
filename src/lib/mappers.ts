@@ -147,6 +147,8 @@ function decisionPermission(decision: string): ToolPermission {
 
 function mapRunStatus(status: string): RunStatus {
   switch (status) {
+    case "queued":
+      return "queued";
     case "waiting_approval":
       return "awaiting_approval";
     case "completed":

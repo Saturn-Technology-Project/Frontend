@@ -9,6 +9,8 @@ import {
   approveApproval,
   createAgent,
   createPolicy,
+  deleteAgent,
+  deleteMcpServer,
   createRun,
   enrollAgent,
   enrollConnector,
@@ -22,8 +24,21 @@ import {
   type PolicyWrite,
 } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import type { ConsoleData } from "@/types";
 
 export const consoleQueryKey = ["console"] as const;
+
+function hasInFlightRun(data: ConsoleData | undefined) {
+  return Boolean(
+    data?.runs.some(
+      (run) =>
+        run.status === "queued" ||
+        run.status === "running" ||
+        run.status === "awaiting_execution" ||
+        run.status === "executing"
+    )
+  );
+}
 
 export function useConsole() {
   const token = useAuthStore((state) => state.token);
@@ -32,7 +47,8 @@ export function useConsole() {
     queryFn: fetchConsole,
     enabled: Boolean(token),
     staleTime: 0,
-    refetchInterval: 10_000,
+    refetchInterval: (query) =>
+      hasInFlightRun(query.state.data) ? 2_000 : 10_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
@@ -43,6 +59,26 @@ export function useCreateAgent() {
   return useMutation({
     mutationFn: (body: { name: string; description?: string; model?: string }) =>
       createAgent(body),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
+    },
+  });
+}
+
+export function useDeleteAgent() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteAgent(id),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
+    },
+  });
+}
+
+export function useDeleteMcpServer() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMcpServer(id),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: consoleQueryKey });
     },

@@ -271,6 +271,7 @@ function MemberEditor({
     permissions: AccessPermissions;
     status: string;
     agent_ids: string[];
+    agent_edit_ids: string[];
   }) => Promise<void>;
 }) {
   const { t } = useI18n();
@@ -281,6 +282,9 @@ function MemberEditor({
     ...member.permissions,
   });
   const [agentIds, setAgentIds] = useState(member.agent_ids);
+  const [editIds, setEditIds] = useState<string[]>(
+    member.agent_edit_ids ?? (member.permissions.agents === "write" ? member.agent_ids : [])
+  );
   const resourceLabel = useMemo(
     () => ({
       agents: t("team.resourceAgents"),
@@ -322,6 +326,7 @@ function MemberEditor({
           permissions: perms,
           status,
           agent_ids: agentIds,
+          agent_edit_ids: editIds.filter((id) => agentIds.includes(id)),
         });
       }}
     >
@@ -387,20 +392,40 @@ function MemberEditor({
           <SectionLabel>{t("team.agents")}</SectionLabel>
           <div className="mt-3 space-y-2 text-[13px]">
             {agents.map((agent) => (
-              <label key={agent.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={agentIds.includes(agent.id)}
-                  onChange={(event) => {
-                    setAgentIds((current) =>
-                      event.target.checked
-                        ? [...current, agent.id]
-                        : current.filter((id) => id !== agent.id)
-                    );
-                  }}
-                />
-                {agent.name}
-              </label>
+              <div key={agent.id} className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={agentIds.includes(agent.id)}
+                    onChange={(event) => {
+                      setAgentIds((current) =>
+                        event.target.checked
+                          ? [...current, agent.id]
+                          : current.filter((id) => id !== agent.id)
+                      );
+                      if (!event.target.checked) {
+                        setEditIds((current) => current.filter((id) => id !== agent.id));
+                      }
+                    }}
+                  />
+                  {agent.name}
+                </label>
+                <label className="flex items-center gap-2 text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={agentIds.includes(agent.id) && editIds.includes(agent.id)}
+                    disabled={!agentIds.includes(agent.id)}
+                    onChange={(event) => {
+                      setEditIds((current) =>
+                        event.target.checked
+                          ? [...current, agent.id]
+                          : current.filter((id) => id !== agent.id)
+                      );
+                    }}
+                  />
+                  {t("team.canModify")}
+                </label>
+              </div>
             ))}
           </div>
         </div>

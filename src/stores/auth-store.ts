@@ -16,6 +16,7 @@ export interface AuthUser {
     approvals: "none" | "read" | "write";
     team: "none" | "read" | "write";
   };
+  agentEditIds?: string[] | null;
   agents?: { id: string; name: string }[];
   mcpServers?: { id: string; name: string }[];
 }
