@@ -19,7 +19,11 @@ export default function MappingPage() {
         <h1 className="text-[26px] font-semibold tracking-tight">{t("nav.mapping")}</h1>
         {canAdmin ? (
           <div className="mt-6">
-            <ToolSetEditor servers={mcpServers} toolSets={data?.toolSets ?? []} agents={data?.agents ?? []} />
+            <ToolSetEditor
+              servers={mcpServers}
+              toolSets={data?.toolSets ?? []}
+              agents={(data?.agents ?? []).filter((agent) => agent.origin === "saturn_mcp")}
+            />
           </div>
         ) : (
           <p className="mt-4 text-[13px] text-muted-foreground">{t("marketplace.adminOnly")}</p>

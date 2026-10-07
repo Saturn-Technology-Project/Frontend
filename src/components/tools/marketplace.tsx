@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { consoleQueryKey } from "@/hooks/use-console";
 import { connectMcpServer } from "@/lib/api";
+import { authorizeMcp, McpAuthorizeError } from "@/lib/mcp-authorize";
 import { useI18n } from "@/lib/i18n";
 import { MarketIcon } from "@/components/tools/market-icon";
 import { marketCatalog, marketCategories, marketName, type MarketCategory, type MarketEntry } from "@/lib/marketplace";
@@ -25,6 +26,9 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [custom, setCustom] = useState(false);
   const [tab, setTab] = useState<"overview" | "setup">("overview");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState("");
+  const client = useQueryClient();
 
   const needle = query.trim().toLowerCase();
   const visible = useMemo(
@@ -44,6 +48,24 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
     setCustom(false);
     setSelectedId(entry.id);
     setTab(nextTab);
+  }
+
+  async function connectEntry(entry: MarketEntry) {
+    if (!canAdmin || !entry.endpoint) {
+      open(entry, "setup");
+      return;
+    }
+    setConnectError("");
+    setBusyId(entry.id);
+    try {
+      const result = await authorizeMcp({ name: marketName(entry.id), endpoint: entry.endpoint });
+      if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+    } catch (error) {
+      open(entry, "setup");
+      setConnectError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
@@ -115,7 +137,8 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
                   selected={selectedId === entry.id}
                   connected={servers.some((server) => entry.endpoint && sameEndpoint(server.endpoint, entry.endpoint))}
                   onOpen={() => open(entry)}
-                  onConnect={() => open(entry, "setup")}
+                  onConnect={() => void connectEntry(entry)}
+                  busy={busyId === entry.id}
                 />
               ))}
             </ul>
@@ -136,7 +159,8 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
                   selected={selectedId === entry.id}
                   connected={servers.some((server) => entry.endpoint && sameEndpoint(server.endpoint, entry.endpoint))}
                   onOpen={() => open(entry)}
-                  onConnect={() => open(entry, "setup")}
+                  onConnect={() => void connectEntry(entry)}
+                  busy={busyId === entry.id}
                 />
               ))}
             </ul>
@@ -181,6 +205,9 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
               tab={tab}
               onTab={setTab}
               canAdmin={canAdmin}
+              busy={busyId === selected.id}
+              connectError={connectError}
+              onConnect={() => void connectEntry(selected)}
               linked={servers.find((server) => selected.endpoint && sameEndpoint(server.endpoint, selected.endpoint)) ?? null}
             />
           ) : (
@@ -212,6 +239,7 @@ function MarketCard({
   locale,
   selected,
   connected,
+  busy,
   onOpen,
   onConnect,
 }: {
@@ -219,6 +247,7 @@ function MarketCard({
   locale: "en" | "zh";
   selected: boolean;
   connected: boolean;
+  busy: boolean;
   onOpen: () => void;
   onConnect: () => void;
 }) {
@@ -241,8 +270,8 @@ function MarketCard({
         {connected ? (
           <span className="inline-flex h-8 items-center rounded-lg bg-muted px-3 text-[12px]">{t("marketplace.already")}</span>
         ) : (
-          <Button type="button" size="sm" onClick={onConnect}>
-            {t("tools.connectAction")}
+          <Button type="button" size="sm" disabled={busy} onClick={onConnect}>
+            {busy ? t("marketplace.authorizing") : t("tools.connectAction")}
           </Button>
         )}
       </div>
@@ -256,6 +285,9 @@ function Detail({
   tab,
   onTab,
   canAdmin,
+  busy,
+  connectError,
+  onConnect,
   linked,
 }: {
   entry: MarketEntry;
@@ -263,6 +295,9 @@ function Detail({
   tab: "overview" | "setup";
   onTab: (tab: "overview" | "setup") => void;
   canAdmin: boolean;
+  busy: boolean;
+  connectError: string;
+  onConnect: () => void;
   linked: McpServer | null;
 }) {
   const { t } = useI18n();
@@ -322,6 +357,9 @@ function Detail({
           initialEndpoint={entry.endpoint}
           auth={entry.auth}
           lockedEndpoint={Boolean(entry.endpoint)}
+          busy={busy}
+          connectError={connectError}
+          onAuthorize={entry.endpoint ? onConnect : undefined}
         />
       )}
     </>
@@ -334,18 +372,27 @@ function ConnectForm({
   initialEndpoint = "",
   auth = "token",
   lockedEndpoint = false,
+  busy = false,
+  connectError = "",
+  onAuthorize,
 }: {
   canAdmin: boolean;
   initialName?: string;
   initialEndpoint?: string;
   auth?: "token" | "optional";
   lockedEndpoint?: boolean;
+  busy?: boolean;
+  connectError?: string;
+  onAuthorize?: () => void;
 }) {
   const { t } = useI18n();
   const client = useQueryClient();
   const [name, setName] = useState(initialName);
   const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [token, setToken] = useState("");
+  const [paste, setPaste] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const [authorizing, setAuthorizing] = useState(false);
   const connect = useMutation({
     mutationFn: () =>
       connectMcpServer({
@@ -358,22 +405,49 @@ function ConnectForm({
       await client.invalidateQueries({ queryKey: consoleQueryKey });
     },
   });
-  const ready = Boolean(name.trim() && endpoint.trim() && (auth === "optional" || token.trim()));
+  const ready = Boolean(name.trim() && endpoint.trim());
+
+  async function authorize() {
+    if (!ready) return;
+    setLocalError("");
+    if (onAuthorize && endpoint.trim() === initialEndpoint.trim()) {
+      onAuthorize();
+      return;
+    }
+    setAuthorizing(true);
+    try {
+      const result = await authorizeMcp({ name: name.trim(), endpoint: endpoint.trim() });
+      if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+    } catch (error) {
+      setLocalError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+    } finally {
+      setAuthorizing(false);
+    }
+  }
 
   if (!canAdmin) {
     return <p className="px-5 py-5 text-[13px] text-muted-foreground">{t("marketplace.adminOnly")}</p>;
   }
+
+  const pending = busy || authorizing;
+  const shownError = localError || connectError;
 
   return (
     <form
       className="space-y-4 px-5 py-5"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!ready) return;
-        connect.mutate();
+        if (paste) {
+          if (!ready || (auth !== "optional" && !token.trim())) return;
+          connect.mutate();
+          return;
+        }
+        void authorize();
       }}
     >
-      <p className="text-[12px] leading-5 text-muted-foreground">{auth === "optional" ? t("marketplace.endpointHint") : t("marketplace.tokenHint")}</p>
+      <p className="text-[12px] leading-5 text-muted-foreground">
+        {paste ? (auth === "optional" ? t("marketplace.endpointHint") : t("marketplace.tokenHint")) : t("marketplace.authorizeNote")}
+      </p>
       <label className="block text-[12px] text-muted-foreground">
         {t("tools.name")}
         <input value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} />
@@ -388,20 +462,26 @@ function ConnectForm({
           className={cn(fieldClass, lockedEndpoint && "text-muted-foreground")}
         />
       </label>
-      <label className="block text-[12px] text-muted-foreground">
-        {t("tools.token")}
-        <input
-          type="password"
-          value={token}
-          autoComplete="off"
-          placeholder={auth === "optional" ? t("tools.tokenOptional") : ""}
-          onChange={(event) => setToken(event.target.value)}
-          className={fieldClass}
-        />
-      </label>
-      <Button type="submit" disabled={connect.isPending || !ready}>
-        {connect.isSuccess ? t("marketplace.already") : t("tools.connectAction")}
+      {paste ? (
+        <label className="block text-[12px] text-muted-foreground">
+          {t("tools.token")}
+          <input
+            type="password"
+            value={token}
+            autoComplete="off"
+            placeholder={auth === "optional" ? t("tools.tokenOptional") : ""}
+            onChange={(event) => setToken(event.target.value)}
+            className={fieldClass}
+          />
+        </label>
+      ) : null}
+      <Button type="submit" disabled={pending || connect.isPending || !ready || (paste && auth !== "optional" && !token.trim())}>
+        {pending ? t("marketplace.authorizing") : connect.isSuccess ? t("marketplace.already") : t("tools.connectAction")}
       </Button>
+      <button type="button" className="block text-[12px] text-muted-foreground underline" onClick={() => setPaste((current) => !current)}>
+        {paste ? t("marketplace.useProvider") : t("marketplace.pasteInstead")}
+      </button>
+      {shownError ? <p className="text-[13px] text-destructive">{shownError}</p> : null}
       {connect.isError ? <p className="text-[13px] text-destructive">{connect.error.message}</p> : null}
     </form>
   );

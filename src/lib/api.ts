@@ -635,6 +635,10 @@ export function connectMcpServer(body: { name: string; endpoint: string; authori
   return post<ApiMcpServer>("/mcp-servers", body);
 }
 
+export function startMcpOauth(body: { name: string; endpoint: string; nonce: string }) {
+  return post<{ authorization_url?: string | null; server?: ApiMcpServer | null }>("/mcp-servers/oauth/start", body);
+}
+
 export function refreshMcpServer(id: string) {
   return post<ApiMcpServer>(`/mcp-servers/${id}/refresh`);
 }

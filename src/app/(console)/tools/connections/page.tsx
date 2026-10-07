@@ -10,6 +10,7 @@ import { StatusLabel } from "@/components/ui/status-dot";
 import { consoleQueryKey, useConsole, useDeleteMcpServer } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
 import { connectMcpServer } from "@/lib/api";
+import { authorizeMcp, McpAuthorizeError } from "@/lib/mcp-authorize";
 import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -248,6 +249,8 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
   const { t } = useI18n();
   const client = useQueryClient();
   const [token, setToken] = useState("");
+  const [oauthError, setOauthError] = useState("");
+  const [authorizing, setAuthorizing] = useState(false);
   const save = useMutation({
     mutationFn: () =>
       connectMcpServer({
@@ -274,6 +277,25 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
       <p className="text-[12px] leading-5 text-muted-foreground">{t("tools.oauthHint")}</p>
       {canAdmin ? (
         <>
+          <Button
+            type="button"
+            size="sm"
+            disabled={authorizing || !server.endpoint}
+            onClick={() => {
+              setOauthError("");
+              setAuthorizing(true);
+              void authorizeMcp({ name: server.name, endpoint: server.endpoint })
+                .then(async (result) => {
+                  if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+                })
+                .catch((error: unknown) => {
+                  setOauthError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+                })
+                .finally(() => setAuthorizing(false));
+            }}
+          >
+            {authorizing ? t("marketplace.authorizing") : t("marketplace.useProvider")}
+          </Button>
           <input
             type="password"
             value={token}
@@ -288,6 +310,7 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
       ) : (
         <p className="text-[12px] text-muted-foreground">{t("marketplace.adminOnly")}</p>
       )}
+      {oauthError ? <p className="text-[13px] text-destructive">{oauthError}</p> : null}
       {save.isError ? <p className="text-[13px] text-destructive">{save.error.message}</p> : null}
     </form>
   );

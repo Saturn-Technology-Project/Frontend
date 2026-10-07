@@ -9,6 +9,7 @@ import {
   connectMcpServer,
   createToolSet,
   deleteToolSet,
+  updateAgent,
   updateToolSet,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -111,6 +112,7 @@ export function ToolSetEditor({
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [agentIds, setAgentIds] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<string | null>(null);
 
   function load(set: ToolSet | null) {
@@ -119,15 +121,27 @@ export function ToolSetEditor({
     const next: Record<string, boolean> = {};
     for (const item of set?.items ?? []) next[item.toolId] = item.approval;
     setPicked(next);
+    setAgentIds(set ? agents.filter((agent) => agent.toolSetId === set.id).map((agent) => agent.id) : []);
   }
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const items = Object.entries(picked).map(([tool_id, approval]) => ({ tool_id, approval }));
-      if (editing && editing !== "new") {
-        return updateToolSet(editing, { name: name.trim(), items });
-      }
-      return createToolSet({ name: name.trim(), items });
+      const saved =
+        editing && editing !== "new"
+          ? await updateToolSet(editing, { name: name.trim(), items })
+          : await createToolSet({ name: name.trim(), items });
+      const selected = new Set(agentIds);
+      await Promise.all(
+        agents.map((agent) => {
+          const has = agent.toolSetId === saved.id;
+          const want = selected.has(agent.id);
+          if (want && !has) return updateAgent(agent.id, { tool_set_id: saved.id });
+          if (!want && has) return updateAgent(agent.id, { tool_set_id: null });
+          return Promise.resolve(null);
+        })
+      );
+      return saved;
     },
     onSuccess: async () => {
       setEditing(null);
@@ -253,6 +267,44 @@ export function ToolSetEditor({
               ))}
             </div>
           )}
+          <div className="mt-6">
+            <div className="text-[13px] font-medium">{t("tools.assign")}</div>
+            <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{t("tools.assignNote")}</p>
+            {agents.length === 0 ? (
+              <p className="mt-3 text-[13px] text-muted-foreground">{t("tools.noAgents")}</p>
+            ) : (
+              <ul className="mt-3 divide-y divide-border border border-border">
+                {agents.map((agent) => {
+                  const on = agentIds.includes(agent.id);
+                  const other = toolSets.find((set) => set.id === agent.toolSetId && set.id !== editing);
+                  return (
+                    <li key={agent.id} className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
+                      <label className="flex min-w-0 items-center gap-3">
+                        <input
+                          type="checkbox"
+                          className="size-3.5 shrink-0"
+                          checked={on}
+                          onChange={() =>
+                            setAgentIds((current) =>
+                              current.includes(agent.id)
+                                ? current.filter((id) => id !== agent.id)
+                                : [...current, agent.id]
+                            )
+                          }
+                        />
+                        <span className="truncate">{agent.name}</span>
+                      </label>
+                      {other && !on ? (
+                        <span className="shrink-0 text-[12px] text-muted-foreground">
+                          {t("tools.onAnotherSet", { name: other.name })}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
           <div className="mt-4 flex items-center gap-2">
             <Button type="submit" disabled={save.isPending || !name.trim() || Object.keys(picked).length === 0}>
               {t("tools.saveSet")}
