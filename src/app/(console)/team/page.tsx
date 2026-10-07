@@ -60,6 +60,14 @@ export default function TeamPage() {
   const catalogRoles = org.data?.catalog.roles ?? [];
   const pendingInvites = (invites.data ?? []).filter((item) => item.status === "pending");
 
+  if (org.data?.organization.kind === "personal") {
+    return (
+      <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        {t("team.personal")}
+      </div>
+    );
+  }
+
   if (!canRead) {
     return (
       <div className="px-10 py-10 text-[13px] text-muted-foreground">

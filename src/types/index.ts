@@ -62,6 +62,7 @@ export interface Agent {
   lastHeartbeatAt?: string | null;
   model: string;
   toolIds: string[];
+  toolSetId: string | null;
   policyIds: string[];
   walletId?: string;
   settings: AgentSettings;
@@ -101,13 +102,37 @@ export interface Connector {
   lastHeartbeatAt?: string | null;
 }
 
+export interface McpTool {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface McpServer {
   id: string;
   name: string;
   endpoint: string;
   status: ToolConnection;
   tools: string[];
+  catalog: McpTool[];
   connected: boolean;
+  hasAuthorization: boolean;
+}
+
+export interface ToolSetItem {
+  toolId: string;
+  name: string;
+  description: string;
+  serverId: string | null;
+  serverName: string;
+  approval: boolean;
+}
+
+export interface ToolSet {
+  id: string;
+  name: string;
+  description: string;
+  items: ToolSetItem[];
 }
 
 export interface AgentWallet {
@@ -286,10 +311,29 @@ export interface SystemService {
   status: ServiceStatus;
 }
 
+export interface AppMcpTool {
+  toolId: string;
+  description: string;
+}
+
+export interface AppMcpServer {
+  id: string;
+  name: string;
+  url: string;
+  tools: AppMcpTool[];
+}
+
+export interface AppMcp {
+  servers: AppMcpServer[];
+  attachments: Record<string, string[]>;
+}
+
 export interface ConsoleData {
   agents: Agent[];
   integrations: Integration[];
   mcpServers: McpServer[];
+  appMcp: AppMcp;
+  toolSets: ToolSet[];
   connector: Connector | null;
   policies: Policy[];
   runs: AgentRun[];

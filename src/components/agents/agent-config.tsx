@@ -10,7 +10,6 @@ import {
   MODEL_PROVIDERS,
   RESPONSE_STYLES,
   catalogModels,
-  groupAgentTools,
   isCustomModel,
   newKnowledgeId,
   PROVIDER_BASE_URLS,
@@ -235,25 +234,23 @@ export function ToolsPanel({
 }) {
   const { t } = useI18n();
   const { save, saving, status } = useConfigSave(agent.id);
-  const groups = useMemo(
-    () => groupAgentTools(data?.mcpServers ?? [], data?.integrations ?? []),
-    [data?.mcpServers, data?.integrations]
-  );
-  const catalog = useMemo(
-    () => groups.flatMap((group) => group.tools.map((tool) => tool.name)),
-    [groups]
-  );
-  const [selected, setSelected] = useState<string[] | null>(agent.settings.tools);
-  const checked = selected ?? catalog;
-
-  function toggle(name: string) {
-    setSelected((current) => {
-      const base = current ?? catalog;
-      return base.includes(name)
-        ? base.filter((item) => item !== name)
-        : [...base, name];
-    });
-  }
+  const sets = data?.toolSets ?? [];
+  const appMcp = data?.appMcp;
+  const linked = (appMcp?.attachments[agent.id] ?? [])
+    .map((id) => appMcp?.servers.find((server) => server.id === id))
+    .filter((server) => server != null);
+  const [toolSetId, setToolSetId] = useState(agent.toolSetId ?? "");
+  const selected = sets.find((item) => item.id === toolSetId) ?? null;
+  const groups = useMemo(() => {
+    const map = new Map<string, { name: string; tools: { name: string; approval: boolean }[] }>();
+    for (const item of selected?.items ?? []) {
+      const key = item.serverName || item.serverId || "mcp";
+      const group = map.get(key) ?? { name: item.serverName || key, tools: [] };
+      group.tools.push({ name: item.name, approval: item.approval });
+      map.set(key, group);
+    }
+    return [...map.values()];
+  }, [selected]);
 
   return (
     <div>
@@ -261,25 +258,36 @@ export function ToolsPanel({
       <p className="mt-3 max-w-md text-[12px] leading-5 text-muted-foreground">
         {t("agents.config.toolsNote")}
       </p>
-      {groups.length === 0 ? (
+      <label className="mt-6 block max-w-sm text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        {t("agents.config.toolSet")}
+        <select
+          value={toolSetId}
+          disabled={!canWrite}
+          onChange={(event) => setToolSetId(event.target.value)}
+          className={inputClass}
+        >
+          <option value="">{t("agents.config.selectToolSet")}</option>
+          {sets.map((set) => (
+            <option key={set.id} value={set.id}>
+              {set.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {selected == null ? (
         <p className="mt-6 text-[13px] text-muted-foreground">{t("agents.config.noTools")}</p>
       ) : (
         <div className="mt-6 space-y-8">
           {groups.map((group) => (
-            <div key={group.id}>
+            <div key={group.name}>
               <div className="text-[13px] font-medium">{group.name}</div>
               <ul className="mt-2 divide-y divide-border border border-border">
                 {group.tools.map((tool) => (
-                  <li key={tool.name}>
-                    <label className="flex items-center gap-3 px-3 py-2.5 text-[13px]">
-                      <input
-                        type="checkbox"
-                        disabled={!canWrite}
-                        checked={checked.includes(tool.name)}
-                        onChange={() => toggle(tool.name)}
-                      />
-                      <span className="font-mono text-[12px]">{tool.label}</span>
-                    </label>
+                  <li key={tool.name} className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
+                    <span className="font-mono text-[12px]">{tool.name}</span>
+                    {tool.approval ? (
+                      <span className="text-[12px] text-muted-foreground">{t("agents.config.needsApproval")}</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -287,13 +295,41 @@ export function ToolsPanel({
           ))}
         </div>
       )}
-      {canWrite && groups.length > 0 ? (
+      {canWrite ? (
         <SaveBar
           saving={saving}
           status={status}
-          onSave={() => void save({ settings: { tools: checked } })}
+          onSave={() => void save({ tool_set_id: toolSetId || null })}
         />
       ) : null}
+
+      <div className="mt-10">
+        <SectionLabel>{t("agents.config.appMcp")}</SectionLabel>
+        <p className="mt-3 max-w-md text-[12px] leading-5 text-muted-foreground">
+          {t("agents.config.appMcpNote")}
+        </p>
+        {linked.length === 0 ? (
+          <p className="mt-6 text-[13px] text-muted-foreground">{t("agents.config.appMcpEmpty")}</p>
+        ) : (
+          <ul className="mt-6 space-y-4">
+            {linked.map((server) => (
+              <li key={server.id}>
+                <div className="text-[13px] font-medium">{server.name}</div>
+                <div className="mt-0.5 truncate font-mono text-[12px] text-muted-foreground">{server.url}</div>
+                {server.tools.length > 0 ? (
+                  <ul className="mt-2 divide-y divide-border border border-border">
+                    {server.tools.map((tool) => (
+                      <li key={tool.toolId} className="px-3 py-2.5 font-mono text-[12px]">
+                        {tool.toolId}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

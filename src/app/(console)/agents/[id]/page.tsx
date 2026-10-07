@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { AgentDetail } from "@/components/agents/agent-detail";
 import { QueryGate } from "@/components/layout/query-gate";
 import { useConsole } from "@/hooks/use-console";
@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 export default function AgentPage() {
   const { t } = useI18n();
   const params = useParams<{ id: string }>();
+  const search = useSearchParams();
   const { data, isPending, isError } = useConsole();
   const agent = data?.agents.find((item) => item.id === params.id);
 
@@ -20,7 +21,7 @@ export default function AgentPage() {
         </div>
       ) : (
         <div className="px-10 py-10">
-          <AgentDetail key={agent.id} agent={agent} />
+          <AgentDetail key={agent.id} agent={agent} initialTab={search.get("tab")} />
         </div>
       )}
     </QueryGate>

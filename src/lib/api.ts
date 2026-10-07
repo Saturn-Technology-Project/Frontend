@@ -27,6 +27,7 @@ export interface ApiAgent {
   runtime_id?: string | null;
   last_seen_at?: string | null;
   settings?: ApiAgentSettings;
+  tool_set_id?: string | null;
   pushed?: boolean | null;
 }
 
@@ -176,8 +177,8 @@ export interface AuthUserResponse {
   role: string | null;
   permissions: AccessPermissions;
   is_platform_admin?: boolean;
-  organization: { id: string; name: string };
-  enterprise: { id: string; name: string };
+  organization: { id: string; name: string; plan?: string; kind?: string };
+  enterprise: { id: string; name: string; plan?: string; kind?: string };
   employee: { id: string; title: string; status: string; role: string; permissions: AccessPermissions } | null;
   agents: { id: string; name: string; status: string }[];
   mcp_servers: {
@@ -218,7 +219,11 @@ export function toAuthSession(token: string, user: AuthUserResponse) {
         name: server.name,
       })),
     },
-    org: user.enterprise ?? user.organization,
+    org: {
+      ...(user.organization),
+      plan: user.organization.plan,
+      kind: user.organization.kind,
+    },
   };
 }
 
@@ -367,6 +372,7 @@ export async function fetchOrg() {
       id: string;
       name: string;
       plan?: string;
+      kind?: string;
       addons?: { id: string; name: string; href?: string | null }[];
     };
     catalog: { resources: { id: string; actions: string[] }[]; roles: { id: string; permissions: AccessPermissions }[] };
@@ -459,7 +465,7 @@ export async function acceptInvite(token: string, password: string) {
 }
 
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, connector, mcpServers] =
+  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, connector, mcpServers, toolSets, appMcp] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
@@ -473,6 +479,8 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiHealth>("/health"),
       get<ApiConnector>("/connectors").catch(() => null),
       get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
+      get<ApiToolSet[]>("/tool-sets").catch(() => []),
+      get<ApiAppMcp>("/app-mcp").catch(() => ({ servers: [], attachments: {} })),
     ]);
 
   return mapConsole({
@@ -488,6 +496,8 @@ export async function fetchConsole(): Promise<ConsoleData> {
     health,
     connector,
     mcpServers: mcpServers ?? [],
+    toolSets: toolSets ?? [],
+    appMcp: appMcp ?? { servers: [], attachments: {} },
   });
 }
 
@@ -539,6 +549,7 @@ export interface AgentUpdateBody {
   description?: string;
   model?: string;
   runtime_id?: string | null;
+  tool_set_id?: string | null;
   settings?: Partial<ApiAgentSettings>;
   daily_spend_limit?: string | number;
   per_tx_limit?: string | number;
@@ -583,6 +594,11 @@ export interface ApiConnectorEnroll {
   ws_url: string;
 }
 
+export interface ApiAppMcp {
+  servers: { id: string; name: string; url: string; tools: { tool_id: string; description?: string }[] }[];
+  attachments: Record<string, string[]>;
+}
+
 export interface ApiMcpServer {
   id: string;
   name: string;
@@ -592,6 +608,56 @@ export interface ApiMcpServer {
   gateway?: string;
   organization_id?: string | null;
   tools: string[];
+  catalog?: { id: string; name: string; description?: string }[];
+  has_authorization?: boolean;
+}
+
+export interface ApiToolSetItem {
+  tool_id: string;
+  name: string;
+  description?: string;
+  server_id?: string | null;
+  server_name?: string;
+  approval?: boolean;
+  input_schema?: Record<string, unknown>;
+}
+
+export interface ApiToolSet {
+  id: string;
+  name: string;
+  description?: string;
+  items: ApiToolSetItem[];
+}
+
+export function connectMcpServer(body: { name: string; endpoint: string; authorization?: string }) {
+  return post<ApiMcpServer>("/mcp-servers", body);
+}
+
+export function refreshMcpServer(id: string) {
+  return post<ApiMcpServer>(`/mcp-servers/${id}/refresh`);
+}
+
+export function createToolSet(body: {
+  name: string;
+  description?: string;
+  items: { tool_id: string; approval: boolean }[];
+}) {
+  return post<ApiToolSet>("/tool-sets", body);
+}
+
+export function updateToolSet(
+  id: string,
+  body: {
+    name?: string;
+    description?: string;
+    items?: { tool_id: string; approval: boolean }[];
+  }
+) {
+  return patch<ApiToolSet>(`/tool-sets/${id}`, body);
+}
+
+export function deleteToolSet(id: string) {
+  return del(`/tool-sets/${id}`);
 }
 
 export async function enrollAgent(agentId: string): Promise<ApiAgentEnroll> {

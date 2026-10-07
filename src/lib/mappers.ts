@@ -6,11 +6,13 @@ import type {
   ApiApproval,
   ApiConnector,
   ApiHealth,
+  ApiAppMcp,
   ApiMcpServer,
   ApiPayment,
   ApiPolicy,
   ApiRun,
   ApiTool,
+  ApiToolSet,
   ApiWallet,
   ApiX402Supported,
 } from "@/lib/api";
@@ -25,6 +27,7 @@ import type {
   ActivityEvent,
   ActorKind,
   Agent,
+  AppMcp,
   AgentRun,
   AgentWallet,
   Approval,
@@ -33,6 +36,7 @@ import type {
   Integration,
   McpServer,
   Payment,
+  ToolSet,
   PaymentStatus,
   Policy,
   PolicyCheck,
@@ -549,6 +553,7 @@ function mapAgent(
     toolIds: tools
       .filter((tool) => (assigned ? assigned.has(tool.name) : true))
       .map((tool) => tool.id),
+    toolSetId: agent.tool_set_id ?? null,
     policyIds: policies
       .filter((policy) => {
         const ids = policy.agent_ids ?? [];
@@ -579,7 +584,44 @@ function mapMcpServers(servers: ApiMcpServer[]): McpServer[] {
     endpoint: server.endpoint,
     status: server.connected || server.status === "active" ? "connected" : "disconnected",
     tools: server.tools ?? [],
+    catalog: (server.catalog ?? []).map((tool) => ({
+      id: tool.id,
+      name: tool.name,
+      description: tool.description ?? "",
+    })),
     connected: Boolean(server.connected),
+    hasAuthorization: Boolean(server.has_authorization),
+  }));
+}
+
+function mapAppMcp(input: ApiAppMcp | null | undefined): AppMcp {
+  return {
+    servers: (input?.servers ?? []).map((server) => ({
+      id: server.id,
+      name: server.name,
+      url: server.url,
+      tools: (server.tools ?? []).map((tool) => ({
+        toolId: tool.tool_id,
+        description: tool.description ?? "",
+      })),
+    })),
+    attachments: input?.attachments ?? {},
+  };
+}
+
+function mapToolSets(sets: ApiToolSet[]): ToolSet[] {
+  return sets.map((set) => ({
+    id: set.id,
+    name: set.name,
+    description: set.description ?? "",
+    items: (set.items ?? []).map((item) => ({
+      toolId: item.tool_id,
+      name: item.name,
+      description: item.description ?? "",
+      serverId: item.server_id ?? null,
+      serverName: item.server_name ?? "",
+      approval: Boolean(item.approval),
+    })),
   }));
 }
 
@@ -596,6 +638,8 @@ export function mapConsole(input: {
   health: ApiHealth;
   connector?: ApiConnector | null;
   mcpServers?: ApiMcpServer[];
+  toolSets?: ApiToolSet[];
+  appMcp?: ApiAppMcp | null;
 }): ConsoleData {
   const runsById = new Map(input.runs.map((run) => [run.id, run]));
   const kind = input.x402?.kinds?.[0];
@@ -609,13 +653,17 @@ export function mapConsole(input: {
     ),
     integrations: mapTools(input.tools, input.policies),
     mcpServers: mapMcpServers(input.mcpServers ?? []),
+    appMcp: mapAppMcp(input.appMcp),
+    toolSets: mapToolSets(input.toolSets ?? []),
     connector: mapConnector(input.connector ?? null),
     policies: input.policies.map((policy) => mapPolicy(policy, input.agents)),
     runs: input.runs.map((run) => mapRun(run, input.policies, input.approvals)),
     approvals: input.approvals.map((approval) =>
       mapApproval(approval, runsById.get(approval.run_id), input.policies)
     ),
-    events: input.activity.map((event) => mapActivity(event, input.agents)),
+    events: input.activity
+      .map((event) => mapActivity(event, input.agents))
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
     services: mapServices(input.health),
     wallets: input.wallets.map(mapWallet),
     payments: input.payments.map(mapPayment),

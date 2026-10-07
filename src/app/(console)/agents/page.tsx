@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ConnectorPanel } from "@/components/connector/connector-panel";
 import { QueryGate } from "@/components/layout/query-gate";
 import { Button } from "@/components/ui/button";
 import { StatusLabel } from "@/components/ui/status-dot";
@@ -20,12 +19,7 @@ export default function AgentsPage() {
   const remove = useDeleteAgent();
   const [confirming, setConfirming] = useState<string | null>(null);
   const live = usePanelStore((state) => state.agents);
-  const connectorLive = usePanelStore((state) => state.connectorConnected);
   const agents = data?.agents ?? [];
-  const connector = data?.connector ?? null;
-  const enrolled = Boolean(connector?.enrolled);
-  const connected = connectorLive || Boolean(connector?.connected);
-  const firstVisit = !enrolled && agents.length === 0;
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
@@ -35,42 +29,28 @@ export default function AgentsPage() {
           {t("agents.subtitle")}
         </p>
 
-        {!connected ? (
-          <div className={firstVisit ? "mt-10" : "mt-10 border-t border-border pt-8"}>
-            <ConnectorPanel connector={connector} />
-          </div>
-        ) : null}
-
-        {enrolled && !connected && agents.length === 0 ? (
-          <p className="mt-10 text-[13px] text-muted-foreground">{t("connector.waitingAgents")}</p>
-        ) : null}
-
-        {agents.length === 0 && (connected || !enrolled) ? (
-          firstVisit ? null : (
-            <p className="mt-10 text-[13px] text-muted-foreground">{t("agents.empty")}</p>
-          )
-        ) : agents.length > 0 ? (
-          <ul className="mt-8 divide-y divide-border border-y border-border">
+        {agents.length === 0 ? (
+          <p className="mt-10 text-[13px] text-muted-foreground">{t("agents.empty")}</p>
+        ) : (
+          <ul className="mt-8 grid grid-cols-3 gap-3">
             {agents.map((agent) => {
               const copy = agentCopy(locale, agent.id, agent);
               const presence = agentPresence(agent, live, t);
               return (
-                <li key={agent.id} className="flex items-center gap-4">
-                  <Link
-                    href={`/agents/${agent.id}`}
-                    className="grid min-w-0 flex-1 grid-cols-[220px_1fr_120px] items-center gap-6 py-4 hover:bg-muted/40"
-                  >
-                    <span className="text-[14px] font-medium">{copy.name}</span>
-                    <span className="truncate text-[13px] text-muted-foreground">
-                      {copy.description}
-                    </span>
-                    <StatusLabel tone={presence.tone} className="justify-self-end">
-                      {presence.label}
-                    </StatusLabel>
-                  </Link>
+                <li key={agent.id} className="flex flex-col rounded-xl border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/agents/${agent.id}`} className="min-w-0">
+                      <span className="block truncate text-[15px] font-medium">{copy.name}</span>
+                      <span className="mt-1 line-clamp-2 block text-[13px] text-muted-foreground">
+                        {copy.description || "—"}
+                      </span>
+                    </Link>
+                    <StatusLabel tone={presence.tone}>{presence.label}</StatusLabel>
+                  </div>
+                  <div className="mt-4 text-[12px] text-muted-foreground">{agent.model || "—"}</div>
                   {canAdmin ? (
                     confirming === agent.id ? (
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="mt-4 flex items-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>
                           {t("agents.cancel")}
                         </Button>
@@ -84,7 +64,7 @@ export default function AgentsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => setConfirming(agent.id)}>
+                      <Button className="mt-4 self-start" variant="ghost" size="sm" onClick={() => setConfirming(agent.id)}>
                         {t("agents.remove")}
                       </Button>
                     )
@@ -93,7 +73,7 @@ export default function AgentsPage() {
               );
             })}
           </ul>
-        ) : null}
+        )}
         {remove.isError ? (
           <p className="mt-4 text-[13px] text-destructive">{remove.error.message}</p>
         ) : null}

@@ -45,7 +45,17 @@ const runTone: Record<
   rejected: "rejected",
 };
 
-export function AgentDetail({ agent }: { agent: Agent }) {
+function initialConfigTab(value: string | null | undefined): ConfigTab {
+  return CONFIG_TABS.find((tab) => tab === value) ?? "overview";
+}
+
+export function AgentDetail({
+  agent,
+  initialTab,
+}: {
+  agent: Agent;
+  initialTab?: string | null;
+}) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const { data } = useConsole();
@@ -62,7 +72,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   );
   const agentRuns = (data?.runs ?? []).filter((run) => run.agentId === agent.id);
   const wallet = data?.wallets.find((item) => item.agentId === agent.id);
-  const [tab, setTab] = useState<ConfigTab>("overview");
+  const [tab, setTab] = useState<ConfigTab>(initialConfigTab(initialTab));
   const [prompt, setPrompt] = useState("");
   const [dispatchError, setDispatchError] = useState<"offline" | "failed" | null>(
     null

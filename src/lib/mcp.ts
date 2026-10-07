@@ -1,3 +1,16 @@
+export function exposedServers(
+  tools: string[] | null,
+  servers: { id: string; name: string; tools: string[] }[]
+) {
+  return servers
+    .map((server) => ({
+      id: server.id,
+      name: server.name,
+      tools: server.tools.filter((name) => tools == null || tools.includes(name)),
+    }))
+    .filter((server) => server.tools.length > 0);
+}
+
 export function groupToolsByPrefix(
   tools: string[]
 ): { prefix: string; names: string[] }[] {

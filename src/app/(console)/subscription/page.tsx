@@ -69,7 +69,7 @@ export default function SubscriptionPage() {
               <div className="flex items-baseline justify-between gap-4">
                 <span>{data.plan.name}</span>
                 <span className="font-mono text-[12px] text-muted-foreground">
-                  {money(data.plan.amount, "USD", locale)} / {t("subscription.monthly")}
+                  {t("subscription.comingSoon")}
                 </span>
               </div>
               <div className="text-muted-foreground">{t("subscription.renews")}</div>

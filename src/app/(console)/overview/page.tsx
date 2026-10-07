@@ -1,178 +1,136 @@
 "use client";
 
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { useState } from "react";
 import { QueryGate } from "@/components/layout/query-gate";
-import { SectionLabel } from "@/components/ui/section-label";
-import { StatusDot, StatusLabel } from "@/components/ui/status-dot";
-import { greeting, relativeTime } from "@/lib/format";
-import { eventActor, eventText, useI18n } from "@/lib/i18n";
-import { useConsole } from "@/hooks/use-console";
-import type { ActivityEvent } from "@/types";
+import { Button } from "@/components/ui/button";
+import { useConsole, useCreateAgent } from "@/hooks/use-console";
+import { canAccess } from "@/lib/access";
+import { useAuthStore } from "@/lib/auth";
+import { relativeTime } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
 
 export default function OverviewPage() {
   const { t, locale } = useI18n();
+  const router = useRouter();
+  const name = useAuthStore((state) => state.user?.name) || "there";
+  const canCreate = canAccess(useAuthStore((state) => state.user?.permissions), "agents", "write");
   const { data, isPending, isError } = useConsole();
-  const events = data?.events ?? [];
-  const pendingCount = (data?.approvals ?? []).filter(
-    (approval) => approval.status === "pending"
-  ).length;
+  const create = useCreateAgent();
+  const [adding, setAdding] = useState(false);
+  const [agentName, setAgentName] = useState("");
   const agents = data?.agents ?? [];
-  const running = agents.filter((agent) => agent.running).length;
-  const services = data?.services ?? [];
-  const walletTotal = (data?.wallets ?? []).reduce(
-    (sum, wallet) => sum + Number(wallet.balance),
-    0
-  );
+  const servers = data?.mcpServers ?? [];
+  const runs = data?.runs ?? [];
+  const events = data?.events ?? [];
+  const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
+  const calls = runs.reduce((sum, run) => sum + run.actions.length, 0);
+  const usage = new Map<string, number>();
+  for (const event of events) {
+    if (!event.tool) continue;
+    usage.set(event.tool, (usage.get(event.tool) ?? 0) + 1);
+  }
+  const bars = [...usage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const max = bars[0]?.[1] ?? 1;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "overview.greetingMorning" : hour < 18 ? "overview.greetingAfternoon" : "overview.greetingEvening";
 
-  const recent = [...events]
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, 6);
+  async function addAgent() {
+    const next = agentName.trim();
+    if (!next) return;
+    const created = await create.mutateAsync({ name: next });
+    setAgentName("");
+    setAdding(false);
+    router.push(`/agents/${created.id}`);
+  }
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="flex min-h-full">
-        <div className="min-w-0 flex-1 px-10 py-10">
-          <h1 className="text-[28px] font-medium tracking-tight">
-            {greeting(locale)}
-          </h1>
-          <p className="mt-2 text-[15px] text-muted-foreground">
-            {services.length > 0 &&
-            services.every((service) => service.status === "operational")
-              ? t("overview.opsNormal")
-              : t("overview.opsIssue")}
-          </p>
-
-          <div className="mt-12 grid grid-cols-4 gap-8 border-y border-border py-7">
-            <Stat label={t("overview.activeAgents")} value={String(agents.length)} />
-            <Stat label={t("overview.running")} value={String(running)} />
-            <Stat label={t("overview.approvals")} value={String(pendingCount)} />
-            <Stat
-              label={t("overview.walletUsdc")}
-              value={walletTotal.toFixed(2)}
-            />
+      <div className="px-8 py-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-[26px] font-semibold tracking-tight">{t(greeting, { name })}</h1>
+            <p className="mt-1 text-[13px] text-muted-foreground">{t("overview.greetingBody")}</p>
           </div>
-
-          <section className="mt-10">
-            <SectionLabel className="mb-3">{t("overview.recentActivity")}</SectionLabel>
-            {recent.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">{t("activity.empty")}</p>
+          {canCreate ? (
+            adding ? (
+              <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); void addAgent(); }}>
+                <input
+                  value={agentName}
+                  onChange={(event) => setAgentName(event.target.value)}
+                  placeholder={t("agents.title")}
+                  className="h-9 rounded-lg border border-border bg-card px-3 text-[13px] outline-none"
+                />
+                <Button type="submit" disabled={create.isPending || !agentName.trim()}>{t("overview.createAgent")}</Button>
+              </form>
             ) : (
-              <ul className="divide-y divide-border border-y border-border">
-                {recent.map((event) => (
-                  <OverviewEvent key={event.id} event={event} />
+              <Button type="button" onClick={() => setAdding(true)}>{t("overview.createAgent")}</Button>
+            )
+          ) : null}
+        </div>
+
+        <div className="mt-6 grid grid-cols-4 gap-3">
+          <Stat href="/agents" label={t("overview.activeAgents")} value={agents.filter((item) => item.status === "active").length} />
+          <Stat href="/tools/connections" label={t("overview.connectedMcps")} value={servers.length} />
+          <Stat href="/runs" label={t("overview.toolCalls")} value={calls} />
+          <Stat href="/approvals" label={t("overview.approvals")} value={pending} />
+        </div>
+
+        <div className="mt-4 grid grid-cols-[1.4fr_0.8fr] gap-3">
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-[15px] font-medium">{t("overview.recentActivity")}</h2>
+            {events.length === 0 ? (
+              <p className="mt-6 text-[13px] text-muted-foreground">{t("activity.empty")}</p>
+            ) : (
+              <ul className="mt-4 divide-y divide-border">
+                {events.slice(0, 6).map((event) => (
+                  <li key={event.id} className="flex items-center gap-3 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px]">{event.title}</div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">
+                        {event.actor} · {relativeTime(event.at, locale)}
+                      </div>
+                    </div>
+                    {event.result ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-success">{event.result}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-[15px] font-medium">{t("overview.toolUsage")}</h2>
+            {bars.length === 0 ? (
+              <p className="mt-6 text-[13px] text-muted-foreground">{t("overview.noUsage")}</p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {bars.map(([tool, count]) => (
+                  <li key={tool}>
+                    <div className="mb-1 flex justify-between text-[12px]">
+                      <span className="truncate font-mono">{tool}</span>
+                      <span className="text-muted-foreground">{count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className="h-2 rounded-full bg-foreground" style={{ width: `${Math.max(8, (count / max) * 100)}%` }} />
+                    </div>
+                  </li>
                 ))}
               </ul>
             )}
           </section>
         </div>
-
-        <aside className="w-[280px] shrink-0 border-l border-border px-6 py-10">
-          <SectionLabel>{t("overview.systemStatus")}</SectionLabel>
-          <ul className="mt-5 space-y-3">
-            {services.map((service) => (
-              <li
-                key={service.id}
-                className="flex items-center justify-between gap-3 text-[13px]"
-              >
-                <span>
-                  {t(`service.${service.id}`) === `service.${service.id}`
-                    ? service.name
-                    : t(`service.${service.id}`)}
-                </span>
-                <StatusLabel tone={service.status}>
-                  {service.status === "operational"
-                    ? t("overview.operational")
-                    : service.status}
-                </StatusLabel>
-              </li>
-            ))}
-          </ul>
-          {data?.x402 ? (
-            <div className="mt-10">
-              <SectionLabel>{t("wallets.facilitator")}</SectionLabel>
-              <div className="mt-4 font-mono text-[13px] text-muted-foreground">
-                {data.x402.scheme} · {data.x402.network}
-              </div>
-            </div>
-          ) : null}
-        </aside>
       </div>
     </QueryGate>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ href, label, value }: { href: string; label: string; value: number }) {
   return (
-    <div>
-      <SectionLabel>{label}</SectionLabel>
-      <div className="mt-3 font-mono text-[28px] leading-none tracking-tight">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function eventState(event: ActivityEvent) {
-  if (
-    event.event === "approval_requested" ||
-    event.titleKey === "event.approvalRequested"
-  ) {
-    return "approval" as const;
-  }
-  if (
-    event.event === "run_completed" ||
-    event.event === "tool_executed" ||
-    event.event === "approval_granted" ||
-    event.event === "x402_settled"
-  ) {
-    return "completed" as const;
-  }
-  return "other" as const;
-}
-
-function OverviewEvent({ event }: { event: ActivityEvent }) {
-  const { locale, t } = useI18n();
-  const { data } = useConsole();
-  const run = data?.runs.find((item) => item.id === event.runId);
-  const href = run
-    ? `/agents/${run.agentId}/runs/${run.id}`
-    : event.approvalId
-      ? "/approvals"
-      : "/activity";
-  const state = eventState(event);
-
-  return (
-    <li>
-      <Link
-        href={href}
-        className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-6 py-4 hover:bg-muted/40"
-      >
-        <div className="min-w-0">
-          <div className="text-[13px] font-medium">
-            {eventActor(locale, event)}
-          </div>
-          <div className="mt-1 truncate text-[13px] text-muted-foreground">
-            {eventText(locale, event.titleKey, event.title)}
-          </div>
-        </div>
-        <div className="pt-0.5 text-right">
-          <div className="text-[12px] text-muted-foreground">
-            {relativeTime(event.at, locale)}
-          </div>
-          {state === "completed" ? (
-            <div className="mt-1 inline-flex items-center gap-1 text-[12px] text-success">
-              <Check className="size-3" />
-              {t("overview.completed")}
-            </div>
-          ) : state === "approval" ? (
-            <div className="mt-1 inline-flex items-center gap-1.5 text-[12px] text-warning">
-              <StatusDot tone="pending" />
-              {t("overview.approvalRequired")}
-            </div>
-          ) : null}
-        </div>
-      </Link>
-    </li>
+    <Link href={href} className="rounded-xl border border-border bg-card px-4 py-4 hover:border-foreground/20">
+      <div className="text-[28px] font-semibold tracking-tight">{value.toLocaleString()}</div>
+      <div className="mt-1 text-[12px] text-muted-foreground">{label}</div>
+    </Link>
   );
 }

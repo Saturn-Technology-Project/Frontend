@@ -24,6 +24,8 @@ export interface AuthUser {
 export interface AuthOrg {
   id: string;
   name: string;
+  plan?: string;
+  kind?: "personal" | "organization" | string;
 }
 
 export interface AuthSession {

@@ -33,7 +33,7 @@ export default function PoliciesPage() {
           {canWrite ? (
             <Link
               href="/policies/new"
-              className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-sm hover:bg-muted"
+              className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90"
             >
               {t("policies.create")}
             </Link>
