@@ -554,6 +554,8 @@ function mapAgent(
       .filter((tool) => (assigned ? assigned.has(tool.name) : true))
       .map((tool) => tool.id),
     toolSetId: agent.tool_set_id ?? null,
+    profileId: agent.profile_id ?? null,
+    origin: agent.origin ?? null,
     policyIds: policies
       .filter((policy) => {
         const ids = policy.agent_ids ?? [];

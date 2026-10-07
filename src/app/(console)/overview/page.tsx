@@ -1,26 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { QueryGate } from "@/components/layout/query-gate";
-import { Button } from "@/components/ui/button";
-import { useConsole, useCreateAgent } from "@/hooks/use-console";
-import { canAccess } from "@/lib/access";
+import { buttonVariants } from "@/components/ui/button";
+import { useConsole } from "@/hooks/use-console";
 import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { useRouter } from "next/navigation";
+import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
 
 export default function OverviewPage() {
   const { t, locale } = useI18n();
-  const router = useRouter();
-  const name = useAuthStore((state) => state.user?.name) || "there";
-  const canCreate = canAccess(useAuthStore((state) => state.user?.permissions), "agents", "write");
+  const user = useAuthStore((state) => state.user);
+  const org = useAuthStore((state) => state.org);
+  const name = user?.name || "there";
   const { data, isPending, isError } = useConsole();
-  const create = useCreateAgent();
-  const [adding, setAdding] = useState(false);
-  const [agentName, setAgentName] = useState("");
-  const agents = data?.agents ?? [];
+  const identity =
+    user && org
+      ? profileIdentity({
+          userId: user.id,
+          organizationId: org.id,
+          kind: org.kind,
+          plan: org.plan,
+        })
+      : "";
+  const agents = saturnMcpAgents(data?.agents ?? [], identity);
   const servers = data?.mcpServers ?? [];
   const runs = data?.runs ?? [];
   const events = data?.events ?? [];
@@ -36,15 +40,6 @@ export default function OverviewPage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "overview.greetingMorning" : hour < 18 ? "overview.greetingAfternoon" : "overview.greetingEvening";
 
-  async function addAgent() {
-    const next = agentName.trim();
-    if (!next) return;
-    const created = await create.mutateAsync({ name: next });
-    setAgentName("");
-    setAdding(false);
-    router.push(`/agents/${created.id}`);
-  }
-
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       <div className="px-8 py-6">
@@ -53,21 +48,9 @@ export default function OverviewPage() {
             <h1 className="text-[26px] font-semibold tracking-tight">{t(greeting, { name })}</h1>
             <p className="mt-1 text-[13px] text-muted-foreground">{t("overview.greetingBody")}</p>
           </div>
-          {canCreate ? (
-            adding ? (
-              <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); void addAgent(); }}>
-                <input
-                  value={agentName}
-                  onChange={(event) => setAgentName(event.target.value)}
-                  placeholder={t("agents.title")}
-                  className="h-9 rounded-lg border border-border bg-card px-3 text-[13px] outline-none"
-                />
-                <Button type="submit" disabled={create.isPending || !agentName.trim()}>{t("overview.createAgent")}</Button>
-              </form>
-            ) : (
-              <Button type="button" onClick={() => setAdding(true)}>{t("overview.createAgent")}</Button>
-            )
-          ) : null}
+          <Link href="/agents?connect=1" className={buttonVariants()}>
+            {t("overview.createAgent")}
+          </Link>
         </div>
 
         <div className="mt-6 grid grid-cols-4 gap-3">

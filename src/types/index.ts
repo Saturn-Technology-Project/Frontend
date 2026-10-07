@@ -63,6 +63,8 @@ export interface Agent {
   model: string;
   toolIds: string[];
   toolSetId: string | null;
+  profileId: string | null;
+  origin: string | null;
   policyIds: string[];
   walletId?: string;
   settings: AgentSettings;

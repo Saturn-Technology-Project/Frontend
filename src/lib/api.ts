@@ -28,6 +28,8 @@ export interface ApiAgent {
   last_seen_at?: string | null;
   settings?: ApiAgentSettings;
   tool_set_id?: string | null;
+  profile_id?: string | null;
+  origin?: string | null;
   pushed?: boolean | null;
 }
 
