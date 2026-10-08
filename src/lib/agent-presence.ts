@@ -16,9 +16,6 @@ export function agentPresence(
   if (agent.running) {
     return { tone: "running", label: t("agents.running") };
   }
-  if (agent.status === "paused") {
-    return { tone: "paused", label: t("agents.paused") };
-  }
   if (agentConnected(agent, live)) {
     return { tone: "connected", label: t("agents.connected") };
   }

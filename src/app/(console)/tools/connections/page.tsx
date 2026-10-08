@@ -86,7 +86,7 @@ export default function ConnectionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusLabel tone={server.connected ? "connected" : "disconnected"}>
-                          {server.connected ? t("tools.connected") : t("connector.offline")}
+                          {server.connected ? t("tools.connected") : t("agents.offline")}
                         </StatusLabel>
                       </td>
                       <td className="max-w-[360px] truncate px-4 py-3 font-mono text-[12px] text-muted-foreground">

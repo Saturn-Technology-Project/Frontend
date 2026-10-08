@@ -1,4 +1,3 @@
-export type AgentStatus = "active" | "paused";
 export type RunStatus =
   | "queued"
   | "running"
@@ -53,11 +52,9 @@ export interface Agent {
   name: string;
   title: string;
   description: string;
-  status: AgentStatus;
   running: boolean;
   connected: boolean;
   enrolled?: boolean;
-  connectorId?: string | null;
   runtimeId?: string | null;
   lastHeartbeatAt?: string | null;
   model: string;
@@ -92,16 +89,6 @@ export interface Integration {
   status: ToolConnection;
   functions: ToolFunction[];
   x402?: X402Price;
-  connectorId?: string | null;
-}
-
-export interface Connector {
-  id: string | null;
-  name: string;
-  enrolled: boolean;
-  connected: boolean;
-  environmentId?: string;
-  lastHeartbeatAt?: string | null;
 }
 
 export interface McpTool {
@@ -336,7 +323,6 @@ export interface ConsoleData {
   mcpServers: McpServer[];
   appMcp: AppMcp;
   toolSets: ToolSet[];
-  connector: Connector | null;
   policies: Policy[];
   runs: AgentRun[];
   approvals: Approval[];

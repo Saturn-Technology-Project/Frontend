@@ -590,7 +590,6 @@ export function RuntimePanel({
 }) {
   const { t } = useI18n();
   const { save, saving, status } = useConfigSave(agent.id);
-  const connector = data?.connector;
   const runtimes = useMemo(() => {
     const ids = new Set(
       (data?.agents ?? [])
@@ -601,7 +600,7 @@ export function RuntimePanel({
     return [...ids];
   }, [agent.runtimeId, data?.agents]);
   const [environment, setEnvironment] = useState(
-    agent.settings.environment || connector?.environmentId || ""
+    agent.settings.environment || ""
   );
   const [runtimeId, setRuntimeId] = useState(agent.runtimeId || "");
   const [region, setRegion] = useState(agent.settings.region);

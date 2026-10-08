@@ -20,10 +20,8 @@ export interface ApiAgent {
   name: string;
   description: string;
   model: string;
-  status: string;
   connected?: boolean;
   enrolled?: boolean;
-  connector_id?: string | null;
   runtime_id?: string | null;
   last_seen_at?: string | null;
   settings?: ApiAgentSettings;
@@ -467,7 +465,7 @@ export async function acceptInvite(token: string, password: string) {
 }
 
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, connector, mcpServers, toolSets, appMcp] =
+  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, mcpServers, toolSets, appMcp] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
@@ -479,7 +477,6 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiPayment[]>("/payments"),
       get<ApiX402Supported>("/x402/supported"),
       get<ApiHealth>("/health"),
-      get<ApiConnector>("/connectors").catch(() => null),
       get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
       get<ApiToolSet[]>("/tool-sets").catch(() => []),
       get<ApiAppMcp>("/app-mcp").catch(() => ({ servers: [], attachments: {} })),
@@ -496,7 +493,6 @@ export async function fetchConsole(): Promise<ConsoleData> {
     payments,
     x402,
     health,
-    connector,
     mcpServers: mcpServers ?? [],
     toolSets: toolSets ?? [],
     appMcp: appMcp ?? { servers: [], attachments: {} },
@@ -572,30 +568,6 @@ export function deleteMcpServer(id: string) {
   return del(`/mcp-servers/${id}`);
 }
 
-export interface ApiAgentEnroll {
-  agent_id: string;
-  token: string;
-  ws_url: string;
-}
-
-export interface ApiConnector {
-  id: string | null;
-  name: string;
-  enrolled: boolean;
-  connected: boolean;
-  environment_id?: string;
-  version?: string;
-  capabilities?: string[];
-  last_seen_at?: string | null;
-  organization_id?: string | null;
-}
-
-export interface ApiConnectorEnroll {
-  connector_id: string;
-  token: string;
-  ws_url: string;
-}
-
 export interface ApiAppMcp {
   servers: { id: string; name: string; url: string; tools: { tool_id: string; description?: string }[] }[];
   attachments: Record<string, string[]>;
@@ -666,36 +638,6 @@ export function deleteToolSet(id: string) {
   return del(`/tool-sets/${id}`);
 }
 
-export async function enrollAgent(agentId: string): Promise<ApiAgentEnroll> {
-  return post<ApiAgentEnroll>(`/agents/${agentId}/enroll`);
-}
-
-export async function fetchEnrollment(agentId: string): Promise<ApiAgentEnroll | null> {
-  try {
-    return await get<ApiAgentEnroll>(`/agents/${agentId}/enrollment`);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
-export async function fetchConnector(): Promise<ApiConnector> {
-  return get<ApiConnector>("/connectors");
-}
-
-export async function enrollConnector(): Promise<ApiConnectorEnroll> {
-  return post<ApiConnectorEnroll>("/connectors/enroll");
-}
-
-export async function fetchConnectorEnrollment(): Promise<ApiConnectorEnroll | null> {
-  try {
-    return await get<ApiConnectorEnroll>("/connectors/enrollment");
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-}
-
 export interface PolicyWrite {
   name: string;
   description?: string;
@@ -737,10 +679,6 @@ export async function fetchConversation(agentId: string): Promise<ConversationMe
 
 export async function sendConversation(agentId: string, input: string): Promise<ConversationMessage> {
   return post<ConversationMessage>(`/agents/${agentId}/messages`, { input });
-}
-
-export async function createRun(agentId: string, prompt: string): Promise<ApiRun> {
-  return post<ApiRun>("/runs", { agent_id: agentId, input: prompt });
 }
 
 export async function approveApproval(approvalId: string) {

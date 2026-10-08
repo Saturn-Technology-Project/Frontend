@@ -4,12 +4,10 @@ import type { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { UpgradeCover } from "@/components/layout/upgrade-cover";
-import { usePanelSocket } from "@/hooks/use-panel-socket";
 import { useOrg } from "@/hooks/use-team";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  usePanelSocket();
   const saved = useAuthStore((state) => state.org);
   const workspace = useOrg();
   const plan = workspace.data?.organization.plan ?? saved?.plan;

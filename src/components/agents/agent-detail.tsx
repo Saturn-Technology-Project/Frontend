@@ -1,9 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AgentConnectPanel } from "@/components/agents/agent-connect";
 import { ConversationPanel } from "@/components/agents/conversation";
 import {
   BehaviorPanel,
@@ -18,16 +17,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
-import { useConsole, useCreateRun, useDeleteAgent } from "@/hooks/use-console";
-import { sendPanelCommand } from "@/hooks/use-panel-socket";
+import { useConsole, useDeleteAgent } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
-import { agentConnected, agentPresence } from "@/lib/agent-presence";
+import { agentPresence } from "@/lib/agent-presence";
 import { runtimeLabel } from "@/lib/agent-config";
-import { ApiError } from "@/lib/api";
 import { relativeTime, formatUsdc } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/auth";
-import { usePanelStore } from "@/stores/panel-store";
 import { cn } from "@/lib/utils";
 import type { Agent, RunStatus } from "@/types";
 
@@ -59,8 +55,6 @@ export function AgentDetail({
   const { t, locale } = useI18n();
   const router = useRouter();
   const { data } = useConsole();
-  const live = usePanelStore((state) => state.agents);
-  const createRun = useCreateRun();
   const removeAgent = useDeleteAgent();
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const user = useAuthStore((state) => state.user);
@@ -73,57 +67,9 @@ export function AgentDetail({
   const agentRuns = (data?.runs ?? []).filter((run) => run.agentId === agent.id);
   const wallet = data?.wallets.find((item) => item.agentId === agent.id);
   const [tab, setTab] = useState<ConfigTab>(initialConfigTab(initialTab));
-  const [prompt, setPrompt] = useState("");
-  const [dispatchError, setDispatchError] = useState<"offline" | "failed" | null>(
-    null
-  );
-  const [dispatching, setDispatching] = useState(false);
   const copy = agentCopy(locale, agent.id, agent);
-  const presence = agentPresence(agent, live, t);
-  const viaConnector = Boolean(agent.connectorId);
+  const presence = agentPresence(agent, {}, t);
   const runtime = runtimeLabel(agent.runtimeId) || agent.runtimeId;
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setDispatchError(null);
-    const text = prompt.trim();
-    if (!text) return;
-    if (!agentConnected(agent, live)) {
-      setDispatchError("offline");
-      return;
-    }
-    setDispatching(true);
-    try {
-      try {
-        const result = await sendPanelCommand({
-          command: "run",
-          agentId: agent.id,
-          input: text,
-        });
-        if (result.run?.id) {
-          router.push(`/agents/${agent.id}/runs/${result.run.id}`);
-          return;
-        }
-        if (result.delivered === false) {
-          setDispatchError("offline");
-          return;
-        }
-      } catch {
-        // Panel socket is down; fall back to HTTP.
-      }
-      const run = await createRun.mutateAsync({
-        agentId: agent.id,
-        prompt: text,
-      });
-      router.push(`/agents/${agent.id}/runs/${run.id}`);
-    } catch (error) {
-      setDispatchError(
-        error instanceof ApiError && error.status === 409 ? "offline" : "failed"
-      );
-    } finally {
-      setDispatching(false);
-    }
-  }
 
   return (
     <div className="mx-auto w-full max-w-[880px]">
@@ -182,8 +128,6 @@ export function AgentDetail({
 
         <div className="min-w-0 flex-1">
           <div className={tab === "overview" ? "" : "hidden"}>
-            {!viaConnector ? <AgentConnectPanel key={agent.id} agent={agent} /> : null}
-
             <RuntimePanel agent={agent} data={data} canAdmin={canAdmin} />
 
             <div className="mt-10">
@@ -230,34 +174,6 @@ export function AgentDetail({
             </div>
 
             <ConversationPanel agentId={agent.id} />
-
-            <form onSubmit={onSubmit} className="mt-10 border-t border-border pt-8">
-              <SectionLabel>{t("agents.dispatch")}</SectionLabel>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder={t("agents.promptPlaceholder")}
-                rows={3}
-                className="mt-3 w-full resize-none rounded-md border border-border bg-card px-3 py-3 text-[14px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              {dispatchError ? (
-                <p className="mt-2 text-[13px] text-destructive">
-                  {t(
-                    dispatchError === "offline"
-                      ? "run.notConnected"
-                      : "common.requestFailed"
-                  )}
-                </p>
-              ) : null}
-              <div className="mt-3">
-                <Button
-                  type="submit"
-                  disabled={dispatching || createRun.isPending || !prompt.trim()}
-                >
-                  {t("agents.runAgent")}
-                </Button>
-              </div>
-            </form>
 
             <section className="mt-10 border-t border-border pt-8">
               <SectionLabel>{t("agents.recentRuns")}</SectionLabel>

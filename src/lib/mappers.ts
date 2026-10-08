@@ -4,7 +4,6 @@ import type {
   ApiActivity,
   ApiAgent,
   ApiApproval,
-  ApiConnector,
   ApiHealth,
   ApiAppMcp,
   ApiMcpServer,
@@ -31,7 +30,6 @@ import type {
   AgentRun,
   AgentWallet,
   Approval,
-  Connector,
   ConsoleData,
   Integration,
   McpServer,
@@ -542,11 +540,9 @@ function mapAgent(
     name: agent.name,
     title: "Agent",
     description: agent.description,
-    status: agent.status === "paused" ? "paused" : "active",
     running: live,
     connected: Boolean(agent.connected),
     enrolled: Boolean(agent.enrolled),
-    connectorId: agent.connector_id ?? null,
     runtimeId: agent.runtime_id ?? null,
     lastHeartbeatAt: agent.last_seen_at ?? null,
     model: agent.model,
@@ -564,18 +560,6 @@ function mapAgent(
       .map((policy) => policy.id),
     walletId: wallets.find((wallet) => wallet.agent_id === agent.id)?.id,
     settings: normalizeSettings(agent.settings, agent.model, agent),
-  };
-}
-
-function mapConnector(connector: ApiConnector | null): Connector | null {
-  if (!connector) return null;
-  return {
-    id: connector.id,
-    name: connector.name || "Saturn Connector",
-    enrolled: Boolean(connector.enrolled),
-    connected: Boolean(connector.connected),
-    environmentId: connector.environment_id || "",
-    lastHeartbeatAt: connector.last_seen_at ?? null,
   };
 }
 
@@ -638,7 +622,6 @@ export function mapConsole(input: {
   payments: ApiPayment[];
   x402: ApiX402Supported | null;
   health: ApiHealth;
-  connector?: ApiConnector | null;
   mcpServers?: ApiMcpServer[];
   toolSets?: ApiToolSet[];
   appMcp?: ApiAppMcp | null;
@@ -657,7 +640,6 @@ export function mapConsole(input: {
     mcpServers: mapMcpServers(input.mcpServers ?? []),
     appMcp: mapAppMcp(input.appMcp),
     toolSets: mapToolSets(input.toolSets ?? []),
-    connector: mapConnector(input.connector ?? null),
     policies: input.policies.map((policy) => mapPolicy(policy, input.agents)),
     runs: input.runs.map((run) => mapRun(run, input.policies, input.approvals)),
     approvals: input.approvals.map((approval) =>

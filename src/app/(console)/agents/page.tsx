@@ -12,6 +12,7 @@ import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
 import { cn } from "@/lib/utils";
+import { apiOrigin } from "@/lib/ws";
 import type { ActivityEvent, Agent, ToolSet } from "@/types";
 
 export default function AgentsPage() {
@@ -143,12 +144,38 @@ function ConnectPanel({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(apiOrigin());
+  }, []);
+  const endpoint = origin ? `${origin}/mcp` : "";
+  const profileHeader = identity ? `X-Saturn-Profile: ${identity}` : "";
+  const config = endpoint
+    ? JSON.stringify(
+        {
+          type: "http",
+          url: endpoint,
+          headers: { "X-Saturn-Profile": identity },
+        },
+        null,
+        2
+      )
+    : "";
+  const packet = [
+    `${t("agents.endpoint")}\n${endpoint}`,
+    `${t("agents.transport")}\n${t("agents.transportValue")}`,
+    `${t("agents.signIn")}\n${t("agents.signInValue")}`,
+    `${t("agents.scope")}\n${t("agents.scopeValue")}`,
+    `${t("agents.profileHeader")}\n${profileHeader}`,
+    `${t("agents.clientConfig")}\n${config}`,
+  ].join("\n\n");
   const [copied, setCopied] = useState(false);
 
-  async function copyIdentity() {
-    if (!identity) return;
-    await navigator.clipboard.writeText(identity);
+  async function copyAll() {
+    if (!endpoint) return;
+    await navigator.clipboard.writeText(packet);
     setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
   }
 
   return (
@@ -161,18 +188,49 @@ function ConnectPanel({
       </div>
       <div className="px-5 py-5">
         <p className="text-[13px] text-muted-foreground">{t("agents.connectNote")}</p>
-        <div className="mt-5 text-[12px] text-muted-foreground">{t("agents.identity")}</div>
-        <div className="mt-2 break-all rounded-lg border border-border bg-background px-3 py-2 font-mono text-[12px]">
-          {identity || "—"}
+        <Field label={t("agents.endpoint")} value={endpoint} hint={t("agents.endpointHint")} />
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <Field label={t("agents.transport")} value={t("agents.transportValue")} mono={false} />
+          <Field label={t("agents.signIn")} value={t("agents.signInValue")} mono={false} />
         </div>
-        <p className="mt-3 text-[12px] text-muted-foreground">
+        <Field label={t("agents.scope")} value={t("agents.scopeValue")} />
+        <Field label={t("agents.profileHeader")} value={profileHeader} />
+        <p className="mt-2 text-[12px] text-muted-foreground">
           {personal ? t("agents.identityPersonal") : t("agents.identityOrganization")}
         </p>
-        <Button className="mt-4" type="button" variant="outline" disabled={!identity} onClick={() => void copyIdentity()}>
+        <Field label={t("agents.clientConfig")} value={config} />
+        <Button className="mt-5" type="button" variant="outline" disabled={!endpoint} onClick={() => void copyAll()}>
           {copied ? t("agents.copied") : t("agents.copy")}
         </Button>
       </div>
     </aside>
+  );
+}
+
+function Field({
+  label,
+  value,
+  hint,
+  mono = true,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className={hint || mono ? "mt-5" : ""}>
+      <div className="text-[12px] text-muted-foreground">{label}</div>
+      <div
+        className={cn(
+          "mt-2 whitespace-pre-wrap break-all rounded-lg border border-border bg-background px-3 py-2",
+          mono ? "font-mono text-[12px]" : "text-[13px]"
+        )}
+      >
+        {value || "—"}
+      </div>
+      {hint ? <p className="mt-2 text-[12px] text-muted-foreground">{hint}</p> : null}
+    </div>
   );
 }
 

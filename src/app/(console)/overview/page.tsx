@@ -54,7 +54,7 @@ export default function OverviewPage() {
         </div>
 
         <div className="mt-6 grid grid-cols-4 gap-3">
-          <Stat href="/agents" label={t("overview.activeAgents")} value={agents.filter((item) => item.status === "active").length} />
+          <Stat href="/agents" label={t("overview.activeAgents")} value={agents.length} />
           <Stat href="/tools/connections" label={t("overview.connectedMcps")} value={servers.length} />
           <Stat href="/runs" label={t("overview.toolCalls")} value={calls} />
           <Stat href="/approvals" label={t("overview.approvals")} value={pending} />
