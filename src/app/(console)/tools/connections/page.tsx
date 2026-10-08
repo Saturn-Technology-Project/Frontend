@@ -10,7 +10,7 @@ import { StatusLabel } from "@/components/ui/status-dot";
 import { consoleQueryKey, useConsole, useDeleteMcpServer } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
 import { connectMcpServer } from "@/lib/api";
-import { authorizeMcp, McpAuthorizeError } from "@/lib/mcp-authorize";
+import { authorizeMcp, mcpOauthErrorText } from "@/lib/mcp-authorize";
 import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -289,7 +289,7 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
                   if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
                 })
                 .catch((error: unknown) => {
-                  setOauthError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+                  setOauthError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
                 })
                 .finally(() => setAuthorizing(false));
             }}

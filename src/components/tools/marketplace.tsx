@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { consoleQueryKey } from "@/hooks/use-console";
 import { connectMcpServer } from "@/lib/api";
-import { authorizeMcp, McpAuthorizeError } from "@/lib/mcp-authorize";
+import { authorizeMcp, mcpOauthErrorText } from "@/lib/mcp-authorize";
 import { useI18n } from "@/lib/i18n";
 import { MarketIcon } from "@/components/tools/market-icon";
 import { marketCatalog, marketCategories, marketName, type MarketCategory, type MarketEntry } from "@/lib/marketplace";
@@ -62,7 +62,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
       if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
     } catch (error) {
       open(entry, "setup");
-      setConnectError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+      setConnectError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
     } finally {
       setBusyId(null);
     }
@@ -391,6 +391,9 @@ function ConnectForm({
   const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [token, setToken] = useState("");
   const [paste, setPaste] = useState(false);
+  useEffect(() => {
+    if (connectError === t("marketplace.signInUnavailable")) setPaste(true);
+  }, [connectError]);
   const [localError, setLocalError] = useState("");
   const [authorizing, setAuthorizing] = useState(false);
   const connect = useMutation({
@@ -419,7 +422,9 @@ function ConnectForm({
       const result = await authorizeMcp({ name: name.trim(), endpoint: endpoint.trim() });
       if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
     } catch (error) {
-      setLocalError(error instanceof McpAuthorizeError && error.code === "popup" ? t("marketplace.popupBlocked") : error instanceof Error ? error.message : t("marketplace.popupBlocked"));
+      const message = mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") });
+      if (message === t("marketplace.signInUnavailable")) setPaste(true);
+      setLocalError(message);
     } finally {
       setAuthorizing(false);
     }

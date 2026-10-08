@@ -10,6 +10,15 @@ export class McpAuthorizeError extends Error {
   }
 }
 
+export function mcpOauthErrorText(
+  error: unknown,
+  labels: { popup: string; signInUnavailable: string }
+): string {
+  if (error instanceof McpAuthorizeError && error.code === "popup") return labels.popup;
+  if (error instanceof Error && error.message.includes("does not let Saturn start sign-in")) return labels.signInUnavailable;
+  return error instanceof Error ? error.message : labels.popup;
+}
+
 export async function authorizeMcp(body: { name: string; endpoint: string }): Promise<"connected" | "approved" | "cancelled"> {
   const nonce = crypto.randomUUID();
   const started = await startMcpOauth({ ...body, nonce });
