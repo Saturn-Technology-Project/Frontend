@@ -23,6 +23,108 @@ export type MarketEntry = {
 
 export const marketCatalog: MarketEntry[] = [
   {
+    id: "gmail",
+    category: "communication",
+    featured: true,
+    endpoint: "https://gmailmcp.googleapis.com/mcp/v1",
+    publisher: "Google",
+    docs: "https://developers.google.com/workspace/guides/configure-mcp-servers",
+    auth: "token",
+    blurb: {
+      en: "Search, read, and draft mail in Gmail.",
+      zh: "搜尋、讀取並撰寫 Gmail。",
+    },
+    points: {
+      en: ["Search and read messages", "Draft and compose mail", "Uses the Gmail access you approve"],
+      zh: ["搜尋並讀取郵件", "撰寫草稿與新郵件", "使用你核准的 Gmail 權限"],
+    },
+  },
+  {
+    id: "google-calendar",
+    category: "productivity",
+    featured: true,
+    endpoint: "https://calendarmcp.googleapis.com/mcp/v1",
+    publisher: "Google",
+    docs: "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
+    auth: "token",
+    blurb: {
+      en: "Events and availability in Google Calendar.",
+      zh: "Google Calendar 的行程與空檔。",
+    },
+    points: {
+      en: ["Look up calendars and events", "Check free and busy time", "Read events you can access"],
+      zh: ["查看日曆與行程", "查詢有空與忙碌時段", "讀取你有權限的行程"],
+    },
+  },
+  {
+    id: "mercury",
+    category: "finance",
+    featured: true,
+    endpoint: "https://mcp.mercury.com/mcp",
+    publisher: "Mercury",
+    docs: "https://docs.mercury.com/docs/connecting-mercury-mcp",
+    auth: "token",
+    blurb: {
+      en: "Accounts, transactions, and payment requests.",
+      zh: "帳戶、交易與付款申請。",
+    },
+    points: {
+      en: ["Read accounts and transactions", "Request payments and internal transfers", "Payments still need approval in Mercury"],
+      zh: ["讀取帳戶與交易", "提出付款與內部轉帳申請", "付款仍須在 Mercury 核准"],
+    },
+  },
+  {
+    id: "ibkr",
+    category: "finance",
+    featured: true,
+    endpoint: "https://api.ibkr.com/v1/api/mcp-public",
+    publisher: "Interactive Brokers",
+    docs: "https://www.ibkrguides.com/releasenotes/connector-v1.1.5.htm",
+    auth: "token",
+    blurb: {
+      en: "The Interactive Brokers account you authorize.",
+      zh: "你授權的 Interactive Brokers 帳戶。",
+    },
+    points: {
+      en: ["Review the authorized account", "Research positions and the portfolio", "Sign-in stays on Interactive Brokers"],
+      zh: ["查看已授權的帳戶", "研究部位與投資組合", "登入留在 Interactive Brokers"],
+    },
+  },
+  {
+    id: "dukascopy",
+    category: "finance",
+    featured: true,
+    endpoint: "https://mcp.dukascopy.com/mcp",
+    publisher: "Dukascopy Bank",
+    docs: "https://ai.dukascopy.com/",
+    auth: "token",
+    blurb: {
+      en: "A JForex trading account, including orders.",
+      zh: "JForex 交易帳戶，包含下單。",
+    },
+    points: {
+      en: ["Review the connected account", "Place and manage orders", "Your password stays with Dukascopy"],
+      zh: ["查看已連接的帳戶", "下單並管理委託", "密碼留在 Dukascopy"],
+    },
+  },
+  {
+    id: "carta",
+    category: "finance",
+    featured: true,
+    endpoint: "https://mcp.app.carta.com/mcp",
+    publisher: "Carta",
+    docs: "https://docs.carta.com/api-platform/guides/guides/claude-mcp-setup",
+    auth: "token",
+    blurb: {
+      en: "Cap tables, funds, and investor CRM.",
+      zh: "股權表、基金與投資人 CRM。",
+    },
+    points: {
+      en: ["Read ownership and valuations", "Review fund metrics", "Update CRM records your account can change"],
+      zh: ["讀取持股與估值", "查看基金指標", "更新你的帳號可以修改的 CRM 紀錄"],
+    },
+  },
+  {
     id: "github",
     category: "development",
     featured: true,
@@ -222,6 +324,12 @@ export const marketCatalog: MarketEntry[] = [
 
 export function marketName(id: string) {
   const names: Record<string, string> = {
+    gmail: "Gmail",
+    "google-calendar": "Google Calendar",
+    mercury: "Mercury",
+    ibkr: "IBKR",
+    dukascopy: "Dukascopy",
+    carta: "Carta",
     github: "GitHub",
     notion: "Notion",
     linear: "Linear",
