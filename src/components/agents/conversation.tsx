@@ -82,7 +82,7 @@ export function ConversationPanel({ agentId }: { agentId: string }) {
           className="w-full resize-none rounded-md border border-border bg-card px-3 py-3 text-[14px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
-        <Button type="submit" className="mt-3" disabled={sending || !draft.trim()}>
+        <Button type="submit" className="mt-3 w-full sm:w-auto" disabled={sending || !draft.trim()}>
           {t("agents.conversationSend")}
         </Button>
       </form>

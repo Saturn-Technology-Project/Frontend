@@ -15,8 +15,8 @@ export default function MappingPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-8 py-6">
-        <h1 className="text-[26px] font-semibold tracking-tight">{t("nav.mapping")}</h1>
+      <div className="px-4 py-5 md:px-8 md:py-6">
+        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.mapping")}</h1>
         {canAdmin ? (
           <div className="mt-6">
             <ToolSetEditor

@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n";
 import { MarketIcon } from "@/components/tools/market-icon";
 import { marketCatalog, marketCategories, marketName, type MarketCategory, type MarketEntry } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import { detailPanelClass } from "@/components/layout/mobile-nav";
 import type { McpServer } from "@/types";
 
 const fieldClass =
@@ -70,21 +71,22 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
 
   return (
     <div className="flex items-start">
-      <div className="min-w-0 flex-1 px-8 py-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-[26px] font-semibold tracking-tight">{t("marketplace.title")}</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("marketplace.title")}</h1>
             <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("marketplace.lead")}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("marketplace.search")}
-              className="h-9 w-[240px] rounded-full border border-border bg-muted px-4 text-[13px] outline-none focus:border-ring"
+              className="h-10 w-full rounded-full border border-border bg-muted px-4 text-base outline-none focus:border-ring sm:w-[240px] md:h-9 md:text-[13px]"
             />
             <Button
               type="button"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setCustom(true);
                 setSelectedId(null);
@@ -107,7 +109,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
           ))}
         </div>
 
-        <section className="mt-5 rounded-xl border border-border bg-card px-6 py-6">
+        <section className="mt-5 rounded-xl border border-border bg-card px-4 py-5 md:px-6 md:py-6">
           <h2 className="max-w-md text-[22px] font-semibold tracking-tight">{t("marketplace.heroTitle")}</h2>
           <p className="mt-2 max-w-lg text-[13px] leading-5 text-muted-foreground">{t("marketplace.heroBody")}</p>
           <div className="mt-5 flex gap-2">
@@ -128,7 +130,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
         {featured.length > 0 ? (
           <section className="mt-8">
             <h2 className="text-[15px] font-medium">{t("marketplace.featured")}</h2>
-            <ul className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {featured.map((entry) => (
                 <MarketCard
                   key={entry.id}
@@ -150,7 +152,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
           {visible.length === 0 ? (
             <p className="mt-4 text-[13px] text-muted-foreground">{t("marketplace.noMatch")}</p>
           ) : (
-            <ul className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-3">
+            <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {visible.map((entry) => (
                 <MarketCard
                   key={entry.id}
@@ -169,7 +171,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
       </div>
 
       {custom || selected ? (
-        <aside className="sticky top-0 flex h-[calc(100vh-3.5rem)] w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border bg-card">
+        <aside className={detailPanelClass}>
           <div className="flex items-start justify-between gap-3 px-5 pt-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -188,7 +190,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
             </div>
             <button
               type="button"
-              className="text-[12px] text-muted-foreground hover:text-foreground"
+              className="inline-flex h-11 shrink-0 items-center px-1 text-[13px] text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setCustom(false);
                 setSelectedId(null);
@@ -306,14 +308,14 @@ function Detail({
       <div className="mt-5 flex gap-4 border-b border-border px-5 text-[13px]">
         <button
           type="button"
-          className={cn("border-b-2 pb-2", tab === "overview" ? "border-foreground" : "border-transparent text-muted-foreground")}
+          className={cn("border-b-2 px-1 py-3", tab === "overview" ? "border-foreground" : "border-transparent text-muted-foreground")}
           onClick={() => onTab("overview")}
         >
           {t("marketplace.overview")}
         </button>
         <button
           type="button"
-          className={cn("border-b-2 pb-2", tab === "setup" ? "border-foreground" : "border-transparent text-muted-foreground")}
+          className={cn("border-b-2 px-1 py-3", tab === "setup" ? "border-foreground" : "border-transparent text-muted-foreground")}
           onClick={() => onTab("setup")}
         >
           {t("marketplace.setup")}
@@ -340,7 +342,7 @@ function Detail({
               </ul>
             </div>
           ) : null}
-          <div className="grid grid-cols-[88px_1fr] gap-y-2 text-[12px]">
+          <div className="grid grid-cols-1 gap-y-2 text-[12px] sm:grid-cols-[88px_1fr]">
             <div className="text-muted-foreground">{t("marketplace.publisher")}</div>
             <div>{entry.publisher}</div>
             <div className="text-muted-foreground">{t("marketplace.docs")}</div>

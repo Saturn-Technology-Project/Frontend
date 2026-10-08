@@ -150,7 +150,7 @@ export function PolicyForm({
             <ul className="mt-2 divide-y divide-border border border-border">
               {agents.map((agent) => (
                 <li key={agent.id}>
-                  <label className="flex items-center gap-3 px-3 py-2.5 text-[13px]">
+                  <label className="flex items-center gap-3 px-3 py-3 text-[13px]">
                     <input
                       type="checkbox"
                       checked={form.agentIds.includes(agent.id)}

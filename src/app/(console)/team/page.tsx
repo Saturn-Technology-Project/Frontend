@@ -62,7 +62,7 @@ export default function TeamPage() {
 
   if (org.data?.organization.kind === "personal") {
     return (
-      <div className="px-10 py-10 text-[13px] text-muted-foreground">
+      <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
         {t("team.personal")}
       </div>
     );
@@ -70,7 +70,7 @@ export default function TeamPage() {
 
   if (!canRead) {
     return (
-      <div className="px-10 py-10 text-[13px] text-muted-foreground">
+      <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
         {t("team.forbidden")}
       </div>
     );
@@ -78,7 +78,7 @@ export default function TeamPage() {
 
   return (
     <QueryGate isPending={org.isPending || members.isPending} isError={org.isError || members.isError}>
-      <div className="px-10 py-10">
+      <div className="px-4 py-6 md:px-10 md:py-10">
         <h1 className="text-[22px] font-medium tracking-tight">{t("team.title")}</h1>
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
           {t("team.subtitle")}
@@ -104,7 +104,7 @@ export default function TeamPage() {
             }}
           >
             <SectionLabel>{t("team.invite")}</SectionLabel>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
                 label={t("team.email")}
                 value={inviteForm.email}
@@ -164,7 +164,7 @@ export default function TeamPage() {
                   <button
                     type="button"
                     onClick={() => setOpenId(openId === member.id ? null : member.id)}
-                    className="grid w-full grid-cols-[180px_1fr_120px_100px_100px] items-center gap-4 py-4 text-left hover:bg-muted/40"
+                    className="flex w-full flex-col items-start gap-1 py-4 text-left hover:bg-muted/40 md:grid md:grid-cols-[180px_1fr_120px_100px_100px] md:items-center md:gap-4"
                   >
                     <span className="text-[13px] font-medium">{member.name}</span>
                     <span className="truncate text-[13px] text-muted-foreground">
@@ -178,7 +178,7 @@ export default function TeamPage() {
                     >
                       {t(`team.${member.status === "active" ? "active" : "disabled"}`)}
                     </StatusLabel>
-                    <span className="justify-self-end font-mono text-[11px] text-muted-foreground">
+                    <span className="font-mono text-[11px] text-muted-foreground md:justify-self-end">
                       {RESOURCES.map((resource) => member.permissions[resource]?.[0] ?? "n").join("")}
                     </span>
                   </button>
@@ -315,7 +315,7 @@ function MemberEditor({
     return (
       <div className="mb-4 grid gap-2 px-0 pb-4 text-[13px] text-muted-foreground">
         {RESOURCES.map((resource) => (
-          <div key={resource} className="grid grid-cols-[120px_1fr] gap-4">
+          <div key={resource} className="grid grid-cols-1 gap-1 sm:grid-cols-[120px_1fr] sm:gap-4">
             <span>{resourceLabel[resource]}</span>
             <span>{t(`team.${perms[resource]}`)}</span>
           </div>
@@ -338,7 +338,7 @@ function MemberEditor({
         });
       }}
     >
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("team.role")}
           <select
@@ -372,7 +372,7 @@ function MemberEditor({
           {RESOURCES.map((resource) => (
             <div
               key={resource}
-              className="grid grid-cols-[140px_1fr] items-center gap-4 text-[13px]"
+              className="grid grid-cols-1 items-start gap-2 text-[13px] sm:grid-cols-[140px_1fr] sm:items-center sm:gap-4"
             >
               <span>{resourceLabel[resource]}</span>
               <select

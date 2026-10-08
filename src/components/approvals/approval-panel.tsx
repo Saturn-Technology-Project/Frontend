@@ -14,7 +14,7 @@ import type { Approval } from "@/types";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[112px_1fr] gap-4 py-3">
+    <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[112px_1fr] sm:gap-4">
       <SectionLabel className="pt-0.5">{label}</SectionLabel>
       <div className="text-[15px] leading-6 text-foreground">{value}</div>
     </div>
@@ -52,7 +52,7 @@ export function ApprovalPanel({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="w-[420px] max-w-[420px] gap-0 rounded-md p-0 ring-border sm:max-w-[420px]"
+        className="w-[min(420px,calc(100%-2rem))] max-w-none gap-0 rounded-md p-0 ring-border sm:max-w-none"
       >
         <div className="border-b border-border px-6 py-5">
           <DialogTitle className="saturn-label">{t("approvals.request")}</DialogTitle>

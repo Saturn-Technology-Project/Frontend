@@ -16,7 +16,7 @@ export default function WalletsPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-10 py-10">
+      <div className="px-4 py-6 md:px-10 md:py-10">
         <h1 className="text-[22px] font-medium tracking-tight">{t("wallets.title")}</h1>
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
           {t("wallets.subtitle")}
@@ -46,7 +46,7 @@ export default function WalletsPage() {
                 <li key={wallet.id}>
                   <Link
                     href={`/wallets/${wallet.id}`}
-                    className="grid grid-cols-[220px_1fr_160px_120px] items-center gap-6 py-4 hover:bg-muted/40"
+                    className="flex flex-col items-start gap-1 py-4 hover:bg-muted/40 md:grid md:grid-cols-[220px_1fr_160px_120px] md:items-center md:gap-6"
                   >
                     <span className="text-[14px] font-medium">{name}</span>
                     <span className="font-mono text-[13px]">
@@ -57,7 +57,7 @@ export default function WalletsPage() {
                     </span>
                     <StatusLabel
                       tone={wallet.status === "active" ? "active" : "paused"}
-                      className="justify-self-end"
+                      className="md:justify-self-end"
                     >
                       {wallet.network}
                     </StatusLabel>

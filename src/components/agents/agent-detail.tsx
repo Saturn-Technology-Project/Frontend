@@ -107,17 +107,17 @@ export function AgentDetail({
         ) : null}
       </div>
 
-      <div className="mt-10 flex gap-12">
-        <nav className="w-[128px] shrink-0">
+      <div className="mt-8 flex flex-col gap-4 md:mt-10 md:flex-row md:gap-12">
+        <nav className="-mx-1 flex gap-1 overflow-x-auto md:mx-0 md:w-[128px] md:shrink-0 md:flex-col md:overflow-visible">
           {CONFIG_TABS.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setTab(item)}
               className={cn(
-                "block w-full py-1.5 text-left text-[13px]",
+                "shrink-0 rounded-full px-3 py-2 text-left text-[13px] md:w-full md:rounded-none md:px-0 md:py-1.5",
                 tab === item
-                  ? "text-foreground"
+                  ? "bg-muted text-foreground md:bg-transparent"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -187,7 +187,7 @@ export function AgentDetail({
                     <li key={run.id}>
                       <Link
                         href={`/agents/${agent.id}/runs/${run.id}`}
-                        className="flex items-center justify-between gap-4 py-3.5 text-[13px] hover:bg-muted/40"
+                        className="flex flex-col items-start gap-2 py-3.5 text-[13px] hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                       >
                         <span className="min-w-0 truncate">{run.prompt}</span>
                         <span className="flex shrink-0 items-center gap-3 text-muted-foreground">

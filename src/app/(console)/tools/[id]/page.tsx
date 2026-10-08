@@ -23,11 +23,11 @@ export default function ToolDetailPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       {!integration ? (
-        <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
           {t("tools.notFound")}
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-[680px] px-10 py-10">
+        <div className="mx-auto w-full max-w-[680px] px-4 py-6 md:px-10 md:py-10">
           <div className="flex items-start justify-between gap-6">
             <div>
               <div className="text-[11px] text-muted-foreground">MCP</div>

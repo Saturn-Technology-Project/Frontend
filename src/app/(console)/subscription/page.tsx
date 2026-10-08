@@ -50,11 +50,11 @@ export default function SubscriptionPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       {!data ? (
-        <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
           {t("common.apiError")}
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-[640px] px-10 py-10">
+        <div className="mx-auto w-full max-w-[640px] px-4 py-6 md:px-10 md:py-10">
           <h1 className="text-[22px] font-medium tracking-tight">
             {t("subscription.title")}
           </h1>
@@ -64,7 +64,7 @@ export default function SubscriptionPage() {
 
           <section className="mt-10 border-t border-border pt-8">
             <SectionLabel>{t("subscription.plan")}</SectionLabel>
-            <div className="mt-4 grid grid-cols-[140px_1fr] gap-y-3 text-[13px]">
+            <div className="mt-4 grid grid-cols-1 gap-y-3 text-[13px] sm:grid-cols-[140px_1fr]">
               <div className="text-muted-foreground">{t("subscription.core")}</div>
               <div className="flex items-baseline justify-between gap-4">
                 <span>{data.plan.name}</span>
@@ -163,7 +163,7 @@ export default function SubscriptionPage() {
       <Dialog open={Boolean(invoice)} onOpenChange={(open) => !open && setInvoice(null)}>
         <DialogContent
           showCloseButton={false}
-          className="w-[420px] max-w-[420px] gap-0 rounded-md p-0 ring-border sm:max-w-[420px]"
+          className="w-[min(420px,calc(100%-2rem))] max-w-none gap-0 rounded-md p-0 ring-border sm:max-w-none"
         >
           <div className="border-b border-border px-6 py-5">
             <DialogTitle className="text-[15px] font-medium tracking-tight">

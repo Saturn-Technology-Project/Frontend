@@ -16,7 +16,7 @@ export function QueryGate({
 
   if (isPending) {
     return (
-      <div className="px-10 py-10 text-[13px] text-muted-foreground">
+      <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
         {t("common.loading")}
       </div>
     );
@@ -24,7 +24,7 @@ export function QueryGate({
 
   if (isError) {
     return (
-      <div className="px-10 py-10 text-[13px] text-muted-foreground">
+      <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
         {t("common.apiError")}
       </div>
     );

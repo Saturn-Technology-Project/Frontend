@@ -140,6 +140,19 @@
     font-feature-settings: "ss01" on, "cv11" on;
   }
 
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+      font-size: 16px;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]),
+    select {
+      min-height: 2.75rem;
+    }
+  }
+
   ::selection {
     background: #171716;
     color: #f7f7f5;
@@ -148,6 +161,14 @@
   .dark ::selection {
     background: #f2f2f0;
     color: #0a0a0a;
+  }
+}
+
+@media (max-width: 767px) {
+  .h-7,
+  .h-8,
+  .h-9 {
+    height: 2.75rem;
   }
 }
 

@@ -97,7 +97,7 @@ export function SidebarAddons() {
       <Dialog open={contactOpen} onOpenChange={setContactOpen}>
         <DialogContent
           showCloseButton={false}
-          className="w-[420px] max-w-[420px] gap-0 rounded-md p-0 ring-border sm:max-w-[420px]"
+          className="w-[min(420px,calc(100%-2rem))] max-w-none gap-0 rounded-md p-0 ring-border sm:max-w-none"
         >
           <div className="border-b border-border px-6 py-5">
             <DialogTitle className="text-[15px] font-medium tracking-tight">

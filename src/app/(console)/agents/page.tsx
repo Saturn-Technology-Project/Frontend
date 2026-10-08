@@ -12,6 +12,7 @@ import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
 import { cn } from "@/lib/utils";
+import { detailPanelClass } from "@/components/layout/mobile-nav";
 import { apiOrigin } from "@/lib/ws";
 import type { ActivityEvent, Agent, ToolSet } from "@/types";
 
@@ -47,14 +48,15 @@ export default function AgentsPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       <div className="flex min-h-full">
-        <div className="min-w-0 flex-1 px-8 py-6">
-          <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-[26px] font-semibold tracking-tight">{t("agents.title")}</h1>
+              <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("agents.title")}</h1>
               <p className="mt-1 text-[13px] text-muted-foreground">{t("agents.subtitle")}</p>
             </div>
             <Button
               type="button"
+              className="w-full sm:w-auto"
               onClick={() => {
                 setSelectedId(null);
                 setConnecting(true);
@@ -67,7 +69,39 @@ export default function AgentsPage() {
           {agents.length === 0 ? (
             <p className="mt-10 text-[13px] text-muted-foreground">{t("agents.empty")}</p>
           ) : (
-            <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+            <>
+            <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card md:hidden">
+              {agents.map((agent) => {
+                const copy = agentCopy(locale, agent.id, agent);
+                const toolSet = toolSets.find((set) => set.id === agent.toolSetId) ?? null;
+                return (
+                  <li key={agent.id}>
+                    <button
+                      type="button"
+                      className={cn("flex w-full flex-col gap-1 px-4 py-3.5 text-left", selected?.id === agent.id && "bg-muted")}
+                      onClick={() => {
+                        setConnecting(false);
+                        setSelectedId(agent.id);
+                      }}
+                    >
+                      <span className="flex items-center gap-2 font-medium">
+                        <span className="flex size-8 items-center justify-center rounded-full bg-muted text-[12px]">
+                          {copy.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        {copy.name}
+                      </span>
+                      <span className="text-[12px] text-muted-foreground">
+                        {toolSet?.name || "—"} · {t("agents.tools")} {toolSet?.items.length ?? 0}
+                      </span>
+                      <span className="text-[12px] text-muted-foreground">
+                        {agent.lastHeartbeatAt ? relativeTime(agent.lastHeartbeatAt, locale) : t("agents.noLastCall")}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-6 hidden overflow-hidden rounded-xl border border-border bg-card md:block">
               <table className="w-full text-left text-[13px]">
                 <thead className="border-b border-border text-[12px] text-muted-foreground">
                   <tr>
@@ -109,6 +143,7 @@ export default function AgentsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -179,10 +214,10 @@ function ConnectPanel({
   }
 
   return (
-    <aside className="sticky top-0 flex h-[calc(100vh-3.5rem)] w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border bg-card">
+    <aside className={detailPanelClass}>
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <h2 className="text-[16px] font-medium">{t("agents.connect")}</h2>
-        <button type="button" className="text-[12px] text-muted-foreground hover:text-foreground" onClick={onClose}>
+        <button type="button" className="inline-flex h-11 shrink-0 items-center px-1 text-[13px] text-muted-foreground hover:text-foreground" onClick={onClose}>
           {t("marketplace.close")}
         </button>
       </div>
@@ -268,7 +303,7 @@ function AgentPanel({
   const servers = [...new Set((toolSet?.items ?? []).map((item) => item.serverName).filter(Boolean))];
 
   return (
-    <aside className="sticky top-0 flex h-[calc(100vh-3.5rem)] w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border bg-card">
+    <aside className={detailPanelClass}>
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-[13px] font-medium">
@@ -281,7 +316,7 @@ function AgentPanel({
             </div>
           </div>
         </div>
-        <button type="button" className="text-[12px] text-muted-foreground hover:text-foreground" onClick={onClose}>
+        <button type="button" className="inline-flex h-11 shrink-0 items-center px-1 text-[13px] text-muted-foreground hover:text-foreground" onClick={onClose}>
           {t("marketplace.close")}
         </button>
       </div>

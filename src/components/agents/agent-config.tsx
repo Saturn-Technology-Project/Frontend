@@ -56,7 +56,7 @@ function SaveBar({
 }) {
   const { t } = useI18n();
   return (
-    <div className="mt-6 flex items-center gap-4">
+    <div className="mt-6 flex flex-wrap items-center gap-3">
       <Button type="button" disabled={disabled || saving} onClick={onSave}>
         {saving ? t("agents.config.saving") : t("agents.config.save")}
       </Button>
@@ -92,7 +92,7 @@ function ChoiceList<T extends string>({
     <ul className="mt-2 space-y-1.5">
       {options.map((option) => (
         <li key={option.id}>
-          <label className="flex items-center gap-2.5 text-[13px]">
+          <label className="flex items-center gap-2.5 py-2 text-[13px]">
             <input
               type="radio"
               name={name}
@@ -283,8 +283,8 @@ export function ToolsPanel({
               <div className="text-[13px] font-medium">{group.name}</div>
               <ul className="mt-2 divide-y divide-border border border-border">
                 {group.tools.map((tool) => (
-                  <li key={tool.name} className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
-                    <span className="font-mono text-[12px]">{tool.name}</span>
+                  <li key={tool.name} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-3 text-[13px]">
+                    <span className="min-w-0 font-mono text-[12px] break-all">{tool.name}</span>
                     {tool.approval ? (
                       <span className="text-[12px] text-muted-foreground">{t("agents.config.needsApproval")}</span>
                     ) : null}
@@ -393,7 +393,7 @@ export function KnowledgePanel({
         </ul>
       )}
       {canWrite ? (
-        <form onSubmit={addSource} className="mt-6 flex items-end gap-3">
+        <form onSubmit={addSource} className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
           <label className="block min-w-0 flex-1 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             {t("agents.config.documents")}
             <input

@@ -182,8 +182,8 @@ export function RunView({ run }: { run: AgentRun }) {
   const [approvalOpen, setApprovalOpen] = useState(run.status === "awaiting_approval");
 
   return (
-    <div className="mx-auto w-full max-w-[680px] px-8 py-10">
-      <div className="flex items-start justify-between gap-6">
+    <div className="mx-auto w-full max-w-[680px] px-4 py-6 md:px-8 md:py-10">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-6">
         <div>
           <div className="text-[11px] text-muted-foreground">{t("agents.role")}</div>
           <h1 className="mt-1 text-[22px] font-medium tracking-tight">
@@ -231,10 +231,10 @@ export function RunView({ run }: { run: AgentRun }) {
             {payments.map((payment) => (
               <li
                 key={payment.id}
-                className="flex items-center justify-between gap-4 border-b border-border py-3"
+                className="flex flex-col items-start gap-2 border-b border-border py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
                 <div className="min-w-0">
-                  <div className="font-mono">{payment.tool}</div>
+                  <div className="break-all font-mono">{payment.tool}</div>
                   {payment.txHash ? (
                     <div className="mt-1 text-[12px] text-muted-foreground">
                       {shortAddress(payment.txHash)}
@@ -255,7 +255,7 @@ export function RunView({ run }: { run: AgentRun }) {
         </section>
       ) : null}
 
-      <div className="mt-10 flex items-center gap-3">
+      <div className="mt-10 flex flex-wrap items-center gap-3">
         {run.status === "awaiting_approval" ? (
           <Button onClick={() => setApprovalOpen(true)}>{t("run.reviewApproval")}</Button>
         ) : null}

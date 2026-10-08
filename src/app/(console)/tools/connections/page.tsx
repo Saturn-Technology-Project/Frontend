@@ -16,6 +16,7 @@ import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { marketCatalog, marketName } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import { detailPanelClass } from "@/components/layout/mobile-nav";
 import type { ActivityEvent, McpServer } from "@/types";
 
 function sameEndpoint(left: string, right: string) {
@@ -46,20 +47,43 @@ export default function ConnectionsPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       <div className="flex items-start">
-        <div className="min-w-0 flex-1 px-8 py-6">
-          <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-[22px] font-medium tracking-tight">{t("nav.connections")}</h1>
               <p className="mt-1 text-[13px] text-muted-foreground">{t("tools.subtitle")}</p>
             </div>
-            <Link href="/tools">
-              <Button type="button">{t("tools.connect")}</Button>
+            <Link href="/tools" className="sm:shrink-0">
+              <Button type="button" className="w-full sm:w-auto">{t("tools.connect")}</Button>
             </Link>
           </div>
           {servers.length === 0 ? (
             <p className="mt-8 text-[13px] text-muted-foreground">{t("tools.empty")}</p>
           ) : (
-            <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+            <>
+            <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card md:hidden">
+              {servers.map((server) => (
+                <li key={server.id}>
+                  <button
+                    type="button"
+                    className={cn("flex w-full flex-col gap-1 px-4 py-3.5 text-left", selectedId === server.id && "bg-muted")}
+                    onClick={() => setSelectedId(server.id)}
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="flex size-8 items-center justify-center rounded-full bg-muted">
+                        <ServerMark server={server} />
+                      </span>
+                      {server.name}
+                    </span>
+                    <span className="text-[12px] text-muted-foreground">
+                      {server.connected ? t("tools.connected") : t("agents.offline")} · {t("tools.count", { n: server.tools.length })}
+                    </span>
+                    <span className="truncate font-mono text-[12px] text-muted-foreground">{server.endpoint || "—"}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 hidden overflow-hidden rounded-xl border border-border bg-card md:block">
               <table className="w-full text-left text-[13px]">
                 <thead className="border-b border-border text-[12px] text-muted-foreground">
                   <tr>
@@ -98,6 +122,7 @@ export default function ConnectionsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
         {selected ? (
@@ -151,7 +176,7 @@ function ConnectionPanel({
   }, [matched]);
 
   return (
-    <aside className="sticky top-0 flex h-[calc(100vh-3.5rem)] w-[340px] shrink-0 flex-col overflow-y-auto border-l border-border bg-card">
+    <aside className={detailPanelClass}>
       <div className="flex items-start justify-between gap-3 px-5 pt-5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
@@ -162,7 +187,7 @@ function ConnectionPanel({
             <div className="truncate font-mono text-[11px] text-muted-foreground">{server.endpoint || "—"}</div>
           </div>
         </div>
-        <button type="button" className="text-[12px] text-muted-foreground hover:text-foreground" onClick={onClose}>
+        <button type="button" className="inline-flex h-11 shrink-0 items-center px-1 text-[13px] text-muted-foreground hover:text-foreground" onClick={onClose}>
           {t("marketplace.close")}
         </button>
       </div>

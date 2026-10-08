@@ -33,11 +33,11 @@ export default function WalletDetailPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       {!wallet ? (
-        <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
           {t("wallets.notFound")}
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-[720px] px-10 py-10">
+        <div className="mx-auto w-full max-w-[720px] px-4 py-6 md:px-10 md:py-10">
           <div className="flex items-start justify-between gap-6">
             <div>
               <div className="text-[11px] text-muted-foreground">
@@ -59,7 +59,7 @@ export default function WalletDetailPage() {
             </div>
           </div>
 
-          <div className="mt-10 grid grid-cols-2 gap-x-10 gap-y-8 border-t border-border pt-8">
+          <div className="mt-10 grid grid-cols-1 gap-y-6 border-t border-border pt-8 sm:grid-cols-2 sm:gap-x-10 sm:gap-y-8">
             <Meta label={t("wallets.network")} value={wallet.network} />
             <Meta label={t("wallets.asset")} value={wallet.asset} />
             <Meta
@@ -111,7 +111,7 @@ export default function WalletDetailPage() {
                 payments.map((payment) => (
                   <li
                     key={payment.id}
-                    className="grid grid-cols-[1fr_120px_100px] items-center gap-4 py-3.5 text-[13px]"
+                    className="flex flex-col items-start gap-2 py-3.5 text-[13px] sm:grid sm:grid-cols-[1fr_120px_100px] sm:items-center sm:gap-4"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-mono">{payment.tool ?? payment.id}</div>
@@ -125,7 +125,7 @@ export default function WalletDetailPage() {
                     </span>
                     <StatusLabel
                       tone={paymentTone[payment.status]}
-                      className="justify-self-end"
+                      className="sm:justify-self-end"
                     >
                       {t(`wallets.${payment.status === "verified" ? "pending" : payment.status}`)}
                     </StatusLabel>

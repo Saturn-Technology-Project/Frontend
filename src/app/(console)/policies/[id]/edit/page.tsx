@@ -27,11 +27,11 @@ export default function EditPolicyPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       {!policy || !canWrite ? (
-        <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
           {t("policies.notFound")}
         </div>
       ) : (
-        <div className="px-10 py-10">
+        <div className="px-4 py-6 md:px-10 md:py-10">
           <h1 className="text-[22px] font-medium tracking-tight">{t("policies.edit")}</h1>
           <div className="mt-8">
             <PolicyForm

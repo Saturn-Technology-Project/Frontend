@@ -22,8 +22,8 @@ export default function PoliciesPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-10 py-10">
-        <div className="flex items-start justify-between gap-6">
+      <div className="px-4 py-6 md:px-10 md:py-10">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-[22px] font-medium tracking-tight">{t("policies.title")}</h1>
             <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
@@ -33,7 +33,7 @@ export default function PoliciesPage() {
           {canWrite ? (
             <Link
               href="/policies/new"
-              className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90"
+              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90 sm:w-auto"
             >
               {t("policies.create")}
             </Link>

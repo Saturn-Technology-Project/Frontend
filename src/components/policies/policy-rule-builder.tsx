@@ -74,7 +74,7 @@ export function PolicyRuleBuilder({
             {index > 0 ? (
               <div className="mb-3 text-[12px] text-muted-foreground">{t("policies.and")}</div>
             ) : null}
-            <div className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <select
                 value={condition.field}
                 onChange={(event) => updateCondition(index, { field: event.target.value })}

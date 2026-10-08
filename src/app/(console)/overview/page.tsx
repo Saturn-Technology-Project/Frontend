@@ -8,6 +8,7 @@ import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
+import { cn } from "@/lib/utils";
 
 export default function OverviewPage() {
   const { t, locale } = useI18n();
@@ -42,25 +43,25 @@ export default function OverviewPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-8 py-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="px-4 py-5 md:px-8 md:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-[26px] font-semibold tracking-tight">{t(greeting, { name })}</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t(greeting, { name })}</h1>
             <p className="mt-1 text-[13px] text-muted-foreground">{t("overview.greetingBody")}</p>
           </div>
-          <Link href="/agents?connect=1" className={buttonVariants()}>
+          <Link href="/agents?connect=1" className={cn(buttonVariants(), "w-full sm:w-auto")}>
             {t("overview.createAgent")}
           </Link>
         </div>
 
-        <div className="mt-6 grid grid-cols-4 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat href="/agents" label={t("overview.activeAgents")} value={agents.length} />
           <Stat href="/tools/connections" label={t("overview.connectedMcps")} value={servers.length} />
           <Stat href="/runs" label={t("overview.toolCalls")} value={calls} />
           <Stat href="/approvals" label={t("overview.approvals")} value={pending} />
         </div>
 
-        <div className="mt-4 grid grid-cols-[1.4fr_0.8fr] gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-[15px] font-medium">{t("overview.recentActivity")}</h2>
             {events.length === 0 ? (
@@ -68,7 +69,7 @@ export default function OverviewPage() {
             ) : (
               <ul className="mt-4 divide-y divide-border">
                 {events.slice(0, 6).map((event) => (
-                  <li key={event.id} className="flex items-center gap-3 py-3">
+                  <li key={event.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px]">{event.title}</div>
                       <div className="mt-0.5 text-[12px] text-muted-foreground">
@@ -111,7 +112,7 @@ export default function OverviewPage() {
 
 function Stat({ href, label, value }: { href: string; label: string; value: number }) {
   return (
-    <Link href={href} className="rounded-xl border border-border bg-card px-4 py-4 hover:border-foreground/20">
+    <Link href={href} className="rounded-xl border border-border bg-card px-4 py-4 hover:border-foreground/20 active:bg-muted">
       <div className="text-[28px] font-semibold tracking-tight">{value.toLocaleString()}</div>
       <div className="mt-1 text-[12px] text-muted-foreground">{label}</div>
     </Link>

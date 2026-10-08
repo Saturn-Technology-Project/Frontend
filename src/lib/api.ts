@@ -322,6 +322,16 @@ export async function login(email: string, password: string) {
   return result;
 }
 
+export async function registerAccount(name: string, email: string, password: string) {
+  const result = await post<LoginResponse>(
+    "/auth/register",
+    { name, email, password },
+    false
+  );
+  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  return result;
+}
+
 export async function logout() {
   try {
     await post<void>("/auth/logout");

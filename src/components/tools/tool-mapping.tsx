@@ -169,7 +169,7 @@ export function ToolSetEditor({
             const users = agents.filter((agent) => agent.toolSetId === set.id).map((agent) => agent.name);
             return (
               <li key={set.id} className="py-3">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <div>
                     <div className="text-[14px] font-medium">{set.name}</div>
                     <div className="mt-1 text-[12px] text-muted-foreground">
@@ -230,11 +230,11 @@ export function ToolSetEditor({
                     {server.tools.map((tool) => {
                       const on = tool.id in picked;
                       return (
-                        <li key={tool.id} className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
+                        <li key={tool.id} className="flex flex-col items-start gap-2 px-3 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                           <label className="flex min-w-0 items-center gap-3">
                             <input
                               type="checkbox"
-                              className="size-3.5 shrink-0"
+                              className="size-4 shrink-0"
                               checked={on}
                               onChange={() =>
                                 setPicked((current) => {
@@ -245,12 +245,12 @@ export function ToolSetEditor({
                                 })
                               }
                             />
-                            <span className="truncate font-mono text-[12px]">{tool.name}</span>
+                            <span className="font-mono text-[12px] break-all">{tool.name}</span>
                           </label>
                           <label className="flex shrink-0 items-center gap-2 text-[12px] text-muted-foreground">
                             <input
                               type="checkbox"
-                              className="size-3.5 shrink-0"
+                              className="size-4 shrink-0"
                               disabled={!on}
                               checked={Boolean(picked[tool.id])}
                               onChange={() =>
@@ -278,11 +278,11 @@ export function ToolSetEditor({
                   const on = agentIds.includes(agent.id);
                   const other = toolSets.find((set) => set.id === agent.toolSetId && set.id !== editing);
                   return (
-                    <li key={agent.id} className="flex items-center justify-between gap-4 px-3 py-2.5 text-[13px]">
+                    <li key={agent.id} className="flex flex-col items-start gap-1 px-3 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <label className="flex min-w-0 items-center gap-3">
                         <input
                           type="checkbox"
-                          className="size-3.5 shrink-0"
+                          className="size-4 shrink-0"
                           checked={on}
                           onChange={() =>
                             setAgentIds((current) =>

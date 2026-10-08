@@ -21,7 +21,7 @@ export function PolicyView({ policy }: { policy: Policy }) {
 
   return (
     <div className="mx-auto w-full max-w-[680px]">
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div>
           <div className="text-[11px] text-muted-foreground">{t("policies.role")}</div>
           <h1 className="mt-1 text-[22px] font-medium tracking-tight">{policy.name}</h1>
@@ -77,7 +77,7 @@ export function PolicyView({ policy }: { policy: Policy }) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-4 py-3">
+    <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[140px_1fr] sm:gap-4">
       <dt className="text-[13px] text-muted-foreground">{label}</dt>
       <dd className="text-[15px]">{value}</dd>
     </div>

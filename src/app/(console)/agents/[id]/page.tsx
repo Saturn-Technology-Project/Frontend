@@ -16,11 +16,11 @@ export default function AgentPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       {!agent ? (
-        <div className="px-10 py-10 text-[13px] text-muted-foreground">
+        <div className="px-4 py-6 md:px-10 md:py-10 text-[13px] text-muted-foreground">
           {t("agents.notFound")}
         </div>
       ) : (
-        <div className="px-10 py-10">
+        <div className="px-4 py-6 md:px-10 md:py-10">
           <AgentDetail key={agent.id} agent={agent} initialTab={search.get("tab")} />
         </div>
       )}

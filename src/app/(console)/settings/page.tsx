@@ -28,15 +28,15 @@ export default function SettingsPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={false}>
-      <div className="flex gap-10 px-8 py-6">
-        <nav className="w-[180px] shrink-0 space-y-1 text-[13px]">
-          <div className={cn("rounded-lg bg-muted px-3 py-2 font-medium")}>{t("settings.title")}</div>
+      <div className="flex flex-col gap-6 px-4 py-5 md:flex-row md:gap-10 md:px-8 md:py-6">
+        <nav className="flex gap-1 overflow-x-auto text-[13px] md:w-[180px] md:shrink-0 md:flex-col md:space-y-1 md:overflow-visible">
+          <div className={cn("shrink-0 rounded-lg bg-muted px-3 py-2.5 font-medium")}>{t("settings.title")}</div>
           {canTeam ? (
-            <Link href="/team" className="block rounded-lg px-3 py-2 text-muted-foreground hover:bg-muted">
+            <Link href="/team" className="shrink-0 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted">
               {t("nav.team")}
             </Link>
           ) : null}
-          <Link href="/subscription" className="block rounded-lg px-3 py-2 text-muted-foreground hover:bg-muted">
+          <Link href="/subscription" className="shrink-0 rounded-lg px-3 py-2.5 text-muted-foreground hover:bg-muted">
             {t("nav.subscription")}
           </Link>
         </nav>
@@ -45,7 +45,7 @@ export default function SettingsPage() {
 
         <section className="mt-10 border-t border-border pt-8">
           <SectionLabel>{t("settings.workspace")}</SectionLabel>
-          <div className="mt-4 grid grid-cols-[140px_1fr] gap-y-3 text-[13px]">
+          <div className="mt-4 grid grid-cols-1 gap-y-3 text-[13px] sm:grid-cols-[140px_1fr]">
             <div className="text-muted-foreground">{t("settings.enterprise")}</div>
             <div>{sessionOrg?.name}</div>
             <div className="text-muted-foreground">{t("settings.employee")}</div>
