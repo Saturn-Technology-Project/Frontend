@@ -59,7 +59,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "mercury",
     category: "finance",
-    featured: true,
     endpoint: "https://mcp.mercury.com/mcp",
     publisher: "Mercury",
     docs: "https://docs.mercury.com/docs/connecting-mercury-mcp",
@@ -76,7 +75,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "ibkr",
     category: "finance",
-    featured: true,
     endpoint: "https://api.ibkr.com/v1/api/mcp-public",
     publisher: "Interactive Brokers",
     docs: "https://www.ibkrguides.com/releasenotes/connector-v1.1.5.htm",
@@ -93,7 +91,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "dukascopy",
     category: "finance",
-    featured: true,
     endpoint: "https://mcp.dukascopy.com/mcp",
     publisher: "Dukascopy Bank",
     docs: "https://ai.dukascopy.com/",
@@ -110,7 +107,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "carta",
     category: "finance",
-    featured: true,
     endpoint: "https://mcp.app.carta.com/mcp",
     publisher: "Carta",
     docs: "https://docs.carta.com/api-platform/guides/guides/claude-mcp-setup",
@@ -161,7 +157,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "linear",
     category: "development",
-    featured: true,
     endpoint: "https://mcp.linear.app/mcp",
     publisher: "Linear",
     docs: "https://linear.app/docs/mcp",
@@ -178,7 +173,6 @@ export const marketCatalog: MarketEntry[] = [
   {
     id: "stripe",
     category: "finance",
-    featured: true,
     endpoint: "https://mcp.stripe.com",
     publisher: "Stripe",
     docs: "https://docs.stripe.com/mcp",
