@@ -742,6 +742,61 @@ export function generatePolicy(toolSetId: string, instructions = "", name?: stri
   });
 }
 
+export interface PolicyStreamEvent {
+  type: string;
+  text?: string;
+  code?: string;
+  name?: string;
+  count?: number;
+  start?: number;
+  end?: number;
+  total?: number;
+  message?: string;
+  policy?: ApiPolicy;
+  definition?: PolicyDefinition;
+  diff?: PolicyDiff[];
+}
+
+export async function streamPolicy(
+  path: string,
+  body: unknown,
+  onEvent: (event: PolicyStreamEvent) => void
+): Promise<PolicyStreamEvent> {
+  const headers = new Headers({ "Content-Type": "application/json", Accept: "text/event-stream" });
+  const token = useAuthStore.getState().token;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new ApiError(response.status, await apiErrorMessage(response));
+  if (!response.body) throw new ApiError(response.status, "Request failed");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let done: PolicyStreamEvent | null = null;
+  for (;;) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.split("\n").find((item) => item.startsWith("data:"));
+      if (!line) continue;
+      const event = JSON.parse(line.slice(5).trim()) as PolicyStreamEvent;
+      if (event.type === "error") throw new ApiError(502, event.message || "Request failed");
+      if (event.type === "policy" || event.type === "result") done = event;
+      onEvent(event);
+    }
+    if (chunk.done) break;
+  }
+  if (!done) throw new ApiError(502, "Request failed");
+  return done;
+}
+
 export function validatePolicy(id: string) {
   return post<{ report: PolicyValidation; policy: ApiPolicy }>(`/policies/${id}/validate`);
 }

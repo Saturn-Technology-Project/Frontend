@@ -21,7 +21,8 @@ import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDeletePolicy, useUpdatePolicy } from "@/hooks/use-console";
-import { ApiError, activatePolicy, optimizePolicy, simulatePolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
+import { PolicyThinking, appendThinking } from "@/components/policies/policy-thinking";
+import { ApiError, activatePolicy, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
 import { blankData, definitionFromRules, newNode, toDefinition, toFlow, type FlowData, type FlowNode } from "@/lib/policy-graph";
@@ -123,6 +124,7 @@ function BuilderCanvas({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [askOptimize, setAskOptimize] = useState(false);
   const [optimizeInstructions, setOptimizeInstructions] = useState("");
+  const [thinking, setThinking] = useState("");
   const flow = useReactFlow<FlowNode, Edge>();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -260,6 +262,7 @@ function BuilderCanvas({
 
   async function onOptimize() {
     setBusy("optimize");
+    setThinking("");
     setError("");
     setJsonError("");
     try {
@@ -268,7 +271,12 @@ function BuilderCanvas({
         setJsonText(JSON.stringify(definition, null, 2));
         setJsonMode(true);
       }
-      const result = await optimizePolicy(policy.id, definition, optimizeInstructions);
+      const result = await streamPolicy(
+        `/policies/${policy.id}/optimize/stream`,
+        { definition, instructions: optimizeInstructions },
+        (event) => setThinking((current) => appendThinking(current, event, t))
+      );
+      if (!result.definition || !result.diff) throw new Error("policy");
       setAskOptimize(false);
       setProposal({
         definition: result.definition,
@@ -441,6 +449,11 @@ function BuilderCanvas({
             </Button>
           </div>
         </form>
+      ) : null}
+      {thinking ? (
+        <div className="border-b border-border px-4 py-3">
+          <PolicyThinking text={thinking} />
+        </div>
       ) : null}
       {unconfigured ? <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">{t("policies.unconfigured")}</p> : null}
       {converted ? <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">{t("policies.convertNote")}</p> : null}

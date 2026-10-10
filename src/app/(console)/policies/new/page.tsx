@@ -6,7 +6,8 @@ import { QueryGate } from "@/components/layout/query-gate";
 import { Button } from "@/components/ui/button";
 import { useConsole, useCreatePolicy } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
-import { ApiError, generatePolicy } from "@/lib/api";
+import { PolicyThinking, appendThinking } from "@/components/policies/policy-thinking";
+import { ApiError, streamPolicy } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ export default function CreatePolicyPage() {
   const [setId, setSetId] = useState("");
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [thinking, setThinking] = useState("");
   const [instructions, setInstructions] = useState("");
   const sets = data?.toolSets ?? [];
   const selected = sets.find((item) => item.id === setId) ?? sets[0];
@@ -44,9 +46,15 @@ export default function CreatePolicyPage() {
               event.preventDefault();
               if (!selected) return;
               setGenerating(true);
+              setThinking("");
               setError("");
-              void generatePolicy(selected.id, instructions)
-                .then((created) => router.push(`/policies/${created.id}`))
+              void streamPolicy("/policies/generate/stream", { tool_set_id: selected.id, name: "", instructions }, (event) => {
+                setThinking((current) => appendThinking(current, event, t));
+              })
+                .then((event) => {
+                  if (!event.policy) throw new Error("policy");
+                  router.push(`/policies/${event.policy.id}`);
+                })
                 .catch((caught: unknown) => {
                   setError(caught instanceof ApiError ? caught.message : t("policies.saveFailed"));
                   setGenerating(false);
@@ -92,6 +100,7 @@ export default function CreatePolicyPage() {
             <Button type="submit" className="mt-6" disabled={generating || !selected}>
               {generating ? t("policies.generating") : t("policies.generate")}
             </Button>
+            {generating || thinking ? <PolicyThinking text={thinking} /> : null}
             {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
           </form>
         ) : (
