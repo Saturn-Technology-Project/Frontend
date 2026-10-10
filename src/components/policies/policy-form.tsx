@@ -1,278 +1,112 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { SectionLabel } from "@/components/ui/section-label";
-import {
-  emptyRule,
-  PolicyRuleBuilder,
-  type DraftRule,
-} from "@/components/policies/policy-rule-builder";
+import { POLICY_OPERATORS } from "@/lib/policy";
+import { formRules, type FlowData, type FlowNode } from "@/lib/policy-graph";
 import { useI18n } from "@/lib/i18n";
-import { coerceConditionValue, POLICY_ENVIRONMENTS } from "@/lib/policy";
-import { cn } from "@/lib/utils";
-import type { PolicyWrite } from "@/lib/api";
-import type { Agent, Policy } from "@/types";
+import type { Edge } from "@xyflow/react";
 
-const inputClass =
-  "mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring";
-
-function toDraft(policy?: Policy): {
-  name: string;
-  description: string;
-  agentIds: string[];
-  tool: string;
-  environment: string;
-  rules: DraftRule[];
-} {
-  if (!policy) {
-    return {
-      name: "",
-      description: "",
-      agentIds: [],
-      tool: "",
-      environment: "production",
-      rules: [emptyRule()],
-    };
-  }
-  return {
-    name: policy.name,
-    description: policy.description,
-    agentIds: policy.agentIds,
-    tool: policy.tools[0] ?? "",
-    environment: policy.environment || "production",
-    rules:
-      policy.rules.length > 0
-        ? policy.rules.map((rule) => ({
-            key: rule.id,
-            decision: rule.decision,
-            conditions:
-              rule.conditions.length > 0
-                ? rule.conditions.map((item) => ({
-                    field: item.field,
-                    operator: item.operator,
-                    value: String(item.value ?? ""),
-                  }))
-                : [{ field: "amount", operator: "gt", value: "" }],
-          }))
-        : [emptyRule()],
-  };
-}
+const cellClass =
+  "h-8 rounded-md border border-border bg-background px-2 text-[13px] text-foreground outline-none focus:border-ring";
 
 export function PolicyForm({
-  policy,
-  agents,
-  tools,
-  submitting,
-  error,
-  onSubmit,
-  showIntro = true,
+  nodes,
+  edges,
+  disabled,
+  onChange,
 }: {
-  policy?: Policy;
-  agents: Agent[];
-  tools: string[];
-  submitting: boolean;
-  error: boolean;
-  onSubmit: (body: PolicyWrite) => Promise<void>;
-  showIntro?: boolean;
+  nodes: FlowNode[];
+  edges: Edge[];
+  disabled: boolean;
+  onChange: (id: string, patch: Partial<FlowData>) => void;
 }) {
   const { t } = useI18n();
-  const initial = useMemo(() => toDraft(policy), [policy]);
-  const [form, setForm] = useState(initial);
-
-  function toggleAgent(id: string) {
-    setForm((current) => ({
-      ...current,
-      agentIds: current.agentIds.includes(id)
-        ? current.agentIds.filter((item) => item !== id)
-        : [...current.agentIds, id],
-    }));
+  const rules = formRules(nodes, edges);
+  if (rules.length === 0) {
+    return <p className="p-4 text-[13px] text-muted-foreground">{t("policies.formEmpty")}</p>;
   }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const tool = form.tool.trim();
-    await onSubmit({
-      name: form.name.trim(),
-      description: form.description.trim(),
-      environment: form.environment,
-      agent_ids: form.agentIds,
-      tool: tool || undefined,
-      rules: form.rules.map((rule) => ({
-        tool,
-        decision: rule.decision,
-        conditions: rule.conditions
-          .filter((item) => item.field.trim())
-          .map((item) => ({
-            field: item.field.trim(),
-            operator: item.operator,
-            value: coerceConditionValue(item.value.replace(/^\$/, "")),
-          })),
-      })),
-    });
-  }
-
   return (
-    <form className="max-w-[680px]" onSubmit={(event) => void submit(event)}>
-      {showIntro ? (
-        <>
-          <SectionLabel>{t("policies.create")}</SectionLabel>
-          <p className="mt-3 max-w-md text-[13px] text-muted-foreground">{t("policies.createBody")}</p>
-        </>
-      ) : null}
-
-      <div className={cn("grid grid-cols-1 gap-4", showIntro ? "mt-8" : "mt-6")}>
-        <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-          {t("policies.name")}
-          <input
-            required
-            value={form.name}
-            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            placeholder={t("policies.namePlaceholder")}
-            className={inputClass}
-          />
-        </label>
-        <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-          {t("policies.description")}
-          <input
-            value={form.description}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, description: event.target.value }))
-            }
-            placeholder={t("policies.descriptionPlaceholder")}
-            className={inputClass}
-          />
-        </label>
-      </div>
-
-      <div className="mt-10">
-        <SectionLabel>{t("policies.appliesTo")}</SectionLabel>
-        <div className="mt-4 grid gap-4 border-t border-border pt-5">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {t("policies.agents")}
-            </div>
-            <ul className="mt-2 divide-y divide-border border border-border">
-              {agents.map((agent) => (
-                <li key={agent.id}>
-                  <label className="flex items-center gap-3 px-3 py-3 text-[13px]">
-                    <input
-                      type="checkbox"
-                      checked={form.agentIds.includes(agent.id)}
-                      onChange={() => toggleAgent(agent.id)}
-                    />
-                    <span>{agent.name}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-            {form.agentIds.length === 0 ? (
-              <p className="mt-2 text-[12px] text-muted-foreground">{t("policies.allAgents")}</p>
-            ) : null}
-          </div>
-          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            {t("policies.tools")}
-            {tools.length > 0 ? (
-              <select
-                value={form.tool}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tool: event.target.value }))
-                }
-                className={inputClass}
-                required
-              >
-                <option value="">{t("policies.tools")}</option>
-                {tools.map((tool) => (
-                  <option key={tool} value={tool}>
-                    {tool}
-                  </option>
-                ))}
-                {form.tool && !tools.includes(form.tool) ? (
-                  <option value={form.tool}>{form.tool}</option>
-                ) : null}
-              </select>
-            ) : (
-              <input
-                required
-                value={form.tool}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tool: event.target.value }))
-                }
-                placeholder={t("policies.toolPlaceholder")}
-                className={inputClass}
-              />
-            )}
-          </label>
-          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            {t("policies.environment")}
-            <select
-              value={form.environment}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, environment: event.target.value }))
-              }
-              className={inputClass}
-            >
-              {POLICY_ENVIRONMENTS.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {t(item.labelKey)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <SectionLabel>{t("policies.rules")}</SectionLabel>
-        <div className="mt-4 space-y-3 border-t border-border pt-5">
-          {form.rules.map((rule, index) => (
-            <PolicyRuleBuilder
-              key={rule.key}
-              rule={rule}
-              canRemove={form.rules.length > 1}
-              onChange={(next) =>
-                setForm((current) => ({
-                  ...current,
-                  rules: current.rules.map((item, currentIndex) =>
-                    currentIndex === index ? next : item
-                  ),
-                }))
-              }
-              onRemove={() =>
-                setForm((current) => ({
-                  ...current,
-                  rules: current.rules.filter((_, currentIndex) => currentIndex !== index),
-                }))
-              }
-            />
+    <div className="min-h-0 flex-1 overflow-auto">
+      <table className="w-full border-collapse text-left text-[13px]">
+        <thead className="sticky top-0 bg-background">
+          <tr className="border-b border-border text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <th className="px-4 py-2 font-medium">{t("policies.kind.tool")}</th>
+            <th className="px-4 py-2 font-medium">{t("policies.kind.condition")}</th>
+            <th className="w-[180px] px-4 py-2 font-medium">{t("policies.kind.decision")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rules.map((rule) => (
+            <tr key={rule.toolId} className="border-b border-border align-top">
+              <td className="px-4 py-3 font-mono">{rule.tool || t("policies.kind.tool")}</td>
+              <td className="px-4 py-3">
+                {rule.conditions.length === 0 ? (
+                  <span className="text-muted-foreground">{t("policies.formAny")}</span>
+                ) : (
+                  <div className="grid gap-2">
+                    {rule.conditions.map((condition, index) => (
+                      <div key={condition.id} className="flex flex-wrap items-center gap-2">
+                        {index > 0 ? <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">AND</span> : null}
+                        <input
+                          disabled={disabled}
+                          value={condition.field}
+                          aria-label={t("policies.field")}
+                          onChange={(event) => onChange(condition.id, { field: event.target.value })}
+                          className={`${cellClass} w-[140px] font-mono`}
+                        />
+                        <select
+                          disabled={disabled}
+                          value={condition.operator}
+                          aria-label={t("policies.kind.condition")}
+                          onChange={(event) => onChange(condition.id, { operator: event.target.value })}
+                          className={`${cellClass} max-w-[220px]`}
+                        >
+                          {POLICY_OPERATORS.map((item) => (
+                            <option key={item.value} value={item.value}>
+                              {t(item.labelKey)}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          disabled={disabled}
+                          value={String(condition.value ?? "")}
+                          aria-label={t("policies.value")}
+                          onChange={(event) => onChange(condition.id, { value: conditionValue(condition.value, event.target.value) })}
+                          className={`${cellClass} w-[120px] font-mono`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                <select
+                  disabled={disabled || !rule.decisionId}
+                  value={rule.decision}
+                  aria-label={t("policies.kind.decision")}
+                  onChange={(event) => {
+                    if (!rule.decisionId) return;
+                    const decision = event.target.value;
+                    if (decision === "allow" || decision === "approval" || decision === "deny") {
+                      onChange(rule.decisionId, { decision });
+                    }
+                  }}
+                  className={cellClass}
+                >
+                  <option value="allow">{t("policies.action.allow")}</option>
+                  <option value="approval">{t("policies.action.approval")}</option>
+                  <option value="deny">{t("policies.action.deny")}</option>
+                </select>
+              </td>
+            </tr>
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setForm((current) => ({ ...current, rules: [...current.rules, emptyRule()] }))}
-          >
-            {t("policies.addRule")}
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
-        <p className="mt-4 text-[12px] text-destructive">{t("common.requestFailed")}</p>
-      ) : null}
-
-      <Button
-        type="submit"
-        className="mt-8"
-        disabled={submitting || !form.name.trim() || !form.tool.trim()}
-      >
-        {submitting
-          ? policy
-            ? t("policies.saving")
-            : t("policies.creating")
-          : policy
-            ? t("policies.save")
-            : t("policies.create")}
-      </Button>
-    </form>
+        </tbody>
+      </table>
+    </div>
   );
+}
+
+function conditionValue(current: string | number | boolean, raw: string): string | number | boolean {
+  if (typeof current === "boolean") return raw === "true";
+  if (typeof current === "number" && raw.trim() !== "" && !Number.isNaN(Number(raw))) return Number(raw);
+  return raw;
 }

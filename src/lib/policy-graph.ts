@@ -119,6 +119,61 @@ export function blankData(kind: PolicyNodeKind): FlowData {
   return { kind, rateLimit: "" };
 }
 
+export interface FormCondition {
+  id: string;
+  field: string;
+  operator: string;
+  value: string | number | boolean;
+}
+
+export interface FormRule {
+  toolId: string;
+  tool: string;
+  decisionId: string | null;
+  decision: "allow" | "approval" | "deny";
+  conditions: FormCondition[];
+}
+
+export function formRules(nodes: FlowNode[], edges: Edge[]): FormRule[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const outgoing = new Map<string, string[]>();
+  for (const edge of edges) {
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
+  }
+  return nodes
+    .filter((node) => node.data.kind === "tool")
+    .map((tool) => {
+      const conditions: FormCondition[] = [];
+      let decisionId: string | null = null;
+      let decision: FormRule["decision"] = "deny";
+      const seen = new Set<string>([tool.id]);
+      const walk = (id: string) => {
+        for (const next of outgoing.get(id) ?? []) {
+          if (seen.has(next)) continue;
+          seen.add(next);
+          const node = byId.get(next);
+          if (!node) continue;
+          if (node.data.kind === "condition") {
+            conditions.push({
+              id: node.id,
+              field: String(node.data.field ?? ""),
+              operator: String(node.data.operator ?? "eq"),
+              value: node.data.value ?? "",
+            });
+          }
+          if (node.data.kind === "decision" && !decisionId) {
+            decisionId = node.id;
+            const raw = node.data.decision;
+            decision = raw === "allow" || raw === "approval" || raw === "deny" ? raw : "deny";
+          }
+          if (node.data.kind !== "decision" && node.data.kind !== "enforcement") walk(next);
+        }
+      };
+      walk(tool.id);
+      return { toolId: tool.id, tool: tool.data.tool || "", decisionId, decision, conditions };
+    });
+}
+
 export function newNode(kind: PolicyNodeKind, position: { x: number; y: number }): FlowNode {
   return {
     id: `${kind}_${crypto.randomUUID().slice(0, 8)}`,

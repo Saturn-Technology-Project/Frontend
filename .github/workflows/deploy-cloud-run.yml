@@ -17,7 +17,7 @@ env:
   GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY || 'saturn' }}
   CLOUD_RUN_SERVICE: ${{ vars.FRONTEND_CLOUD_RUN_SERVICE || 'saturn-frontend' }}
   IMAGE_NAME: saturn-frontend
-  API_URL: ${{ vars.BACKEND_PUBLIC_URL }}
+  API_URL: https://api.saturn-core.com
 
 jobs:
   deploy:

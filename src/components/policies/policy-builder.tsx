@@ -25,6 +25,7 @@ import { PolicyProgressBar, applyProgress, type PolicyProgress } from "@/compone
 import { ApiError, activatePolicy, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
+import { PolicyForm } from "@/components/policies/policy-form";
 import { blankData, definitionFromRules, newNode, toDefinition, toFlow, type FlowData, type FlowNode } from "@/lib/policy-graph";
 import { cn } from "@/lib/utils";
 import type { Agent, Policy, PolicyDefinition, PolicyNodeKind, ToolSet, ToolSetItem } from "@/types";
@@ -141,7 +142,7 @@ function BuilderCanvas({
   const [testTool, setTestTool] = useState("");
   const [testArgs, setTestArgs] = useState("{}");
   const [testResult, setTestResult] = useState("");
-  const [jsonMode, setJsonMode] = useState(false);
+  const [view, setView] = useState<"canvas" | "json" | "form">("canvas");
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [proposal, setProposal] = useState<{ definition: PolicyDefinition; diff: PolicyDiff[]; json: string } | null>(null);
@@ -211,12 +212,12 @@ function BuilderCanvas({
   }
 
   function editorDefinition() {
-    return jsonMode ? readJson(jsonText) : canvasDefinition();
+    return view === "json" ? readJson(jsonText) : canvasDefinition();
   }
 
   async function persist() {
     const definition = editorDefinition();
-    if (jsonMode) applyGraph(definition);
+    if (view === "json") applyGraph(definition);
     const saved = await update.mutateAsync({
       id: policy.id,
       body: {
@@ -244,20 +245,24 @@ function BuilderCanvas({
     }
   }
 
-  function showJson() {
-    setJsonError("");
-    setJsonText(JSON.stringify(canvasDefinition(), null, 2));
-    setJsonMode(true);
-  }
-
-  function showCanvas() {
-    try {
-      applyGraph(readJson(jsonText));
-      setJsonMode(false);
+  function cycleView() {
+    if (view === "canvas") {
       setJsonError("");
-    } catch {
-      setJsonError(t("policies.jsonInvalid"));
+      setJsonText(JSON.stringify(canvasDefinition(), null, 2));
+      setView("json");
+      return;
     }
+    if (view === "json") {
+      try {
+        applyGraph(readJson(jsonText));
+        setJsonError("");
+        setView("form");
+      } catch {
+        setJsonError(t("policies.jsonInvalid"));
+      }
+      return;
+    }
+    setView("canvas");
   }
 
   async function onOptimize() {
@@ -267,9 +272,9 @@ function BuilderCanvas({
     setJsonError("");
     try {
       const definition = editorDefinition();
-      if (!jsonMode) {
+      if (view !== "json") {
         setJsonText(JSON.stringify(definition, null, 2));
-        setJsonMode(true);
+        setView("json");
       }
       const result = await streamPolicy(
         `/policies/${policy.id}/optimize/stream`,
@@ -384,8 +389,8 @@ function BuilderCanvas({
         </span>
         {canWrite ? (
           <>
-            <Button type="button" variant="outline" disabled={busy !== null} onClick={() => (jsonMode ? showCanvas() : showJson())}>
-              {jsonMode ? t("policies.canvas") : t("policies.json")}
+            <Button type="button" variant="outline" disabled={busy !== null} onClick={cycleView}>
+              {view === "canvas" ? t("policies.json") : view === "json" ? t("policies.form") : t("policies.canvas")}
             </Button>
             <Button type="button" variant="outline" disabled={busy !== null} onClick={() => setAskOptimize((open) => !open)}>
               {busy === "optimize" ? t("policies.optimizing") : t("policies.optimize")}
@@ -466,6 +471,7 @@ function BuilderCanvas({
       ) : null}
       {jsonError ? <p className="border-b border-border px-4 py-2 text-[13px] text-destructive">{jsonError}</p> : null}
       <div className="flex min-h-0 flex-1">
+        {view === "canvas" ? (
         <aside className="hidden w-[220px] shrink-0 overflow-y-auto border-r border-border p-3 md:block">
           <h2 className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.library")}</h2>
           <div className="mt-2 grid gap-1.5">
@@ -534,8 +540,9 @@ function BuilderCanvas({
             ))}
           </div>
         </aside>
-        <div className="flex min-w-0 flex-1" onDragOver={(event) => event.preventDefault()} onDrop={jsonMode ? undefined : onDrop}>
-          {jsonMode ? (
+        ) : null}
+        <div className="flex min-w-0 flex-1" onDragOver={(event) => event.preventDefault()} onDrop={view === "canvas" ? onDrop : undefined}>
+          {view === "json" ? (
             <div className={cn("grid min-h-0 min-w-0 flex-1", proposal && "md:grid-cols-2")}>
               <textarea
                 value={jsonText}
@@ -560,7 +567,7 @@ function BuilderCanvas({
                         onClick={() => {
                           applyGraph(proposal.definition);
                           setProposal(null);
-                          setJsonMode(true);
+                          setView("json");
                         }}
                       >
                         {t("policies.applyOptimized")}
@@ -593,6 +600,8 @@ function BuilderCanvas({
                 </div>
               ) : null}
             </div>
+          ) : view === "form" ? (
+            <PolicyForm nodes={nodes} edges={edges} disabled={!canWrite} onChange={updateNode} />
           ) : (
           <ReactFlow
             nodes={nodes}
@@ -618,7 +627,7 @@ function BuilderCanvas({
           </ReactFlow>
           )}
         </div>
-        {jsonMode ? null : (
+        {view === "canvas" ? (
         <aside className="hidden w-[280px] shrink-0 overflow-y-auto border-l border-border p-4 md:block">
           <h2 className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.properties")}</h2>
           {current ? (
@@ -651,7 +660,7 @@ function BuilderCanvas({
             <p className="mt-3 text-[13px] text-muted-foreground">{t("policies.noSelection")}</p>
           )}
         </aside>
-        )}
+        ) : null}
       </div>
       {panel ? (
         <section className="max-h-[220px] overflow-y-auto border-t border-border px-4 py-3">

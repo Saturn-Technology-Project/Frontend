@@ -21,10 +21,5 @@ export function wsOrigin(): string {
     process.env.NEXT_PUBLIC_WS_URL?.trim() ||
     process.env.NEXT_PUBLIC_API_URL?.trim();
   if (explicit) return toWsOrigin(explicit);
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.hostname;
-  if (host === "localhost" || host === "127.0.0.1") {
-    return toWsOrigin("https://saturn-backend-629072855899.asia-east1.run.app");
-  }
-  return `${proto}//${window.location.host}`;
+  return toWsOrigin("https://api.saturn-core.com");
 }

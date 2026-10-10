@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const apiUrl = (
-  process.env.API_URL ?? "https://saturn-backend-629072855899.asia-east1.run.app"
+  process.env.API_URL ?? "https://api.saturn-core.com"
 ).replace(
   /\/$/,
   ""

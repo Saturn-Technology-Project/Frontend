@@ -3,9 +3,9 @@ services:
     build:
       context: .
       args:
-        API_URL: https://saturn-backend-629072855899.asia-east1.run.app
-        NEXT_PUBLIC_WS_URL: https://saturn-backend-629072855899.asia-east1.run.app
+        API_URL: https://api.saturn-core.com
+        NEXT_PUBLIC_WS_URL: https://api.saturn-core.com
     ports:
       - "3000:3000"
     environment:
-      API_URL: https://saturn-backend-629072855899.asia-east1.run.app
+      API_URL: https://api.saturn-core.com
