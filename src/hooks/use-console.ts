@@ -11,6 +11,7 @@ import {
   createPolicy,
   deleteAgent,
   deleteMcpServer,
+  deletePolicy,
   fetchConsole,
   rejectApproval,
   updateAgent,
@@ -36,11 +37,11 @@ function hasInFlightRun(data: ConsoleData | undefined) {
 }
 
 export function useConsole() {
-  const token = useAuthStore((state) => state.token);
+  const signedIn = useAuthStore((state) => Boolean(state.user));
   return useQuery({
     queryKey: consoleQueryKey,
     queryFn: fetchConsole,
-    enabled: Boolean(token),
+    enabled: signedIn,
     staleTime: 0,
     refetchInterval: (query) =>
       hasInFlightRun(query.state.data) ? 2_000 : 10_000,
@@ -95,6 +96,16 @@ export function useCreatePolicy() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: PolicyWrite) => createPolicy(body),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
+    },
+  });
+}
+
+export function useDeletePolicy() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePolicy(id),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: consoleQueryKey });
     },

@@ -1,20 +1,17 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { ApiError, login, registerAccount } from "@/lib/api";
+import { AuthScreen } from "@/components/layout/auth-screen";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useSessionProbe } from "@/hooks/use-session";
+import { ApiError, login, requestPasswordReset, resetPassword } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { useAuthStore } from "@/stores/auth-store";
+import { cn } from "@/lib/utils";
 
-function demoUrl() {
-  const configured = process.env.NEXT_PUBLIC_LANDING_URL?.replace(/\/$/, "");
-  if (configured) return `${configured}/demo`;
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return "http://localhost:5173/demo";
-  }
-  return "https://saturn.technology/demo";
-}
+const fieldClass =
+  "mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring";
 
 export default function LoginPage() {
   return (
@@ -25,91 +22,91 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = useAuthStore((state) => state.token);
-  const hydrated = useAuthStore((state) => state.hydrated);
-  const setHydrated = useAuthStore((state) => state.setHydrated);
+  const { ready, signedIn } = useSessionProbe();
+  const [mode, setMode] = useState<"sign-in" | "forgot" | "reset" | "done">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [registerOpen, setRegisterOpen] = useState(false);
+  const next = searchParams.get("next");
+  const registerHref = next ? `/register?next=${encodeURIComponent(next)}` : "/register";
 
   useEffect(() => {
-    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-  }, [setHydrated]);
+    if (ready && signedIn) router.replace(next || "/overview");
+  }, [ready, signedIn, router, next]);
 
-  useEffect(() => {
-    if (hydrated && token) {
-      router.replace(searchParams.get("next") || "/overview");
-    }
-  }, [hydrated, token, router, searchParams]);
+  function fail(err: unknown, fallback: string) {
+    setError(err instanceof ApiError ? err.message : fallback);
+  }
 
-  async function onSubmit(event: React.FormEvent) {
+  async function onSignIn(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     setPending(true);
     try {
       await login(email.trim(), password);
-      router.replace(searchParams.get("next") || "/overview");
+      router.replace(next || "/overview");
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 401
-          ? t("login.invalid")
-          : t("common.apiError")
-      );
+      setError(err instanceof ApiError && err.status === 401 ? t("login.invalid") : t("common.apiError"));
     } finally {
       setPending(false);
     }
   }
 
-  if (!hydrated || token) {
+  async function onForgot(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      await requestPasswordReset(email.trim());
+      setMode("reset");
+    } catch (err) {
+      fail(err, t("common.apiError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onReset(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    if (nextPassword.length < 8) {
+      setError(t("login.passwordShort"));
+      return;
+    }
+    if (nextPassword !== confirm) {
+      setError(t("login.passwordMismatch"));
+      return;
+    }
+    setPending(true);
+    try {
+      await resetPassword(email.trim(), code.trim(), nextPassword);
+      setPassword("");
+      setMode("done");
+    } catch (err) {
+      fail(err, t("common.apiError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!ready || signedIn) {
     return <div className="min-h-screen bg-background" />;
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-12 items-center justify-between border-b border-border px-5">
-        <div className="text-[13px] font-medium tracking-[0.18em]">SATURN</div>
-        <div className="flex items-center gap-1.5 text-[11px] tracking-[0.04em]">
-          <button
-            type="button"
-            onClick={() => setLocale("en")}
-            className={locale === "en" ? "text-foreground" : "text-muted-foreground"}
-          >
-            EN
-          </button>
-          <span className="text-border">/</span>
-          <button
-            type="button"
-            onClick={() => setLocale("zh")}
-            className={locale === "zh" ? "text-foreground" : "text-muted-foreground"}
-          >
-            中文
-          </button>
-        </div>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center px-6">
-        <form onSubmit={onSubmit} className="w-full max-w-[360px]">
+    <AuthScreen>
+      {mode === "sign-in" ? (
+        <form onSubmit={onSignIn}>
           <h1 className="text-[22px] font-medium tracking-tight">{t("login.title")}</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">{t("login.subtitle")}</p>
-
-          <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            {t("login.email")}
-            <input
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
-              required
-            />
-          </label>
-
+          <EmailField label={t("login.email")} value={email} onChange={setEmail} />
           <label className="mt-4 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             {t("login.password")}
             <input
@@ -117,149 +114,145 @@ function LoginForm() {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
+              className={fieldClass}
               required
             />
           </label>
-
+          <button
+            type="button"
+            className="mt-3 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => {
+              setError("");
+              setMode("forgot");
+            }}
+          >
+            {t("login.forgot")}
+          </button>
           {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
-
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? t("login.signingIn") : t("login.submit")}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-2 w-full"
-            onClick={() => setRegisterOpen(true)}
-          >
+          <Link href={registerHref} className={cn(buttonVariants({ variant: "outline" }), "mt-2 w-full")}>
             {t("login.register")}
-          </Button>
+          </Link>
         </form>
-      </main>
-      {registerOpen ? (
-        <RegisterDialog
-          onClose={() => setRegisterOpen(false)}
-          onCreated={() => router.replace(searchParams.get("next") || "/overview")}
-        />
       ) : null}
-    </div>
+
+      {mode === "forgot" ? (
+        <form onSubmit={onForgot}>
+          <h1 className="text-[22px] font-medium tracking-tight">{t("login.forgot")}</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.forgotBody")}</p>
+          <EmailField label={t("login.email")} value={email} onChange={setEmail} />
+          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          <Button type="submit" className="mt-6 w-full" disabled={pending}>
+            {pending ? t("login.sendingCode") : t("login.sendCode")}
+          </Button>
+          <BackButton
+            label={t("login.backToSignIn")}
+            onClick={() => {
+              setError("");
+              setMode("sign-in");
+            }}
+          />
+        </form>
+      ) : null}
+
+      {mode === "reset" ? (
+        <form onSubmit={onReset}>
+          <h1 className="text-[22px] font-medium tracking-tight">{t("login.updatePassword")}</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.codeSent")}</p>
+          <EmailField label={t("login.email")} value={email} onChange={setEmail} />
+          <label className="mt-4 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("login.code")}
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              maxLength={6}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              className={fieldClass}
+              required
+            />
+          </label>
+          <PasswordField label={t("login.newPassword")} value={nextPassword} onChange={setNextPassword} autoComplete="new-password" />
+          <PasswordField label={t("login.confirmPassword")} value={confirm} onChange={setConfirm} autoComplete="new-password" />
+          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          <Button type="submit" className="mt-6 w-full" disabled={pending}>
+            {pending ? t("login.updatingPassword") : t("login.updatePassword")}
+          </Button>
+          <BackButton
+            label={t("login.backToSignIn")}
+            onClick={() => {
+              setError("");
+              setMode("sign-in");
+            }}
+          />
+        </form>
+      ) : null}
+
+      {mode === "done" ? (
+        <div>
+          <h1 className="text-[22px] font-medium tracking-tight">{t("login.updatePassword")}</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.passwordUpdated")}</p>
+          <Button type="button" className="mt-6 w-full" onClick={() => setMode("sign-in")}>
+            {t("login.backToSignIn")}
+          </Button>
+        </div>
+      ) : null}
+    </AuthScreen>
   );
 }
 
-function RegisterDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const { t } = useI18n();
-  const [step, setStep] = useState<"choose" | "personal">("choose");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError("");
-    setPending(true);
-    try {
-      await registerAccount(name.trim(), email.trim(), password);
-      onCreated();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));
-      else if (err instanceof ApiError && err.status === 400) setError(t("login.passwordShort"));
-      else setError(t("common.apiError"));
-    } finally {
-      setPending(false);
-    }
-  }
-
+function EmailField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 px-4" onMouseDown={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="register-title"
-        className="flex size-[min(440px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-border bg-background p-6"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h2 id="register-title" className="text-[18px] font-medium tracking-tight">
-            {step === "choose" ? t("login.chooseTitle") : t("login.personal")}
-          </h2>
-          <button type="button" className="text-[12px] text-muted-foreground hover:text-foreground" onClick={onClose}>
-            {t("login.close")}
-          </button>
-        </div>
+    <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+      {label}
+      <input
+        type="email"
+        autoComplete="username"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClass}
+        required
+      />
+    </label>
+  );
+}
 
-        {step === "choose" ? (
-          <div className="mt-4 grid flex-1 grid-rows-[auto_1fr_1fr] gap-3">
-            <p className="text-[12px] text-muted-foreground">{t("login.chooseBody")}</p>
-            <button
-              type="button"
-              className="rounded-md border border-border px-4 text-left hover:border-foreground"
-              onClick={() => setStep("personal")}
-            >
-              <div className="text-[14px] font-medium">{t("login.personal")}</div>
-              <p className="mt-1 text-[12px] text-muted-foreground">{t("login.personalBody")}</p>
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border px-4 text-left hover:border-foreground"
-              onClick={() => {
-                window.location.assign(demoUrl());
-              }}
-            >
-              <div className="text-[14px] font-medium">{t("login.team")}</div>
-              <p className="mt-1 text-[12px] text-muted-foreground">{t("login.teamBody")}</p>
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <p className="text-[12px] text-muted-foreground">{t("login.personalBody")}</p>
-            <label className="mt-4 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {t("login.name")}
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="name"
-                className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
-                required
-              />
-            </label>
-            <label className="mt-3 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {t("login.email")}
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
-                required
-              />
-            </label>
-            <label className="mt-3 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {t("login.password")}
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                className="mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring"
-                required
-              />
-            </label>
-            {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
-            <div className="mt-auto flex gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setStep("choose")}>
-                {t("login.back")}
-              </Button>
-              <Button type="submit" className="flex-1" disabled={pending}>
-                {pending ? t("login.creating") : t("login.create")}
-              </Button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: string;
+}) {
+  return (
+    <label className="mt-4 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+      {label}
+      <input
+        type="password"
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClass}
+        required
+      />
+    </label>
+  );
+}
+
+function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="mt-3 w-full text-center text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      onClick={onClick}
+    >
+      {label}
+    </button>
   );
 }

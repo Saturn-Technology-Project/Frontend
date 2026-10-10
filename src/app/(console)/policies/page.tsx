@@ -58,10 +58,16 @@ export default function PoliciesPage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="text-[15px] font-medium">{policy.name}</div>
-                      <StatusLabel
-                        tone={policy.status === "active" ? "active" : "paused"}
-                      >
-                        {t(policy.status === "active" ? "policies.active" : "policies.paused")}
+                      <StatusLabel tone={policy.status === "active" ? "active" : policy.status === "paused" ? "paused" : "pending"}>
+                        {t(
+                          policy.status === "draft"
+                            ? "policies.draft"
+                            : policy.status === "validated"
+                              ? "policies.validated"
+                              : policy.status === "paused"
+                                ? "policies.paused"
+                                : "policies.active"
+                        )}
                       </StatusLabel>
                     </div>
                     <div className="mt-2 text-[13px] text-muted-foreground">

@@ -10,6 +10,7 @@ import {
 } from "@/components/policies/policy-rule-builder";
 import { useI18n } from "@/lib/i18n";
 import { coerceConditionValue, POLICY_ENVIRONMENTS } from "@/lib/policy";
+import { cn } from "@/lib/utils";
 import type { PolicyWrite } from "@/lib/api";
 import type { Agent, Policy } from "@/types";
 
@@ -65,6 +66,7 @@ export function PolicyForm({
   submitting,
   error,
   onSubmit,
+  showIntro = true,
 }: {
   policy?: Policy;
   agents: Agent[];
@@ -72,6 +74,7 @@ export function PolicyForm({
   submitting: boolean;
   error: boolean;
   onSubmit: (body: PolicyWrite) => Promise<void>;
+  showIntro?: boolean;
 }) {
   const { t } = useI18n();
   const initial = useMemo(() => toDraft(policy), [policy]);
@@ -111,12 +114,14 @@ export function PolicyForm({
 
   return (
     <form className="max-w-[680px]" onSubmit={(event) => void submit(event)}>
-      <SectionLabel>{t("policies.create")}</SectionLabel>
-      <p className="mt-3 max-w-md text-[13px] text-muted-foreground">
-        {t("policies.createBody")}
-      </p>
+      {showIntro ? (
+        <>
+          <SectionLabel>{t("policies.create")}</SectionLabel>
+          <p className="mt-3 max-w-md text-[13px] text-muted-foreground">{t("policies.createBody")}</p>
+        </>
+      ) : null}
 
-      <div className="mt-8 grid grid-cols-1 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", showIntro ? "mt-8" : "mt-6")}>
         <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("policies.name")}
           <input

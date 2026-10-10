@@ -2,23 +2,16 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/auth-store";
+import { useSessionProbe } from "@/hooks/use-session";
 
 export default function Home() {
   const router = useRouter();
-  const token = useAuthStore((state) => state.token);
-  const hydrated = useAuthStore((state) => state.hydrated);
-  const setHydrated = useAuthStore((state) => state.setHydrated);
+  const { ready, signedIn } = useSessionProbe();
 
   useEffect(() => {
-    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
-    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-  }, [setHydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    router.replace(token ? "/overview" : "/login");
-  }, [hydrated, token, router]);
+    if (!ready) return;
+    router.replace(signedIn ? "/overview" : "/login");
+  }, [ready, signedIn, router]);
 
   return <div className="min-h-screen bg-background" />;
 }

@@ -63,7 +63,14 @@ export default function OverviewPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-xl border border-border bg-card p-5">
-            <h2 className="text-[15px] font-medium">{t("overview.recentActivity")}</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[15px] font-medium">{t("overview.recentActivity")}</h2>
+              {events.length > 0 ? (
+                <Link href="/activity" className="text-[12px] text-muted-foreground hover:text-foreground">
+                  {t("runs.viewAudit")}
+                </Link>
+              ) : null}
+            </div>
             {events.length === 0 ? (
               <p className="mt-6 text-[13px] text-muted-foreground">{t("activity.empty")}</p>
             ) : (

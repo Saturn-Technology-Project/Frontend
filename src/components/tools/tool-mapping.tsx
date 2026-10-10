@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { consoleQueryKey } from "@/hooks/use-console";
@@ -9,11 +10,11 @@ import {
   connectMcpServer,
   createToolSet,
   deleteToolSet,
-  updateAgent,
   updateToolSet,
 } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import type { Agent, McpServer, ToolSet } from "@/types";
+import { cn } from "@/lib/utils";
+import type { Agent, McpServer, McpTool, ToolSet } from "@/types";
 
 const inputClass =
   "mt-2 h-8 w-full border border-border bg-background px-2 text-[13px] font-normal normal-case tracking-normal text-foreground";
@@ -87,6 +88,16 @@ export function McpConnectForm() {
   );
 }
 
+const fieldClass =
+  "h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-ring";
+
+function togglePicked(current: Record<string, boolean>, id: string) {
+  const next = { ...current };
+  if (id in next) delete next[id];
+  else next[id] = false;
+  return next;
+}
+
 export function ToolSetEditor({
   servers,
   toolSets,
@@ -112,8 +123,10 @@ export function ToolSetEditor({
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [agentIds, setAgentIds] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
 
   function load(set: ToolSet | null) {
     setEditing(set ? set.id : "new");
@@ -121,8 +134,31 @@ export function ToolSetEditor({
     const next: Record<string, boolean> = {};
     for (const item of set?.items ?? []) next[item.toolId] = item.approval;
     setPicked(next);
-    setAgentIds(set ? agents.filter((agent) => agent.toolSetId === set.id).map((agent) => agent.id) : []);
+    setQuery("");
+    setSelectedOnly(false);
+    setFolded({});
+    setConfirming(null);
   }
+
+  const known = useMemo(() => new Set(catalog.flatMap((server) => server.tools.map((tool) => tool.id))), [catalog]);
+  const needle = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      catalog
+        .map((server) => ({
+          ...server,
+          tools: server.tools.filter((tool) => {
+            if (selectedOnly && !(tool.id in picked)) return false;
+            if (!needle) return true;
+            return `${tool.name} ${tool.description}`.toLowerCase().includes(needle);
+          }),
+        }))
+        .filter((server) => server.tools.length > 0),
+    [catalog, needle, picked, selectedOnly]
+  );
+  const missing = Object.keys(picked).filter((id) => !known.has(id));
+  const visibleMissing = missing.filter((id) => !needle || id.toLowerCase().includes(needle));
+  const pickedCount = Object.keys(picked).length;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -131,16 +167,6 @@ export function ToolSetEditor({
         editing && editing !== "new"
           ? await updateToolSet(editing, { name: name.trim(), items })
           : await createToolSet({ name: name.trim(), items });
-      const selected = new Set(agentIds);
-      await Promise.all(
-        agents.map((agent) => {
-          const has = agent.toolSetId === saved.id;
-          const want = selected.has(agent.id);
-          if (want && !has) return updateAgent(agent.id, { tool_set_id: saved.id });
-          if (!want && has) return updateAgent(agent.id, { tool_set_id: null });
-          return Promise.resolve(null);
-        })
-      );
       return saved;
     },
     onSuccess: async () => {
@@ -157,39 +183,211 @@ export function ToolSetEditor({
     },
   });
 
+  function applyShown(tools: McpTool[], selected: boolean) {
+    setPicked((current) => {
+      const next = { ...current };
+      for (const tool of tools) {
+          if (selected) {
+          if (!(tool.id in next)) next[tool.id] = false;
+        } else if (tool.id in next) {
+          delete next[tool.id];
+        }
+      }
+      return next;
+    });
+  }
+
+  if (editing !== null) {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!name.trim() || pickedCount === 0) return;
+          save.mutate();
+        }}
+      >
+        <button
+          type="button"
+          className="text-[13px] text-muted-foreground hover:text-foreground"
+          onClick={() => setEditing(null)}
+        >
+          {t("tools.backToSets")}
+        </button>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">
+              {editing === "new" ? t("tools.newSet") : name.trim() || t("policies.edit")}
+            </h1>
+            <label className="mt-4 block max-w-md text-[12px] text-muted-foreground">
+              {t("tools.setName")}
+              <input value={name} onChange={(event) => setName(event.target.value)} className={cn(fieldClass, "mt-1.5")} />
+            </label>
+            <p className="mt-3 max-w-xl text-[13px] text-muted-foreground">{t("tools.setBoundary")}</p>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="min-w-0">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("tools.search")}
+                className="h-10 w-full rounded-full border border-border bg-muted px-4 text-base outline-none focus:border-ring sm:max-w-sm md:h-9 md:text-[13px]"
+              />
+              <div className="flex gap-2">
+                <FilterChip active={!selectedOnly} onClick={() => setSelectedOnly(false)}>
+                  {t("tools.showAll")}
+                </FilterChip>
+                <FilterChip active={selectedOnly} onClick={() => setSelectedOnly(true)}>
+                  {t("tools.showSelected")}
+                </FilterChip>
+              </div>
+            </div>
+
+            {catalog.length === 0 ? (
+              <p className="mt-6 text-[13px] text-muted-foreground">{t("tools.noCatalog")}</p>
+            ) : visible.length === 0 && visibleMissing.length === 0 ? (
+              <p className="mt-6 text-[13px] text-muted-foreground">{t("tools.noMatch")}</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {visible.map((server) => {
+                  const selectedHere = server.tools.filter((tool) => tool.id in picked).length;
+                  const open = Boolean(needle) || !folded[server.id];
+                  return (
+                    <section key={server.id} className="rounded-xl border border-border bg-card">
+                      <div className={cn("flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between", open && "border-b border-border")}>
+                        <button
+                          type="button"
+                          aria-expanded={open}
+                          onClick={() => setFolded((current) => ({ ...current, [server.id]: !current[server.id] }))}
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-muted"
+                        >
+                          <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[14px] font-medium">{server.name}</span>
+                            <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                              {t("tools.count", { n: server.tools.length })} · {t("tools.selectedCount", { n: selectedHere })}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="flex gap-1">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, true)}>
+                            {t("tools.selectShown")}
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, false)}>
+                            {t("tools.clearShown")}
+                          </Button>
+                        </div>
+                      </div>
+                      {open ? (
+                        <ul>
+                          <ToolHeading tool={t("tools.list")} behavior={t("tools.defaultBehavior")} />
+                          {server.tools.map((tool) => (
+                            <ToolRow
+                              key={tool.id}
+                              tool={tool}
+                              on={tool.id in picked}
+                              approval={Boolean(picked[tool.id])}
+                              allowLabel={t("tools.allow")}
+                              approvalLabel={t("tools.requireApproval")}
+                              onToggle={() => setPicked((current) => togglePicked(current, tool.id))}
+                              onApproval={(approval) => setPicked((current) => ({ ...current, [tool.id]: approval }))}
+                            />
+                          ))}
+                        </ul>
+                      ) : null}
+                    </section>
+                  );
+                })}
+                {visibleMissing.length > 0 ? (
+                  <section className="rounded-xl border border-border bg-card">
+                    <div className="border-b border-border px-4 py-3 text-[13px] text-muted-foreground">{t("tools.missing")}</div>
+                    <ul>
+                      <ToolHeading tool={t("tools.list")} behavior={t("tools.defaultBehavior")} />
+                      {visibleMissing.map((id) => (
+                        <ToolRow
+                          key={id}
+                          tool={{ id, name: id, description: "" }}
+                          on
+                          approval={Boolean(picked[id])}
+                          allowLabel={t("tools.allow")}
+                          approvalLabel={t("tools.requireApproval")}
+                          onToggle={() => setPicked((current) => togglePicked(current, id))}
+                          onApproval={(approval) => setPicked((current) => ({ ...current, [id]: approval }))}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-6 flex flex-col gap-3 border-t border-border bg-background/95 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between md:bottom-0">
+          <p className="text-[13px] text-muted-foreground">{t("tools.selectedCount", { n: pickedCount })}</p>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+              {t("agents.cancel")}
+            </Button>
+            <Button type="submit" disabled={save.isPending || !name.trim() || pickedCount === 0}>
+              {t("tools.saveSet")}
+            </Button>
+          </div>
+        </div>
+        {save.isError ? <p className="pb-3 text-[13px] text-destructive">{save.error.message}</p> : null}
+        {remove.isError ? <p className="pb-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
+      </form>
+    );
+  }
+
   return (
-    <section className="max-w-[720px]">
-      <SectionLabel>{t("tools.sets")}</SectionLabel>
-      <p className="mt-3 max-w-md text-[12px] leading-5 text-muted-foreground">{t("tools.setsNote")}</p>
-      {toolSets.length === 0 && editing === null ? (
-        <p className="mt-6 text-[13px] text-muted-foreground">{t("tools.noSets")}</p>
+    <section>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.mapping")}</h1>
+          <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("tools.setsNote")}</p>
+        </div>
+        <Button className="w-full sm:w-auto" onClick={() => load(null)} disabled={catalog.length === 0}>
+          {t("tools.newSet")}
+        </Button>
+      </div>
+      {catalog.length === 0 ? <p className="mt-3 text-[12px] text-muted-foreground">{t("tools.noCatalog")}</p> : null}
+      {toolSets.length === 0 ? (
+        <div className="mt-8 rounded-xl border border-dashed border-border px-6 py-12 text-center">
+          <p className="text-[15px] font-medium">{t("tools.noSets")}</p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">{t("tools.setsNote")}</p>
+        </div>
       ) : (
-        <ul className="mt-6 divide-y divide-border border-y border-border">
+        <ul className="mt-6 grid grid-cols-1 gap-3 xl:grid-cols-2">
           {toolSets.map((set) => {
-            const users = agents.filter((agent) => agent.toolSetId === set.id).map((agent) => agent.name);
+            const users = agents.filter((agent) => agent.toolSetId === set.id);
+            const preview = set.items.slice(0, 6);
+            const held = set.items.filter((item) => item.approval).length;
             return (
-              <li key={set.id} className="py-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                  <div>
-                    <div className="text-[14px] font-medium">{set.name}</div>
+              <li key={set.id} className="flex flex-col rounded-xl border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <button type="button" className="min-w-0 text-left" onClick={() => load(set)}>
+                    <div className="truncate text-[15px] font-medium">{set.name}</div>
                     <div className="mt-1 text-[12px] text-muted-foreground">
                       {t("tools.count", { n: set.items.length })}
-                      {users.length ? ` · ${t("tools.usedBy")} ${users.join(", ")}` : ""}
+                      {held > 0 ? ` · ${t("tools.approvalCount", { n: held })}` : ""}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={() => load(set)}>
                       {t("policies.edit")}
                     </Button>
                     {confirming === set.id ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={remove.isPending}
-                        onClick={() => remove.mutate(set.id)}
-                      >
-                        {t("tools.confirmRemove")}
-                      </Button>
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                          {t("agents.cancel")}
+                        </Button>
+                        <Button variant="destructive" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(set.id)}>
+                          {t("tools.confirmSet")}
+                        </Button>
+                      </>
                     ) : (
                       <Button variant="ghost" size="sm" onClick={() => setConfirming(set.id)}>
                         {t("tools.remove")}
@@ -197,129 +395,119 @@ export function ToolSetEditor({
                     )}
                   </div>
                 </div>
+                {preview.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {preview.map((item) => (
+                      <span key={item.toolId} className="max-w-full truncate rounded-full bg-muted px-2.5 py-1 font-mono text-[11px]">
+                        {item.name}
+                      </span>
+                    ))}
+                    {set.items.length > preview.length ? (
+                      <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
+                        +{set.items.length - preview.length}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {users.length > 0 ? (
+                  <p className="mt-3 truncate text-[12px] text-muted-foreground">
+                    {t("tools.usedBy")} {users.map((agent) => agent.name).join(", ")}
+                  </p>
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
-      {editing === null ? (
-        <Button variant="outline" className="mt-4" onClick={() => load(null)} disabled={catalog.length === 0}>
-          {t("tools.newSet")}
-        </Button>
-      ) : (
-        <form
-          className="mt-6 border border-border p-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!name.trim() || Object.keys(picked).length === 0) return;
-            save.mutate();
-          }}
-        >
-          <label className="block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            {t("tools.setName")}
-            <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
-          </label>
-          {catalog.length === 0 ? (
-            <p className="mt-4 text-[13px] text-muted-foreground">{t("tools.noCatalog")}</p>
-          ) : (
-            <div className="mt-6 space-y-6">
-              {catalog.map((server) => (
-                <div key={server.id}>
-                  <div className="text-[13px] font-medium">{server.name}</div>
-                  <ul className="mt-2 divide-y divide-border border border-border">
-                    {server.tools.map((tool) => {
-                      const on = tool.id in picked;
-                      return (
-                        <li key={tool.id} className="flex flex-col items-start gap-2 px-3 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                          <label className="flex min-w-0 items-center gap-3">
-                            <input
-                              type="checkbox"
-                              className="size-4 shrink-0"
-                              checked={on}
-                              onChange={() =>
-                                setPicked((current) => {
-                                  const next = { ...current };
-                                  if (tool.id in next) delete next[tool.id];
-                                  else next[tool.id] = false;
-                                  return next;
-                                })
-                              }
-                            />
-                            <span className="font-mono text-[12px] break-all">{tool.name}</span>
-                          </label>
-                          <label className="flex shrink-0 items-center gap-2 text-[12px] text-muted-foreground">
-                            <input
-                              type="checkbox"
-                              className="size-4 shrink-0"
-                              disabled={!on}
-                              checked={Boolean(picked[tool.id])}
-                              onChange={() =>
-                                setPicked((current) => ({ ...current, [tool.id]: !current[tool.id] }))
-                              }
-                            />
-                            {t("tools.needsApproval")}
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="mt-6">
-            <div className="text-[13px] font-medium">{t("tools.assign")}</div>
-            <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{t("tools.assignNote")}</p>
-            {agents.length === 0 ? (
-              <p className="mt-3 text-[13px] text-muted-foreground">{t("tools.noAgents")}</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-border border border-border">
-                {agents.map((agent) => {
-                  const on = agentIds.includes(agent.id);
-                  const other = toolSets.find((set) => set.id === agent.toolSetId && set.id !== editing);
-                  return (
-                    <li key={agent.id} className="flex flex-col items-start gap-1 px-3 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <label className="flex min-w-0 items-center gap-3">
-                        <input
-                          type="checkbox"
-                          className="size-4 shrink-0"
-                          checked={on}
-                          onChange={() =>
-                            setAgentIds((current) =>
-                              current.includes(agent.id)
-                                ? current.filter((id) => id !== agent.id)
-                                : [...current, agent.id]
-                            )
-                          }
-                        />
-                        <span className="truncate">{agent.name}</span>
-                      </label>
-                      {other && !on ? (
-                        <span className="shrink-0 text-[12px] text-muted-foreground">
-                          {t("tools.onAnotherSet", { name: other.name })}
-                        </span>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Button type="submit" disabled={save.isPending || !name.trim() || Object.keys(picked).length === 0}>
-              {t("tools.saveSet")}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
-              {t("agents.cancel")}
-            </Button>
-          </div>
-          {save.isError ? <p className="mt-3 text-[13px] text-destructive">{save.error.message}</p> : null}
-          {remove.isError ? <p className="mt-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
-        </form>
-      )}
-      {catalog.length === 0 && editing === null ? (
-        <p className="mt-3 text-[12px] text-muted-foreground">{t("tools.noCatalog")}</p>
-      ) : null}
+      {remove.isError ? <p className="mt-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
     </section>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "h-9 rounded-full border px-3 text-[13px]",
+        active ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolHeading({ tool, behavior }: { tool: string; behavior: string }) {
+  return (
+    <li className="hidden items-center gap-3 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground sm:flex">
+      <span className="min-w-0 flex-1">{tool}</span>
+      <span className="w-[196px] text-center">{behavior}</span>
+    </li>
+  );
+}
+
+function ToolRow({
+  tool,
+  on,
+  approval,
+  allowLabel,
+  approvalLabel,
+  onToggle,
+  onApproval,
+}: {
+  tool: McpTool;
+  on: boolean;
+  approval: boolean;
+  allowLabel: string;
+  approvalLabel: string;
+  onToggle: () => void;
+  onApproval: (approval: boolean) => void;
+}) {
+  return (
+    <li className={cn("flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3", on && "bg-muted/40")}>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={on}
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+      >
+        <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-foreground bg-foreground text-background" : "border-border bg-background")}>
+          {on ? <Check className="size-3" /> : null}
+        </span>
+        <span className="min-w-0">
+          <span className="block break-all font-mono text-[12px]">{tool.name}</span>
+          {tool.description ? <span className="mt-0.5 line-clamp-2 block text-[12px] leading-5 text-muted-foreground">{tool.description}</span> : null}
+        </span>
+      </button>
+      {on ? (
+        <span className="inline-flex gap-1 pl-7 sm:pl-0">
+          <Choice on={!approval} onClick={() => onApproval(false)}>
+            {allowLabel}
+          </Choice>
+          <Choice on={approval} onClick={() => onApproval(true)}>
+            {approvalLabel}
+          </Choice>
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "h-7 rounded-full border px-2.5 text-[12px]",
+        on ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
   );
 }

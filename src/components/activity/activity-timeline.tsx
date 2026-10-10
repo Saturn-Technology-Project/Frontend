@@ -1,122 +1,576 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { SectionLabel } from "@/components/ui/section-label";
-import { StatusDot } from "@/components/ui/status-dot";
-import { formatClock, formatDayLabel } from "@/lib/format";
-import { eventActor, eventText, useI18n } from "@/lib/i18n";
+import { ChevronDown } from "lucide-react";
 import { useConsole } from "@/hooks/use-console";
-import type { ActivityEvent, ActorKind } from "@/types";
+import { formatClock, formatDayLabel, relativeTime } from "@/lib/format";
+import { eventActor, eventText, useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+import type { ActivityEvent, ActorKind, McpServer, Policy, ToolSet } from "@/types";
 
-const actorTone: Record<ActorKind, "running" | "completed" | "pending" | "info"> = {
-  agent: "running",
-  human: "pending",
-  saturn: "info",
-  tool: "completed",
-  wallet: "info",
+const kindLabel: Record<ActorKind, string> = {
+  human: "activity.kindHuman",
+  agent: "activity.kindAgent",
+  tool: "activity.kindTool",
+  saturn: "activity.kindSaturn",
+  wallet: "activity.kindWallet",
 };
 
-function payloadRows(event: ActivityEvent) {
-  const rows: { label: string; value: string }[] = [];
-  if (event.tool) rows.push({ label: "TOOL", value: event.tool });
-  if (event.result) rows.push({ label: "RESULT", value: event.result });
-  const raw = event.raw;
-  if (raw) {
-    for (const [key, value] of Object.entries(raw)) {
-      if (value == null) continue;
-      rows.push({
-        label: key.replaceAll("_", " ").toUpperCase(),
-        value: typeof value === "string" ? value : JSON.stringify(value),
-      });
-    }
-  }
-  return rows;
+const chainEvents = new Set([
+  "tool_requested",
+  "policy_evaluated",
+  "approval_requested",
+  "approval_granted",
+  "approval_rejected",
+  "tool_executed",
+  "wallet_evaluated",
+  "x402_payment_required",
+  "x402_settled",
+  "x402_failed",
+]);
+
+type Chain = {
+  id: string;
+  at: string;
+  no: number;
+  events: ActivityEvent[];
+};
+
+function matchesQuery(event: ActivityEvent, query: string, title: string, actor: string) {
+  if (!query) return true;
+  return [title, actor, event.tool, event.result, event.detail, event.event, event.runId]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
 }
 
-export function ActivityTimeline({ events }: { events: ActivityEvent[] }) {
+function resultTone(result: string) {
+  const value = result.toLowerCase();
+  if (/(fail|denied|reject|error)/.test(value)) return "bad";
+  if (/(pending|required|requested)/.test(value)) return "wait";
+  if (/(allow|approv|complet|settled|success|grant|pass|\bok\b)/.test(value)) return "ok";
+  return "plain";
+}
+
+function textOf(value: unknown) {
+  if (typeof value === "string") return value;
+  return "";
+}
+
+function serverOf(event: ActivityEvent, toolSets: ToolSet[], servers: McpServer[]) {
+  const stored = textOf(event.raw?.server_name).trim();
+  if (stored) return stored;
+  const name = event.tool || "";
+  if (!name) return "";
+  for (const set of toolSets) {
+    const item = set.items.find((entry) => entry.name === name && entry.serverName);
+    if (item?.serverName) return item.serverName;
+  }
+  return servers.find((server) => server.catalog.some((tool) => tool.name === name) || server.tools.includes(name))?.name ?? "";
+}
+
+const stepOrder: Record<string, number> = {
+  tool_requested: 0,
+  policy_evaluated: 1,
+  approval_requested: 2,
+  approval_granted: 3,
+  approval_rejected: 3,
+  wallet_evaluated: 4,
+  x402_payment_required: 5,
+  x402_settled: 6,
+  x402_failed: 6,
+  tool_executed: 7,
+};
+
+function eventTime(event: { at: string }) {
+  return new Date(event.at).getTime();
+}
+
+type TimeRange = "all" | "today" | "yesterday" | "7d" | "30d";
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function matchesTime(at: string, range: TimeRange) {
+  if (range === "all") return true;
+  const time = eventTime({ at });
+  const today = startOfLocalDay(new Date());
+  const day = 86_400_000;
+  if (range === "today") return time >= today;
+  if (range === "yesterday") return time >= today - day && time < today;
+  if (range === "7d") return time >= today - 6 * day;
+  return time >= today - 29 * day;
+}
+
+function chainServer(chain: Chain, toolSets: ToolSet[], servers: McpServer[]) {
+  return chain.events.map((event) => serverOf(event, toolSets, servers)).find(Boolean) || "";
+}
+
+function chainAgent(chain: Chain) {
+  const request = chain.events.find((event) => event.event === "tool_requested") ?? chain.events[0];
+  return { id: request.actorId || request.actor, event: request };
+}
+
+function auditNo(event: ActivityEvent) {
+  const value = event.raw?.audit_no;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return null;
+}
+
+function idsOf(event: ActivityEvent) {
+  const raw = event.raw ?? {};
+  return {
+    action: event.actionId || textOf(raw.action_id),
+    run: event.runId || textOf(raw.run_id),
+    tool: event.tool || "",
+    no: auditNo(event),
+  };
+}
+
+function buildChains(events: ActivityEvent[]): Chain[] {
+  const sorted = [...events].sort((a, b) => {
+    const delta = eventTime(a) - eventTime(b);
+    if (delta !== 0) return delta;
+    return (stepOrder[a.event ?? ""] ?? 9) - (stepOrder[b.event ?? ""] ?? 9);
+  });
+  const drafts: { id: string; tool: string; action: string; run: string; no: number | null; events: ActivityEvent[]; closed: boolean }[] = [];
+  const singles: Chain[] = [];
+
+  for (const event of sorted) {
+    if (!event.event || !chainEvents.has(event.event)) {
+      singles.push({ id: event.id, at: event.at, no: 0, events: [event] });
+      continue;
+    }
+    const ids = idsOf(event);
+    const at = eventTime(event);
+    let draft = ids.no != null ? drafts.find((item) => item.no === ids.no) : undefined;
+    if (!draft && ids.action) draft = drafts.find((item) => item.action === ids.action);
+    if (!draft && ids.run && ids.tool) {
+      draft = drafts.find((item) => !item.closed && item.run === ids.run && item.tool === ids.tool);
+    }
+    if (!draft && ids.tool) {
+      const candidates = drafts.filter((item) => {
+        if (item.closed || item.tool !== ids.tool) return false;
+        if (item.events.some((step) => step.event === event.event)) return false;
+        const last = eventTime(item.events[item.events.length - 1]);
+        return at >= last && at - last <= 60_000;
+      });
+      draft = candidates.sort((a, b) => eventTime(b.events[b.events.length - 1]) - eventTime(a.events[a.events.length - 1]))[0];
+    }
+    if (!draft) {
+      draft = { id: event.id, tool: ids.tool, action: ids.action, run: ids.run, no: ids.no, events: [], closed: false };
+      drafts.push(draft);
+    }
+    draft.events.push(event);
+    if (!draft.action && ids.action) draft.action = ids.action;
+    if (!draft.run && ids.run) draft.run = ids.run;
+    if (!draft.tool && ids.tool) draft.tool = ids.tool;
+    if (draft.no == null && ids.no != null) draft.no = ids.no;
+    if (event.event === "tool_executed") draft.closed = true;
+  }
+
+  const chains = [...singles, ...drafts.map((draft) => ({
+    id: draft.id,
+    at: draft.events[draft.events.length - 1].at,
+    no: draft.no ?? 0,
+    events: draft.events,
+  }))];
+  const used = new Set(chains.map((chain) => chain.no).filter((no) => no > 0));
+  let next = 1;
+  for (const chain of [...chains].sort((a, b) => eventTime(a) - eventTime(b))) {
+    if (chain.no > 0) continue;
+    while (used.has(next)) next += 1;
+    chain.no = next;
+    used.add(next);
+    next += 1;
+  }
+  return chains.sort((a, b) => eventTime(b) - eventTime(a));
+}
+
+function hasBody(value: unknown) {
+  if (value == null || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonText(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return text;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function serverBody(value: unknown): unknown {
+  if (!hasBody(value) || typeof value === "string") return undefined;
+  let body: unknown = value;
+  if (isRecord(body) && "result" in body && ("jsonrpc" in body || "id" in body)) body = body.result;
+  if (!isRecord(body)) return hasBody(body) ? body : undefined;
+  if (hasBody(body.structuredContent)) return body.structuredContent;
+  if (Array.isArray(body.content)) {
+    const texts = body.content.flatMap((item) => (isRecord(item) && typeof item.text === "string" ? [item.text] : []));
+    if (texts.length === 1) return parseJsonText(texts[0]);
+    if (texts.length > 1) return texts.map(parseJsonText);
+  }
+  return body;
+}
+
+function pretty(value: unknown) {
+  return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+function outcomeKey(result: string | undefined) {
+  const value = (result ?? "").toLowerCase();
+  if (value === "completed" || value === "success") return "activity.success";
+  if (value === "allow" || value === "allowed") return "activity.allowed";
+  if (value === "deny" || value === "denied") return "activity.denied";
+  if (value === "requested") return "activity.requested";
+  if (value === "pending" || value === "approval_required") return "activity.pending";
+  return "";
+}
+
+function policyBasis(event: ActivityEvent, policies: Policy[], none: string) {
+  const raw = event.raw ?? {};
+  const stored = textOf(raw.policy_name).trim();
+  if (stored) return stored;
+  const id = textOf(raw.policy_id).trim();
+  if (!id) return none;
+  return policies.find((policy) => policy.id === id)?.name || id;
+}
+
+function Line({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <p className="text-[13px] leading-6">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="mx-1.5 text-muted-foreground">·</span>
+      <span className="break-all">{value}</span>
+    </p>
+  );
+}
+
+function Body({ label, value }: { label: string; value: unknown }) {
+  if (!hasBody(value)) return null;
+  return (
+    <div className="mt-2">
+      <div className="text-[12px] text-muted-foreground">{label}</div>
+      <pre className="mt-1 max-h-96 overflow-auto whitespace-pre rounded-lg bg-muted px-3 py-2 font-mono text-[11px] leading-5">{pretty(value)}</pre>
+    </div>
+  );
+}
+
+export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQuery: string }) {
   const { t, locale } = useI18n();
   const { data } = useConsole();
   const runs = data?.runs ?? [];
+  const policies = data?.policies ?? [];
+  const toolSets = data?.toolSets ?? [];
+  const servers = data?.mcpServers ?? [];
+  const [query, setQuery] = useState(urlQuery);
+  const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [serverFilter, setServerFilter] = useState("");
+  const [agentFilter, setAgentFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openBody, setOpenBody] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQuery(urlQuery);
+  }, [urlQuery]);
+
+  const needle = query.trim().toLowerCase();
+  const built = useMemo(() => buildChains(events), [events]);
+  const serverOptions = useMemo(() => {
+    return [...new Set(built.map((chain) => chainServer(chain, toolSets, servers)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  }, [built, servers, toolSets]);
+  const agentOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const chain of built) {
+      const agent = chainAgent(chain);
+      if (agent.id) names.set(agent.id, eventActor(locale, agent.event));
+    }
+    return [...names.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [built, locale]);
+  const chains = useMemo(() => {
+    return built.filter((chain) => {
+      if (!matchesTime(chain.at, timeRange)) return false;
+      if (serverFilter && chainServer(chain, toolSets, servers) !== serverFilter) return false;
+      if (agentFilter && chainAgent(chain).id !== agentFilter) return false;
+      return chain.events.some((event) => {
+        const server = serverOf(event, toolSets, servers);
+        return matchesQuery(event, needle, eventText(locale, event.titleKey, event.title), [eventActor(locale, event), server].filter(Boolean).join(" "));
+      });
+    });
+  }, [agentFilter, built, locale, needle, serverFilter, servers, timeRange, toolSets]);
+
   const groups = useMemo(() => {
-    const map = new Map<string, ActivityEvent[]>();
-    const ordered = [...events].sort(
-      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
-    );
-    for (const event of ordered) {
-      const day = formatDayLabel(event.at, locale);
+    const map = new Map<string, Chain[]>();
+    for (const chain of chains) {
+      const day = formatDayLabel(chain.at, locale);
       const list = map.get(day) ?? [];
-      list.push(event);
+      list.push(chain);
       map.set(day, list);
     }
     return [...map.entries()];
-  }, [events, locale]);
+  }, [chains, locale]);
 
   return (
-    <div className="space-y-10">
-      {groups.map(([day, dayEvents]) => (
-        <section key={day}>
-          <SectionLabel className="mb-4">{day}</SectionLabel>
-          <ol className="divide-y divide-border border-y border-border">
-            {dayEvents.map((event) => {
-              const open = openId === event.id;
-              const rows = payloadRows(event);
-              const run = runs.find((item) => item.id === event.runId);
-              const detail = eventText(locale, event.detailKey, event.detail);
-              return (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(open ? null : event.id)}
-                    className="grid w-full grid-cols-[92px_176px_1fr] items-start gap-4 py-3.5 text-left"
-                  >
-                    <span className="font-mono text-[12px] text-muted-foreground">
-                      {formatClock(event.at)}
-                    </span>
-                    <span className="flex items-center gap-2 text-[13px]">
-                      <StatusDot tone={actorTone[event.actorKind]} />
-                      {eventActor(locale, event)}
-                    </span>
-                    <span className="text-[13px]">
-                      {eventText(locale, event.titleKey, event.title)}
-                      {detail ? (
-                        <span className="text-muted-foreground"> → {detail}</span>
-                      ) : null}
-                    </span>
-                  </button>
-                  {open ? (
-                    <div className="mb-4 ml-[92px] rounded-md border border-border bg-card px-4 py-3">
-                      {rows.length === 0 ? (
-                        <div className="text-[12px] text-muted-foreground">
-                          {t("activity.noPayload")}
+    <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.audit")}</h1>
+          <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("activity.subtitle")}</p>
+        </div>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("activity.search")}
+          className="h-10 w-full rounded-full border border-border bg-muted px-4 text-base outline-none focus:border-ring md:h-9 md:text-[13px] lg:w-[280px]"
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <select
+          aria-label={t("activity.time")}
+          value={timeRange}
+          onChange={(event) => setTimeRange(event.target.value as TimeRange)}
+          className="h-10 rounded-full border border-border bg-muted px-3 text-base outline-none focus:border-ring md:h-9 md:text-[13px]"
+        >
+          <option value="all">{t("activity.allTime")}</option>
+          <option value="today">{t("activity.today")}</option>
+          <option value="yesterday">{t("activity.yesterday")}</option>
+          <option value="7d">{t("activity.last7")}</option>
+          <option value="30d">{t("activity.last30")}</option>
+        </select>
+        <select
+          aria-label={t("activity.mcpServer")}
+          value={serverFilter}
+          onChange={(event) => setServerFilter(event.target.value)}
+          className="h-10 rounded-full border border-border bg-muted px-3 text-base outline-none focus:border-ring md:h-9 md:text-[13px]"
+        >
+          <option value="">{t("activity.allServers")}</option>
+          {serverOptions.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+        <select
+          aria-label={t("activity.agent")}
+          value={agentFilter}
+          onChange={(event) => setAgentFilter(event.target.value)}
+          className="h-10 rounded-full border border-border bg-muted px-3 text-base outline-none focus:border-ring md:h-9 md:text-[13px]"
+        >
+          <option value="">{t("activity.allAgents")}</option>
+          {agentOptions.map((agent) => (
+            <option key={agent.id} value={agent.id}>{agent.name}</option>
+          ))}
+        </select>
+      </div>
+      <p className="mt-3 text-[12px] text-muted-foreground">{t("activity.count", { n: chains.length })}</p>
+
+      {events.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-border px-6 py-12 text-center">
+          <p className="text-[15px] font-medium">{t("activity.empty")}</p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">{t("activity.subtitle")}</p>
+        </div>
+      ) : chains.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-border px-6 py-12 text-center">
+          <p className="text-[15px] font-medium">{t("activity.noMatch")}</p>
+          <button
+            type="button"
+            className="mt-3 text-[13px] text-muted-foreground underline hover:text-foreground"
+            onClick={() => {
+              setQuery("");
+              setTimeRange("all");
+              setServerFilter("");
+              setAgentFilter("");
+            }}
+          >
+            {t("activity.clear")}
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {groups.map(([day, dayChains]) => (
+            <section key={day} className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h2 className="text-[13px] font-medium">{day}</h2>
+                <span className="text-[12px] text-muted-foreground">{dayChains.length}</span>
+              </div>
+              <ul>
+                {dayChains.map((chain) => {
+                  const open = openId === chain.id;
+                  const head = chain.events[chain.events.length - 1];
+                  const request = chain.events.find((event) => event.event === "tool_requested");
+                  const executed = [...chain.events].reverse().find((event) => event.event === "tool_executed");
+                  const server = serverOf(head, toolSets, servers) || chain.events.map((event) => serverOf(event, toolSets, servers)).find(Boolean) || "";
+                  const headline = head.tool ? (server ? `${head.tool} · ${server}` : head.tool) : eventText(locale, head.titleKey, head.title);
+                  const initiator = request ? eventActor(locale, request) : eventActor(locale, chain.events[0]);
+                  const outcome = executed?.result || head.result;
+                  const outcomeText = outcomeKey(outcome) ? t(outcomeKey(outcome)) : outcome || "";
+                  const tone = outcome ? resultTone(outcome) : "plain";
+                  const run = runs.find((item) => item.id === (request?.runId || head.runId));
+                  return (
+                    <li key={chain.id} className="border-b border-border last:border-0">
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={() => setOpenId(open ? null : chain.id)}
+                        className={cn("flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/50", open && "bg-muted/40")}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-2">
+                              <span className="font-mono text-[12px] font-medium text-foreground">#{chain.no}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{formatClock(chain.at)}</span>
+                            </span>
+                            {outcomeText ? (
+                              <span
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[11px]",
+                                  tone === "ok" && "bg-success/10 text-success",
+                                  tone === "bad" && "bg-destructive/10 text-destructive",
+                                  tone === "wait" && "bg-warning/15 text-warning",
+                                  tone === "plain" && "bg-muted text-foreground"
+                                )}
+                              >
+                                {outcomeText}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-1 block truncate text-[14px] font-medium">{headline}</span>
+                          <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
+                            {initiator}
+                            {chain.events.length > 1 ? ` · ${t("activity.steps", { n: chain.events.length })}` : ` · ${t(kindLabel[head.actorKind])}`}
+                            {` · ${relativeTime(chain.at, locale)}`}
+                          </span>
+                        </span>
+                        <ChevronDown className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                      </button>
+                      {open ? (
+                        <div className="px-4 pb-4">
+                          <ol className="ml-2 border-l border-border">
+                            {chain.events.map((event, index) => (
+                              <li key={event.id} className="relative pb-5 pl-5 last:pb-0">
+                                <span className={cn("absolute -left-[5px] top-1.5 size-2.5 rounded-full border-2 border-card", index === chain.events.length - 1 ? "bg-foreground" : "bg-muted-foreground")} />
+                                <ChainStep
+                                  event={event}
+                                  step={index + 1}
+                                  server={serverOf(event, toolSets, servers)}
+                                  policies={policies}
+                                  openBody={openBody}
+                                  onToggle={(key) => setOpenBody(openBody === key ? null : key)}
+                                />
+                              </li>
+                            ))}
+                          </ol>
+                          {run ? (
+                            <Link href={`/agents/${run.agentId}/runs/${run.id}`} className="mt-3 inline-block pl-7 text-[12px] text-muted-foreground hover:text-foreground">
+                              {t("activity.openRun")}
+                            </Link>
+                          ) : null}
                         </div>
-                      ) : (
-                        <dl className="space-y-2 font-mono text-[11px] leading-5">
-                          {rows.map((row) => (
-                            <div key={row.label} className="grid grid-cols-[92px_1fr] gap-3">
-                              <dt className="text-muted-foreground">{row.label}</dt>
-                              <dd className="break-all text-foreground">{row.value}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      )}
-                      {run ? (
-                        <Link
-                          href={`/agents/${run.agentId}/runs/${run.id}`}
-                          className="mt-3 inline-block text-[12px] text-muted-foreground hover:text-foreground"
-                        >
-                          {t("activity.openRun")}
-                        </Link>
                       ) : null}
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChainStep({
+  event,
+  step,
+  server,
+  policies,
+  openBody,
+  onToggle,
+}: {
+  event: ActivityEvent;
+  step: number;
+  server: string;
+  policies: Policy[];
+  openBody: string | null;
+  onToggle: (key: string) => void;
+}) {
+  const { t, locale } = useI18n();
+  const title = eventText(locale, event.titleKey, event.title);
+  const actor = eventActor(locale, event);
+  const raw = event.raw ?? {};
+  const rawRequest = raw.raw_request ?? raw.arguments ?? event.payload?.parameters;
+  const rawResponse = serverBody(raw.raw_response ?? raw.server_result);
+  const requestKey = `${event.id}:request`;
+  const responseKey = `${event.id}:response`;
+  const requestLabel = raw.raw_request ? t("activity.rawRequest") : t("activity.originalRequest");
+  const responseLabel = raw.raw_response ? t("activity.rawResponse") : t("activity.serverReturned");
+  const outcome = outcomeKey(event.result) ? t(outcomeKey(event.result)) : event.result || "";
+
+  return (
+    <div>
+      <div className="text-[13px] font-medium">
+        <span className="mr-2 font-mono text-[12px] text-muted-foreground">{step}</span>
+        {title}
+      </div>
+      <div className="mt-1 font-mono text-[11px] text-muted-foreground">{formatClock(event.at)}</div>
+      {event.event === "tool_requested" ? (
+        <div className="mt-2">
+          <Line label={t("activity.initiator")} value={actor} />
+          <Line label={t("activity.requestedTool")} value={event.tool || ""} />
+          <Line label={t("activity.mcpServer")} value={server} />
+          {hasBody(rawRequest) ? (
+            <button type="button" className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground" onClick={() => onToggle(requestKey)}>
+              {openBody === requestKey ? t("activity.hideRequest") : requestLabel}
+            </button>
+          ) : null}
+          {openBody === requestKey ? <Body label={requestLabel} value={rawRequest} /> : null}
+        </div>
+      ) : null}
+      {event.event === "policy_evaluated" ? (
+        <div className="mt-2">
+          <Line label={t("activity.accordingTo")} value={policyBasis(event, policies, t("activity.noPolicy"))} />
+          <Line label={t("activity.outcome")} value={outcome} />
+        </div>
+      ) : null}
+      {event.event === "tool_executed" ? (
+        <div className="mt-2">
+          <Line label={t("activity.tool")} value={event.tool || ""} />
+          <Line label={t("activity.mcpServer")} value={server} />
+          <Line label={t("activity.executionResult")} value={outcome} />
+          {hasBody(rawResponse) ? (
+            <button type="button" className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground" onClick={() => onToggle(responseKey)}>
+              {openBody === responseKey ? t("activity.hideRawResponse") : responseLabel}
+            </button>
+          ) : (
+            <p className="mt-1 text-[13px] text-muted-foreground">{t("activity.noServerBody")}</p>
+          )}
+          {openBody === responseKey ? <Body label={responseLabel} value={rawResponse} /> : null}
+        </div>
+      ) : null}
+      {event.event !== "tool_requested" && event.event !== "policy_evaluated" && event.event !== "tool_executed" ? (
+        <div className="mt-2">
+          <Line label={t(kindLabel[event.actorKind])} value={actor} />
+          {event.tool ? <Line label={t("activity.tool")} value={event.tool} /> : null}
+          {server ? <Line label={t("activity.mcpServer")} value={server} /> : null}
+          {outcome ? <Line label={t("activity.outcome")} value={outcome} /> : null}
+          <Body label={t("activity.input")} value={event.payload?.input} />
+          <Body label={t("activity.parameters")} value={event.payload?.parameters} />
+          <Body label={t("activity.result")} value={typeof event.payload?.result === "object" ? event.payload.result : undefined} />
+        </div>
+      ) : null}
     </div>
   );
 }

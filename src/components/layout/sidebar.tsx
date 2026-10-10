@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { useMobileNav } from "@/components/layout/mobile-nav";
+import { useConsole } from "@/hooks/use-console";
 import { useOrg } from "@/hooks/use-team";
+import { logout } from "@/lib/api";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -20,7 +22,6 @@ const items = [
   { href: "/tools/mapping", key: "nav.mapping", icon: "sliders" },
   { href: "/policies", key: "nav.policies", icon: "shield" },
   { href: "/activity", key: "nav.audit", icon: "list" },
-  { href: "/settings", key: "nav.organization", icon: "building" },
 ] as const;
 
 export function Sidebar() {
@@ -46,6 +47,9 @@ export function Sidebar() {
   const canTeam = canAccess(permissions, "team", "read") && !personal;
   const orgName = workspace.data?.organization.name ?? savedOrg?.name;
   const brand = personal ? t("nav.personalLabel") : orgName || "—";
+  const { data } = useConsole();
+  const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
+  const approveOn = pathname === "/approvals" || pathname.startsWith("/approvals/");
 
   return (
     <>
@@ -78,6 +82,20 @@ export function Sidebar() {
         </button>
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
+        <Link
+          href="/approvals"
+          className={cn(
+            "flex h-11 items-center gap-2.5 rounded-lg px-2.5 text-[14px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:h-9 md:text-[13px]",
+            approveOn && "bg-sidebar-accent text-foreground hover:bg-sidebar-accent"
+          )}
+        >
+          <NavIcon name="check" />
+          <span className="min-w-0 flex-1 truncate">{t("nav.approve")}</span>
+          {pending > 0 ? (
+            <span className="rounded-full bg-foreground px-1.5 text-[11px] leading-5 text-background">{pending}</span>
+          ) : null}
+        </Link>
+        <div className="mx-2.5 my-2 h-px bg-sidebar-border" role="separator" />
         {items.map((item) => {
           const base = item.href.split("#")[0];
           const reserved = pathname.startsWith("/tools/connections") || pathname.startsWith("/tools/mapping");
@@ -98,80 +116,158 @@ export function Sidebar() {
             </Link>
           );
         })}
-        {canTeam ? (
-          <Link
-            href="/team"
-            className={cn(
-              "flex h-11 items-center gap-2.5 rounded-lg px-2.5 text-[14px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:h-9 md:text-[13px]",
-              pathname.startsWith("/team") && "bg-sidebar-accent text-foreground"
-            )}
-          >
-            <NavIcon name="users" />
-            {t("nav.team")}
-          </Link>
-        ) : null}
       </nav>
-      <div className="border-t border-sidebar-border p-2">
-        <div className="flex items-center gap-1">
-          <Link
-            href="/settings"
-            className={cn(
-              "flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 text-[14px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:h-9 md:text-[13px]",
-              pathname.startsWith("/settings") && "bg-sidebar-accent text-foreground"
-            )}
-          >
-            <NavIcon name="gear" />
-            {t("nav.settings")}
-          </Link>
-          <ThemeToggle />
-        </div>
-        <div className="mt-2 flex items-center gap-2 rounded-lg px-2.5 py-2">
-          <span className="flex size-8 items-center justify-center rounded-full bg-muted text-[12px] font-medium text-foreground">
-            {(user?.name || "S").slice(0, 1).toUpperCase()}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[13px]">{user?.name || "—"}</span>
-            <span className="block truncate text-[11px] text-muted-foreground">{user?.email || "—"}</span>
-          </span>
-        </div>
-      </div>
+      <AccountFooter userName={user?.name || "—"} email={user?.email || "—"} canTeam={canTeam} />
     </aside>
     </>
   );
 }
 
-function ThemeToggle() {
-  const { t } = useI18n();
-  const { resolvedTheme, setTheme } = useTheme();
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
-  const dark = ready && resolvedTheme === "dark";
+function AccountFooter({ userName, email, canTeam }: { userName: string; email: string; canTeam: boolean }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { t, locale, setLocale } = useI18n();
+  const [panel, setPanel] = useState<"account" | "language" | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => setPanel(null), [pathname]);
+  useEffect(() => {
+    if (!panel) return;
+    function onPointer(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setPanel(null);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setPanel(null);
+    }
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [panel]);
+
+  return (
+    <div ref={rootRef} className="border-t border-sidebar-border p-2">
+      <div className="relative">
+        {panel === "language" ? (
+          <div className="absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border border-border bg-card p-1 text-card-foreground shadow-lg">
+            <div className="px-2.5 py-2 text-[12px] font-medium">{t("settings.language")}</div>
+            <Choice on={locale === "zh"} onClick={() => setLocale("zh")}>
+              {t("settings.chinese")}
+            </Choice>
+            <Choice on={locale === "en"} onClick={() => setLocale("en")}>
+              {t("settings.english")}
+            </Choice>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          aria-expanded={panel === "language"}
+          aria-haspopup="dialog"
+          onClick={() => setPanel((current) => (current === "language" ? null : "language"))}
+          className={cn(
+            "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+            panel === "language" && "bg-sidebar-accent text-foreground"
+          )}
+        >
+          <NavIcon name="globe" />
+          {t("settings.language")}
+        </button>
+      </div>
+      <div className="relative mt-1">
+        {panel === "account" ? (
+          <div className="absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border border-border bg-card p-1 text-card-foreground shadow-lg">
+            <MenuLink href="/profile" active={pathname.startsWith("/profile")} onNavigate={() => setPanel(null)}>
+              <NavIcon name="user" />
+              {t("profile.title")}
+            </MenuLink>
+            {canTeam ? (
+              <MenuLink href="/team" active={pathname.startsWith("/team")} onNavigate={() => setPanel(null)}>
+                <NavIcon name="users" />
+                {t("nav.team")}
+              </MenuLink>
+            ) : null}
+            <MenuLink href="/settings" active={pathname.startsWith("/settings")} onNavigate={() => setPanel(null)}>
+              <NavIcon name="building" />
+              {t("nav.organization")}
+            </MenuLink>
+            <div className="mx-2 my-1 h-px bg-border" />
+            <button
+              type="button"
+              className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={async () => {
+                setPanel(null);
+                await logout();
+                queryClient.clear();
+                router.replace("/login");
+              }}
+            >
+              {t("login.signOut")}
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          aria-expanded={panel === "account"}
+          aria-haspopup="dialog"
+          onClick={() => setPanel((current) => (current === "account" ? null : "account"))}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-sidebar-accent",
+            panel === "account" && "bg-sidebar-accent"
+          )}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[12px] font-medium text-foreground">
+            {(userName || "S").slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px]">{userName}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{email}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MenuLink({
+  href,
+  active,
+  onNavigate,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  onNavigate: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
+        active && "bg-muted text-foreground"
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
   return (
     <button
       type="button"
-      aria-label={dark ? t("settings.light") : t("settings.dark")}
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:size-9"
-      onClick={() => setTheme(dark ? "light" : "dark")}
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "flex h-9 w-full items-center rounded-lg px-2.5 text-left text-[13px]",
+        on ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
     >
-      {dark ? <MoonIcon /> : <SunIcon />}
+      {children}
     </button>
-  );
-}
-
-function SunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-      <circle cx="12" cy="12" r="3.5" />
-      <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 3.5A8 8 0 1 0 20.5 13 6.2 6.2 0 0 1 16 3.5z" />
-    </svg>
   );
 }

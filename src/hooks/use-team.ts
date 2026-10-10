@@ -21,31 +21,31 @@ export const orgInvitesQueryKey = ["org-invites"] as const;
 export const subscriptionQueryKey = ["subscription"] as const;
 
 export function useOrg() {
-  const token = useAuthStore((state) => state.token);
+  const signedIn = useAuthStore((state) => Boolean(state.user));
   return useQuery({
     queryKey: orgQueryKey,
     queryFn: fetchOrg,
-    enabled: Boolean(token),
+    enabled: signedIn,
   });
 }
 
 export function useOrgMembers() {
-  const token = useAuthStore((state) => state.token);
+  const signedIn = useAuthStore((state) => Boolean(state.user));
   const permissions = useAuthStore((state) => state.user?.permissions);
   return useQuery({
     queryKey: orgMembersQueryKey,
     queryFn: fetchOrgMembers,
-    enabled: Boolean(token) && canAccess(permissions, "team", "read"),
+    enabled: signedIn && canAccess(permissions, "team", "read"),
   });
 }
 
 export function useOrgInvites() {
-  const token = useAuthStore((state) => state.token);
+  const signedIn = useAuthStore((state) => Boolean(state.user));
   const permissions = useAuthStore((state) => state.user?.permissions);
   return useQuery({
     queryKey: orgInvitesQueryKey,
     queryFn: fetchOrgInvites,
-    enabled: Boolean(token) && canAccess(permissions, "team", "read"),
+    enabled: signedIn && canAccess(permissions, "team", "read"),
   });
 }
 
@@ -94,11 +94,11 @@ export function useRevokeInvite() {
 }
 
 export function useSubscription() {
-  const token = useAuthStore((state) => state.token);
+  const signedIn = useAuthStore((state) => Boolean(state.user));
   return useQuery({
     queryKey: subscriptionQueryKey,
     queryFn: fetchSubscription,
-    enabled: Boolean(token),
+    enabled: signedIn,
   });
 }
 

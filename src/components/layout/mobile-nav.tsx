@@ -96,4 +96,4 @@ export function MobileTabBar() {
 }
 
 export const detailPanelClass =
-  "sticky top-0 flex h-[calc(100dvh-3.5rem)] w-[340px] shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-border bg-card max-md:fixed max-md:inset-0 max-md:z-40 max-md:h-dvh max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]";
+  "sticky top-0 flex h-dvh w-[340px] shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-border bg-card max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:border-l-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]";

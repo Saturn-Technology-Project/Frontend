@@ -10,7 +10,7 @@ import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
-import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
+import { profileIdentity } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 import { detailPanelClass } from "@/components/layout/mobile-nav";
 import { apiOrigin } from "@/lib/ws";
@@ -36,7 +36,7 @@ export default function AgentsPage() {
           plan: org.plan,
         })
       : "";
-  const agents = saturnMcpAgents(data?.agents ?? [], identity);
+  const agents = (data?.agents ?? []).filter((agent) => agent.origin === "saturn_mcp");
   const personal = org?.kind === "personal" || (org?.kind !== "organization" && org?.plan !== "enterprise");
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const toolSets = data?.toolSets ?? [];
@@ -88,7 +88,10 @@ export default function AgentsPage() {
                         <span className="flex size-8 items-center justify-center rounded-full bg-muted text-[12px]">
                           {copy.name.slice(0, 1).toUpperCase()}
                         </span>
-                        {copy.name}
+                        <span className="truncate">{copy.name}</span>
+                        {agent.registeredUserName ? (
+                          <span className="truncate text-[12px] font-normal text-muted-foreground">· {agent.registeredUserName}</span>
+                        ) : null}
                       </span>
                       <span className="text-[12px] text-muted-foreground">
                         {toolSet?.name || "—"} · {t("agents.tools")} {toolSet?.items.length ?? 0}
@@ -129,7 +132,10 @@ export default function AgentsPage() {
                             <span className="flex size-7 items-center justify-center rounded-full bg-muted text-[11px]">
                               {copy.name.slice(0, 1).toUpperCase()}
                             </span>
-                            {copy.name}
+                            <span className="truncate">{copy.name}</span>
+                            {agent.registeredUserName ? (
+                              <span className="truncate text-[12px] font-normal text-muted-foreground">· {agent.registeredUserName}</span>
+                            ) : null}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{toolSet?.name || "—"}</td>
@@ -324,6 +330,14 @@ function AgentPanel({
       <div className="px-5 py-5">
         <p className="text-[13px] text-muted-foreground">{copy.description || t("agents.viaMcp")}</p>
 
+        <h3 className="mt-6 text-[13px] font-medium">{t("agents.registeredBy")}</h3>
+        <p className="mt-1 text-[13px]">
+          {agent.registeredUserName || "—"}
+          {agent.registeredUserEmail ? <span className="text-muted-foreground"> · {agent.registeredUserEmail}</span> : null}
+        </p>
+        <Identity label={t("agents.clientId")} value={agent.clientId || ""} />
+        <Identity label={t("agents.agentId")} value={agent.id} />
+
         <div className="mt-6 flex items-center justify-between gap-3">
           <h3 className="text-[13px] font-medium">{t("agents.sets")}</h3>
           <Link href="/tools/mapping" className="text-[12px] text-muted-foreground hover:text-foreground">
@@ -456,6 +470,16 @@ function AgentPanel({
         ) : null}
       </div>
     </aside>
+  );
+}
+
+function Identity({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <div className="mt-4">
+      <div className="text-[12px] text-muted-foreground">{label}</div>
+      <div className="mt-1 break-all font-mono text-[12px]">{value}</div>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/lib/auth";
 import { mapConsole } from "@/lib/mappers";
-import type { Agent, ConsoleData, Integration, Policy } from "@/types";
+import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "@/types";
 import type { ApiAgentSettings } from "@/lib/agent-config";
 
 const API_BASE = "/saturn-api";
@@ -28,6 +28,9 @@ export interface ApiAgent {
   tool_set_id?: string | null;
   profile_id?: string | null;
   origin?: string | null;
+  client_id?: string | null;
+  registered_user_name?: string | null;
+  registered_user_email?: string | null;
   pushed?: boolean | null;
 }
 
@@ -65,6 +68,13 @@ export interface ApiPolicy {
   version?: number;
   environment?: string;
   agent_ids?: string[];
+  tool_set_id?: string | null;
+  definition?: {
+    toolSetId?: string;
+    nodes: { id: string; type: string; position: { x: number; y: number }; data: Record<string, unknown> }[];
+    edges: { id: string; source: string; target: string }[];
+    analyses: { tool: string; status: string; rationale?: string; operation?: string; resource?: string; risk?: string; sideEffects?: string; decision?: string }[];
+  } | null;
   rules: ApiPolicyRule[];
   created_at?: string | null;
   updated_at?: string | null;
@@ -201,7 +211,7 @@ export interface LoginResponse {
   user: AuthUserResponse;
 }
 
-export function toAuthSession(token: string, user: AuthUserResponse) {
+export function toAuthSession(token: string | null, user: AuthUserResponse) {
   return {
     token,
     user: {
@@ -272,10 +282,11 @@ async function request<T>(path: string, init?: RequestInit, auth = true): Promis
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
+    credentials: "include",
     cache: "no-store",
   });
 
-  if (response.status === 401 && auth && path !== "/auth/login") {
+  if (response.status === 401 && auth && path !== "/auth/login" && path !== "/auth/me") {
     useAuthStore.getState().clear();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
       window.location.assign("/login");
@@ -316,9 +327,18 @@ function del(path: string) {
   return request<void>(path, { method: "DELETE" });
 }
 
+async function establishSession(result: LoginResponse) {
+  useAuthStore.getState().setSession(toAuthSession(null, result.user));
+  try {
+    await fetchMe();
+  } catch {
+    useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  }
+}
+
 export async function login(email: string, password: string) {
   const result = await post<LoginResponse>("/auth/login", { email, password }, false);
-  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  await establishSession(result);
   return result;
 }
 
@@ -328,7 +348,7 @@ export async function registerAccount(name: string, email: string, password: str
     { name, email, password },
     false
   );
-  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  await establishSession(result);
   return result;
 }
 
@@ -340,13 +360,50 @@ export async function logout() {
   }
 }
 
+export async function updateProfile(body: { name: string; email: string }) {
+  const user = await patch<AuthUserResponse>("/auth/me", body);
+  useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
+  return user;
+}
+
 export async function fetchMe() {
   const user = await get<AuthUserResponse>("/auth/me");
+  useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
+  return user;
+}
+
+export async function restoreSession(): Promise<boolean> {
+  try {
+    await fetchMe();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return false;
+    return Boolean(useAuthStore.getState().user);
+  }
   const token = useAuthStore.getState().token;
   if (token) {
-    useAuthStore.getState().setSession(toAuthSession(token, user));
+    try {
+      await post<void>("/auth/session");
+      useAuthStore.getState().clearToken();
+    } catch {
+      // A stored bearer still authorizes this page load.
+    }
   }
-  return user;
+  return Boolean(useAuthStore.getState().user);
+}
+
+export function requestPasswordReset(email: string) {
+  return post<void>("/auth/forgot-password", { email }, false);
+}
+
+export function resetPassword(email: string, code: string, password: string) {
+  return post<void>("/auth/reset-password", { email, code, password }, false);
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return patch<void>("/auth/password", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 }
 
 export interface OrgMember {
@@ -470,7 +527,7 @@ export async function revokeOrgInvite(inviteId: string) {
 
 export async function acceptInvite(token: string, password: string) {
   const result = await post<LoginResponse>("/auth/accept-invite", { token, password }, false);
-  useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+  await establishSession(result);
   return result;
 }
 
@@ -655,7 +712,9 @@ export interface PolicyWrite {
   status?: string;
   agent_ids?: string[];
   tool?: string;
-  rules: {
+  tool_set_id?: string | null;
+  definition?: ApiPolicy["definition"];
+  rules?: {
     tool?: string;
     condition?: string;
     conditions?: { field: string; operator: string; value: string | number | boolean }[];
@@ -671,24 +730,57 @@ export async function updatePolicy(id: string, body: Partial<PolicyWrite>): Prom
   return patch<ApiPolicy>(`/policies/${id}`, body);
 }
 
-export interface ConversationMessage {
-  id: string;
-  agent_id: string;
-  input: string;
-  output: string;
-  status: string;
-  actions: { toolId?: string; status?: string }[];
-  error?: string | null;
-  created_at: string;
-  updated_at: string;
+export function deletePolicy(id: string) {
+  return del(`/policies/${id}`);
 }
 
-export async function fetchConversation(agentId: string): Promise<ConversationMessage[]> {
-  return get<ConversationMessage[]>(`/agents/${agentId}/messages`);
+export function generatePolicy(toolSetId: string, instructions = "", name?: string) {
+  return post<ApiPolicy>("/policies/generate", {
+    tool_set_id: toolSetId,
+    name: name ?? "",
+    instructions,
+  });
 }
 
-export async function sendConversation(agentId: string, input: string): Promise<ConversationMessage> {
-  return post<ConversationMessage>(`/agents/${agentId}/messages`, { input });
+export function validatePolicy(id: string) {
+  return post<{ report: PolicyValidation; policy: ApiPolicy }>(`/policies/${id}/validate`);
+}
+
+export function activatePolicy(id: string, confirm = false) {
+  return post<ApiPolicy>(`/policies/${id}/activate`, { confirm });
+}
+
+export interface PolicyDiff {
+  kind: "added" | "removed" | "changed";
+  path: string;
+  summary: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+export function optimizePolicy(id: string, definition: PolicyDefinition, instructions = "") {
+  return post<{ definition: PolicyDefinition; diff: PolicyDiff[] }>(`/policies/${id}/optimize`, {
+    definition,
+    instructions,
+  });
+}
+
+export function simulatePolicy(id: string, tool: string, args: Record<string, unknown>, agentId?: string) {
+  return post<{ decision: string; reason: string | null; ruleId: string | null }>(`/policies/${id}/simulate`, {
+    tool,
+    arguments: args,
+    agent_id: agentId ?? null,
+  });
+}
+
+export interface PolicyValidation {
+  ok: boolean;
+  toolCount: number;
+  analyzed: number;
+  unclassified: string[];
+  insufficient: string[];
+  issues: { level: string; code: string; message: string; tool?: string }[];
+  probes: { tool: string; ok: boolean; message: string; expected?: string; actual?: string; arguments?: Record<string, unknown> }[];
 }
 
 export async function approveApproval(approvalId: string) {

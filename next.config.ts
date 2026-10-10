@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
-const apiUrl = (process.env.API_URL ?? "http://localhost:8000").replace(
+const apiUrl = (
+  process.env.API_URL ?? "https://saturn-backend-629072855899.asia-east1.run.app"
+).replace(
   /\/$/,
   ""
 );

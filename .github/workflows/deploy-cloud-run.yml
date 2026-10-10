@@ -46,10 +46,14 @@ jobs:
           echo "uri=${IMAGE_URI}" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
           tags: ${{ steps.image.outputs.uri }}
           build-args: |
             API_URL=${{ env.API_URL }}
@@ -60,7 +64,7 @@ jobs:
           gcloud run deploy "${CLOUD_RUN_SERVICE}" \
             --project "${GCP_PROJECT_ID}" \
             --region "${GCP_REGION}" \
-            --image "${{ steps.image.outputs.uri }}" \
+            --image "${{ steps.image.outputs.uri }}@${{ steps.build.outputs.digest }}" \
             --platform managed \
             --allow-unauthenticated \
             --port 3000 \

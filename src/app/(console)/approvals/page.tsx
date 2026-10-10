@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useConsole, useResolveApproval } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
+import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
 
@@ -15,7 +16,9 @@ export default function ApprovalsPage() {
   const { t } = useI18n();
   const { data, isPending, isError } = useConsole();
   const resolveApproval = useResolveApproval();
-  const approvals = data?.approvals ?? [];
+  const approvals = (data?.approvals ?? [])
+    .filter((item) => item.status === "pending")
+    .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = approvals.find((item) => item.id === activeId) ?? null;
   const canWrite = canAccess(
@@ -26,8 +29,8 @@ export default function ApprovalsPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-4 py-6 md:px-10 md:py-10">
-        <h1 className="text-[22px] font-medium tracking-tight">{t("approvals.title")}</h1>
+      <div className="px-4 py-5 md:px-8 md:py-6">
+        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("approvals.title")}</h1>
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
           {t("approvals.subtitle")}
         </p>
@@ -92,7 +95,9 @@ function ApprovalCard({
     <li className="border border-border">
       <button type="button" onClick={onOpen} className="w-full px-5 py-5 text-left">
         <div className="text-[15px] font-medium">{approval.action}</div>
-        <div className="mt-1 text-[13px] text-muted-foreground">{name}</div>
+        <div className="mt-1 text-[13px] text-muted-foreground">
+          {name} · {relativeTime(approval.requestedAt, locale)}
+        </div>
         {approval.amount ? (
           <div className="text-[13px] text-muted-foreground">
             {t("approvals.amount")}: {approval.amount}

@@ -29,7 +29,7 @@ export interface AuthOrg {
 }
 
 export interface AuthSession {
-  token: string;
+  token: string | null;
   user: AuthUser;
   org: AuthOrg;
 }
@@ -40,6 +40,7 @@ interface AuthState {
   org: AuthOrg | null;
   hydrated: boolean;
   setSession: (session: AuthSession) => void;
+  clearToken: () => void;
   clear: () => void;
   setHydrated: (hydrated: boolean) => void;
 }
@@ -57,6 +58,7 @@ export const useAuthStore = create<AuthState>()(
           user: session.user,
           org: session.org,
         }),
+      clearToken: () => set({ token: null }),
       clear: () => set({ token: null, user: null, org: null }),
       setHydrated: (hydrated) => set({ hydrated }),
     }),
@@ -76,6 +78,6 @@ export const useAuthStore = create<AuthState>()(
 
 export function getSession(): AuthSession | null {
   const state = useAuthStore.getState();
-  if (!state.token || !state.user || !state.org) return null;
+  if (!state.user || !state.org) return null;
   return { token: state.token, user: state.user, org: state.org };
 }

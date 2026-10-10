@@ -38,6 +38,7 @@ import type {
   PaymentStatus,
   Policy,
   PolicyCheck,
+  PolicyNodeKind,
   PolicyCondition,
   PolicyEvaluation,
   PolicyRule,
@@ -221,12 +222,29 @@ function mapPolicy(
     id: policy.id,
     name: policy.name,
     description: policy.description ?? "",
-    status: policy.status === "paused" ? "paused" : "active",
+    status:
+      policy.status === "draft" || policy.status === "paused" || policy.status === "validated"
+        ? policy.status
+        : "active",
     version: policy.version ?? 1,
     environment: policy.environment ?? "production",
     agentIds,
     agents: agentNames,
     tools: Array.from(new Set(rules.map((rule) => rule.tool).filter(Boolean))),
+    toolSetId: policy.tool_set_id ?? policy.definition?.toolSetId ?? null,
+    definition: policy.definition
+      ? {
+          toolSetId: policy.definition.toolSetId,
+          nodes: policy.definition.nodes.map((node) => ({
+            id: node.id,
+            type: node.type as PolicyNodeKind,
+            position: node.position,
+            data: node.data ?? {},
+          })),
+          edges: policy.definition.edges,
+          analyses: policy.definition.analyses ?? [],
+        }
+      : null,
     rules,
     createdAt: policy.created_at ?? undefined,
     updatedAt: policy.updated_at ?? undefined,
@@ -466,7 +484,8 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
     title: meta.title,
     titleKey: meta.titleKey,
     detail: event.result ?? event.tool ?? undefined,
-    runId: event.run_id ?? undefined,
+    runId: event.run_id ?? (typeof payload.run_id === "string" ? payload.run_id : undefined),
+    actionId: event.action_id ?? (typeof payload.action_id === "string" ? payload.action_id : undefined),
     approvalId,
     tool: event.tool ?? undefined,
     result: event.result ?? undefined,
@@ -552,6 +571,9 @@ function mapAgent(
     toolSetId: agent.tool_set_id ?? null,
     profileId: agent.profile_id ?? null,
     origin: agent.origin ?? null,
+    clientId: agent.client_id ?? null,
+    registeredUserName: agent.registered_user_name ?? null,
+    registeredUserEmail: agent.registered_user_email ?? null,
     policyIds: policies
       .filter((policy) => {
         const ids = policy.agent_ids ?? [];
@@ -607,6 +629,7 @@ function mapToolSets(sets: ApiToolSet[]): ToolSet[] {
       serverId: item.server_id ?? null,
       serverName: item.server_name ?? "",
       approval: Boolean(item.approval),
+      inputSchema: item.input_schema,
     })),
   }));
 }

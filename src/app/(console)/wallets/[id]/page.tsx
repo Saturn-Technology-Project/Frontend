@@ -92,7 +92,7 @@ export default function WalletDetailPage() {
           {agent ? (
             <div className="mt-8">
               <Link
-                href={`/agents/${agent.id}`}
+                href="/agents"
                 className="text-[12px] text-muted-foreground hover:text-foreground"
               >
                 {t("wallets.openAgent")}

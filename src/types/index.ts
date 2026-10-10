@@ -62,6 +62,9 @@ export interface Agent {
   toolSetId: string | null;
   profileId: string | null;
   origin: string | null;
+  clientId: string | null;
+  registeredUserName: string | null;
+  registeredUserEmail: string | null;
   policyIds: string[];
   walletId?: string;
   settings: AgentSettings;
@@ -115,6 +118,7 @@ export interface ToolSetItem {
   serverId: string | null;
   serverName: string;
   approval: boolean;
+  inputSchema?: Record<string, unknown>;
 }
 
 export interface ToolSet {
@@ -160,7 +164,39 @@ export interface X402Support {
 }
 
 export type PolicyAction = "allow" | "approval_required" | "deny";
-export type PolicyStatus = "active" | "paused";
+export type PolicyStatus = "active" | "paused" | "draft" | "validated";
+export type PolicyNodeKind = "subject" | "tool" | "condition" | "logic" | "decision" | "enforcement";
+
+export interface PolicyGraphNode {
+  id: string;
+  type: PolicyNodeKind;
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+}
+
+export interface PolicyGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
+export interface PolicyAnalysis {
+  tool: string;
+  status: "analyzed" | "unclassified" | "insufficient" | string;
+  operation?: string;
+  resource?: string;
+  risk?: string;
+  sideEffects?: string;
+  decision?: string;
+  rationale?: string;
+}
+
+export interface PolicyDefinition {
+  toolSetId?: string;
+  nodes: PolicyGraphNode[];
+  edges: PolicyGraphEdge[];
+  analyses: PolicyAnalysis[];
+}
 
 export interface PolicyCondition {
   field: string;
@@ -187,6 +223,8 @@ export interface Policy {
   agentIds: string[];
   agents: string[];
   tools: string[];
+  toolSetId?: string | null;
+  definition?: PolicyDefinition | null;
   rules: PolicyRule[];
   createdAt?: string;
   updatedAt?: string;
@@ -279,6 +317,7 @@ export interface ActivityEvent {
   detail?: string;
   detailKey?: string;
   runId?: string;
+  actionId?: string;
   approvalId?: string;
   tool?: string;
   result?: string;

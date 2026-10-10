@@ -1,6 +1,6 @@
 # Deploy to Google Cloud
 
-Push `main` to build this app and deploy it to Cloud Run.
+Push `main` on this repo. GitHub Actions builds a `linux/amd64` image and deploys that image digest. `API_URL` comes from the `BACKEND_PUBLIC_URL` repository variable.
 
 GitHub authenticates with Workload Identity Federation. Set these repository values before the first run.
 

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { PolicyRuleDisplay } from "@/components/policies/policy-rule-display";
+import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
+import { useUpdatePolicy } from "@/hooks/use-console";
 import { useI18n } from "@/lib/i18n";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
-import type { Policy } from "@/types";
+import type { Policy, PolicyStatus } from "@/types";
 
 export function PolicyView({ policy }: { policy: Policy }) {
   const { t } = useI18n();
@@ -16,6 +18,7 @@ export function PolicyView({ policy }: { policy: Policy }) {
     "policies",
     "write"
   );
+  const publish = useUpdatePolicy();
   const agents = policy.agents.length > 0 ? policy.agents : [t("policies.allAgents")];
   const tools = policy.tools.length > 0 ? policy.tools : ["—"];
 
@@ -29,8 +32,8 @@ export function PolicyView({ policy }: { policy: Policy }) {
             <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{policy.description}</p>
           ) : null}
         </div>
-        <StatusLabel tone={policy.status === "active" ? "active" : "paused"}>
-          {t(policy.status === "active" ? "policies.active" : "policies.paused")}
+        <StatusLabel tone={policy.status === "active" ? "active" : policy.status === "draft" ? "pending" : "paused"}>
+          {t(statusKey(policy.status))}
         </StatusLabel>
       </div>
 
@@ -61,8 +64,20 @@ export function PolicyView({ policy }: { policy: Policy }) {
         </div>
       </section>
 
+      {policy.status === "draft" ? (
+        <p className="mt-8 max-w-xl text-[13px] text-muted-foreground">{t("policies.draftNote")}</p>
+      ) : null}
       {canWrite ? (
-        <div className="mt-10">
+        <div className="mt-6 flex items-center gap-2">
+          {policy.status === "draft" ? (
+            <Button
+              type="button"
+              disabled={publish.isPending}
+              onClick={() => publish.mutate({ id: policy.id, body: { status: "active" } })}
+            >
+              {publish.isPending ? t("policies.publishing") : t("policies.publish")}
+            </Button>
+          ) : null}
           <Link
             href={`/policies/${policy.id}/edit`}
             className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-sm hover:bg-muted"
@@ -71,8 +86,15 @@ export function PolicyView({ policy }: { policy: Policy }) {
           </Link>
         </div>
       ) : null}
+      {publish.isError ? <p className="mt-3 text-[13px] text-destructive">{publish.error.message}</p> : null}
     </div>
   );
+}
+
+function statusKey(status: PolicyStatus) {
+  if (status === "draft") return "policies.draft";
+  if (status === "paused") return "policies.paused";
+  return "policies.active";
 }
 
 function Row({ label, value }: { label: string; value: string }) {

@@ -24,8 +24,7 @@ export function wsOrigin(): string {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.hostname;
   if (host === "localhost" || host === "127.0.0.1") {
-    const port = process.env.NEXT_PUBLIC_API_PORT || "8000";
-    return `${proto}//${host}:${port}`;
+    return toWsOrigin("https://saturn-backend-629072855899.asia-east1.run.app");
   }
   return `${proto}//${window.location.host}`;
 }
