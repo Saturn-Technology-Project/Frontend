@@ -8,6 +8,10 @@ const apiUrl = (
 );
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Policy generation waits on the model. The default 30s proxy limit returns 500.
+    proxyTimeout: 300_000,
+  },
   ...(process.env.DOCKER_BUILD === "1" ? { output: "standalone" as const } : {}),
   async rewrites() {
     return [
