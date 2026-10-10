@@ -618,6 +618,7 @@ function BuilderCanvas({
           </ReactFlow>
           )}
         </div>
+        {jsonMode ? null : (
         <aside className="hidden w-[280px] shrink-0 overflow-y-auto border-l border-border p-4 md:block">
           <h2 className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.properties")}</h2>
           {current ? (
@@ -650,6 +651,7 @@ function BuilderCanvas({
             <p className="mt-3 text-[13px] text-muted-foreground">{t("policies.noSelection")}</p>
           )}
         </aside>
+        )}
       </div>
       {panel ? (
         <section className="max-h-[220px] overflow-y-auto border-t border-border px-4 py-3">
