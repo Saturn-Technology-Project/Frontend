@@ -19,7 +19,9 @@ export function appendThinking(
         : event.code === "optimizing"
           ? t("policies.thinkingOptimize")
           : event.code === "unconfigured"
-            ? t("policies.thinkingUnconfigured")
+          ? t("policies.thinkingUnconfigured")
+          : event.code === "batchFailed"
+            ? t("policies.thinkingBatchFailed", { start: event.start ?? 0, end: event.end ?? 0 })
             : "";
   if (!line) return current;
   const base = current && !current.endsWith("\n") ? `${current}\n` : current;
