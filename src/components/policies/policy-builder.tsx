@@ -21,7 +21,7 @@ import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDeletePolicy, useUpdatePolicy } from "@/hooks/use-console";
-import { PolicyThinking, appendThinking } from "@/components/policies/policy-thinking";
+import { PolicyProgressBar, applyProgress, type PolicyProgress } from "@/components/policies/policy-thinking";
 import { ApiError, activatePolicy, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
@@ -124,7 +124,7 @@ function BuilderCanvas({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [askOptimize, setAskOptimize] = useState(false);
   const [optimizeInstructions, setOptimizeInstructions] = useState("");
-  const [thinking, setThinking] = useState("");
+  const [progress, setProgress] = useState<PolicyProgress | null>(null);
   const flow = useReactFlow<FlowNode, Edge>();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -262,7 +262,7 @@ function BuilderCanvas({
 
   async function onOptimize() {
     setBusy("optimize");
-    setThinking("");
+    setProgress({ label: t("policies.optimizing"), done: 0, total: 0, indeterminate: true, note: "" });
     setError("");
     setJsonError("");
     try {
@@ -274,16 +274,18 @@ function BuilderCanvas({
       const result = await streamPolicy(
         `/policies/${policy.id}/optimize/stream`,
         { definition, instructions: optimizeInstructions },
-        (event) => setThinking((current) => appendThinking(current, event, t))
+        (event) => setProgress((current) => applyProgress(current, event, t))
       );
       if (!result.definition || !result.diff) throw new Error("policy");
       setAskOptimize(false);
+      setProgress(null);
       setProposal({
         definition: result.definition,
         diff: result.diff,
         json: JSON.stringify(result.definition, null, 2),
       });
     } catch (caught) {
+      setProgress(null);
       setError(caught instanceof SyntaxError ? t("policies.jsonInvalid") : caught instanceof ApiError ? caught.message : t("policies.saveFailed"));
     } finally {
       setBusy(null);
@@ -450,9 +452,9 @@ function BuilderCanvas({
           </div>
         </form>
       ) : null}
-      {thinking ? (
+      {progress ? (
         <div className="border-b border-border px-4 py-3">
-          <PolicyThinking text={thinking} />
+          <PolicyProgressBar progress={progress} />
         </div>
       ) : null}
       {unconfigured ? <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">{t("policies.unconfigured")}</p> : null}

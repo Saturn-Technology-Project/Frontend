@@ -1,51 +1,96 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { PolicyStreamEvent } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-export function appendThinking(
-  current: string,
+export type PolicyProgress = {
+  label: string;
+  done: number;
+  total: number;
+  indeterminate: boolean;
+  note: string;
+};
+
+export function applyProgress(
+  current: PolicyProgress | null,
   event: PolicyStreamEvent,
   t: (path: string, vars?: Record<string, string | number>) => string
-) {
+): PolicyProgress | null {
   if (event.type !== "status") return current;
-  const line =
-    event.code === "reading"
-      ? t("policies.thinkingRead", { name: event.name ?? "", count: event.count ?? 0 })
-      : event.code === "batch"
-        ? t("policies.thinkingBatch", { start: event.start ?? 0, end: event.end ?? 0, total: event.total ?? 0 })
-        : event.code === "optimizing"
-          ? t("policies.thinkingOptimize")
-          : event.code === "unconfigured"
-          ? t("policies.thinkingUnconfigured")
-          : event.code === "batchFailed"
-            ? t("policies.thinkingBatchFailed", { start: event.start ?? 0, end: event.end ?? 0 })
-            : "";
-  if (!line) return current;
-  const base = current && !current.endsWith("\n") ? `${current}\n` : current;
-  return `${base}${line}\n`;
+  if (event.code === "reading") {
+    const total = event.count ?? 0;
+    return {
+      label: t("policies.thinkingRead", { name: event.name ?? "", count: total }),
+      done: 0,
+      total,
+      indeterminate: true,
+      note: "",
+    };
+  }
+  if (event.code === "progress") {
+    const done = event.done ?? 0;
+    const total = event.total ?? current?.total ?? 0;
+    const failed = event.failed ?? 0;
+    return {
+      label: t("policies.progressCount", { done, total }),
+      done,
+      total,
+      indeterminate: false,
+      note: failed > 0 ? t("policies.progressFailed", { n: failed }) : "",
+    };
+  }
+  if (event.code === "optimizing") {
+    const total = event.total ?? 0;
+    return {
+      label: total > 0 ? t("policies.progressOptimize", { total }) : t("policies.thinkingOptimize"),
+      done: 0,
+      total,
+      indeterminate: true,
+      note: "",
+    };
+  }
+  if (event.code === "unconfigured") {
+    return {
+      label: t("policies.thinkingUnconfigured"),
+      done: 0,
+      total: 0,
+      indeterminate: false,
+      note: "",
+    };
+  }
+  return current;
 }
 
-export function PolicyThinking({ text }: { text: string }) {
+export function PolicyProgressBar({ progress }: { progress: PolicyProgress }) {
   const { t } = useI18n();
-  const ref = useRef<HTMLPreElement>(null);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [text]);
-
-  if (!text) return null;
+  const pct = progress.total > 0 ? Math.min(100, Math.round((progress.done / progress.total) * 100)) : 0;
   return (
-    <section className="mt-4">
-      <h2 className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.status")}</h2>
-      <pre
-        ref={ref}
-        className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 px-3 py-2 text-[13px] leading-6 text-foreground"
+    <section className="mt-4" aria-live="polite">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.status")}</h2>
+        {progress.indeterminate || progress.total === 0 ? null : (
+          <span className="text-[12px] tabular-nums text-muted-foreground">{pct}%</span>
+        )}
+      </div>
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={progress.indeterminate ? undefined : progress.total || 100}
+        aria-valuenow={progress.indeterminate ? undefined : progress.done}
+        aria-valuetext={progress.label}
       >
-        {text}
-      </pre>
+        {progress.indeterminate ? (
+          <div className="policy-progress-indeterminate h-full w-1/3 rounded-full bg-foreground" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-foreground transition-[width] duration-500 ease-out"
+            style={{ width: `${progress.total === 0 ? 0 : pct}%` }}
+          />
+        )}
+      </div>
+      <p className="mt-2 text-[13px] text-muted-foreground">{progress.label}</p>
+      {progress.note ? <p className="mt-1 text-[13px] text-muted-foreground">{progress.note}</p> : null}
     </section>
   );
 }

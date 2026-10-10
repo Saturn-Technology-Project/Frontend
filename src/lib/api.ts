@@ -751,6 +751,8 @@ export interface PolicyStreamEvent {
   start?: number;
   end?: number;
   total?: number;
+  done?: number;
+  failed?: number;
   message?: string;
   policy?: ApiPolicy;
   definition?: PolicyDefinition;

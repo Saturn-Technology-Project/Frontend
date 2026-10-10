@@ -185,3 +185,16 @@
   border: 1px solid var(--border);
   border-radius: 6px;
 }
+
+@keyframes policy-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+.policy-progress-indeterminate {
+  animation: policy-progress-slide 1.4s ease-in-out infinite;
+}
