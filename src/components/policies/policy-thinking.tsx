@@ -9,7 +9,6 @@ export function appendThinking(
   event: PolicyStreamEvent,
   t: (path: string, vars?: Record<string, string | number>) => string
 ) {
-  if (event.type === "think" && event.text) return current + event.text;
   if (event.type !== "status") return current;
   const line =
     event.code === "reading"
@@ -40,7 +39,7 @@ export function PolicyThinking({ text }: { text: string }) {
   if (!text) return null;
   return (
     <section className="mt-4">
-      <h2 className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.thinking")}</h2>
+      <h2 className="text-[12px] uppercase tracking-[0.08em] text-muted-foreground">{t("policies.status")}</h2>
       <pre
         ref={ref}
         className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 px-3 py-2 text-[13px] leading-6 text-foreground"
