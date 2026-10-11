@@ -13,6 +13,8 @@ import {
   useRevokeInvite,
   useUpdateMember,
 } from "@/hooks/use-team";
+import { GroupsPanel } from "@/components/account/groups-panel";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -39,6 +41,7 @@ export default function TeamPage() {
   const permissions = useAuthStore((state) => state.user?.permissions);
   const canRead = canAccess(permissions, "team", "read");
   const canWrite = canAccess(permissions, "team", "write");
+  const { groups: groupAccess } = useEntitlements();
   const org = useOrg();
   const members = useOrgMembers();
   const invites = useOrgInvites();
@@ -93,6 +96,8 @@ export default function TeamPage() {
             </Button>
           ) : null}
         </div>
+
+        {groupAccess ? <GroupsPanel members={people} canWrite={canWrite} /> : null}
 
         {canWrite && inviting ? (
           <form

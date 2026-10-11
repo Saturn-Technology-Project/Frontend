@@ -101,6 +101,46 @@ export function ApprovalPanel({
             <Field label={t("approvals.triggeredRule")} value={approval.triggeredRule} />
           ) : null}
           {approval.risk ? <Field label={t("approvals.risk")} value={t(riskKey)} /> : null}
+          {(approval.requirements?.length ?? 0) > 1 ? (
+            <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[112px_1fr] sm:gap-4">
+              <SectionLabel className="pt-0.5">{t("approvals.progress")}</SectionLabel>
+              <div className="space-y-1 text-[15px] leading-6 text-foreground">
+                {approval.requirements?.map((item) => (
+                  <div key={item.groupId}>
+                    {t("approvals.groupProgress", {
+                      name: item.groupName || item.groupId,
+                      approved: item.approvedCount,
+                      required: item.requiredCount,
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (approval.requiredCount ?? 1) > 1 ? (
+            <Field
+              label={t("approvals.progress")}
+              value={t("approvals.progressValue", {
+                approved: approval.approvedCount ?? 0,
+                required: approval.requiredCount ?? 0,
+              })}
+            />
+          ) : null}
+          {approval.executionState && approval.executionState !== "none" ? (
+            <Field
+              label={t("approvals.execution")}
+              value={t(
+                approval.executionState === "executed"
+                  ? "approvals.executionExecuted"
+                  : approval.executionState === "failed"
+                    ? "approvals.executionFailed"
+                    : approval.executionState === "uncertain"
+                      ? "approvals.executionUncertain"
+                      : approval.executionState === "claimed"
+                        ? "approvals.executionClaimed"
+                        : "approvals.executionNone"
+              )}
+            />
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">

@@ -95,6 +95,15 @@ export interface ApiApproval {
   resolved_by: string | null;
   created_at: string;
   resolved_at: string | null;
+  required_count?: number;
+  approved_count?: number;
+  requirements?: {
+    group_id: string;
+    group_name: string;
+    required_count: number;
+    approved_count: number;
+  }[];
+  execution_state?: string;
 }
 
 export interface ApiActivity {
@@ -126,6 +135,7 @@ export interface Entitlements {
   gateway: boolean;
   tool_set_limit: number | null;
   policies: boolean;
+  groups?: boolean;
   audit: "basic" | "full" | string;
   audit_days: number;
 }
@@ -624,6 +634,72 @@ export async function updateOrgMember(
 
 export async function revokeOrgInvite(inviteId: string) {
   return del(`/org/invites/${inviteId}`);
+}
+
+export interface OrgGroup {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  members: { employee_id: string }[];
+}
+
+export interface ApprovalPolicyRequirement {
+  group_id: string;
+  group_name: string;
+  required_count: number;
+}
+
+export interface ApprovalPolicyRecord {
+  id: string;
+  name: string;
+  status: string;
+  required_count: number;
+  group_id: string | null;
+  requirements?: ApprovalPolicyRequirement[];
+  allow_requester: boolean;
+  expires_minutes: number | null;
+  version: number;
+}
+
+export function approvalPolicySummary(policy: ApprovalPolicyRecord) {
+  if (policy.requirements && policy.requirements.length > 0) {
+    return policy.requirements
+      .map((item) => `${item.group_name || item.group_id} ${item.required_count}`)
+      .join(" + ");
+  }
+  return String(policy.required_count);
+}
+
+export function fetchGroups() {
+  return get<OrgGroup[]>("/org/groups");
+}
+
+export function createGroup(body: { name: string; description?: string }) {
+  return post<OrgGroup>("/org/groups", body);
+}
+
+export function addGroupMember(groupId: string, employeeId: string) {
+  return post<OrgGroup>(`/org/groups/${groupId}/members`, { employee_id: employeeId });
+}
+
+export function removeGroupMember(groupId: string, employeeId: string) {
+  return request<OrgGroup>(`/org/groups/${groupId}/members/${employeeId}`, { method: "DELETE" });
+}
+
+export function fetchApprovalPolicies() {
+  return get<ApprovalPolicyRecord[]>("/org/approval-policies");
+}
+
+export function createApprovalPolicy(body: {
+  name: string;
+  required_count?: number;
+  group_id?: string | null;
+  requirements?: { group_id: string; required_count: number }[];
+  allow_requester: boolean;
+  expires_minutes?: number | null;
+}) {
+  return post<ApprovalPolicyRecord>("/org/approval-policies", body);
 }
 
 export async function acceptInvite(token: string, password: string) {

@@ -6,7 +6,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 function proPlan(plan?: string | null) {
   const cleaned = (plan || "").trim().toLowerCase();
-  return cleaned === "pro" || cleaned === "enterprise" || cleaned === "starter";
+  return cleaned === "pro" || cleaned === "team" || cleaned === "enterprise" || cleaned === "starter";
 }
 
 export function useEntitlements() {
@@ -17,9 +17,11 @@ export function useEntitlements() {
   // The server entitlements object is authoritative. Until a response includes it,
   // the existing plan field is the same source of truth. An unknown or missing plan stays Free.
   const policies = entitlements ? entitlements.policies === true : proPlan(plan);
+  const groups = entitlements ? entitlements.groups === true : plan === "team" || plan === "enterprise";
   const limit = entitlements?.tool_set_limit;
   return {
     policies,
+    groups,
     toolSetLimit: entitlements
       ? policies
         ? typeof limit === "number"

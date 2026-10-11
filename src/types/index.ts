@@ -7,7 +7,7 @@ export type RunStatus =
   | "completed"
   | "failed"
   | "rejected";
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "cancelled" | "invalidated";
 export type ToolConnection = "connected" | "degraded" | "disconnected";
 export type ToolPermission = "allow" | "approval" | "denied";
 export type ActorKind = "agent" | "human" | "saturn" | "tool" | "wallet";
@@ -254,6 +254,15 @@ export interface Approval {
   arguments?: Record<string, unknown>;
   risk?: "low" | "medium" | "high";
   status: ApprovalStatus;
+  requiredCount?: number;
+  approvedCount?: number;
+  requirements?: {
+    groupId: string;
+    groupName: string;
+    requiredCount: number;
+    approvedCount: number;
+  }[];
+  executionState?: string;
   requestedAt: string;
   resolvedAt?: string;
   resolvedBy?: string;

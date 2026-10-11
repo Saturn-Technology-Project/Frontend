@@ -10,6 +10,7 @@ export interface FlowData extends Record<string, unknown> {
   value?: string | number | boolean;
   op?: "and" | "or" | "not";
   decision?: "allow" | "approval" | "deny";
+  approvalPolicyId?: string;
   rateLimit?: string;
   classification?: {
     status?: string;

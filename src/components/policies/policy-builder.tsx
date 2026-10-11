@@ -1,6 +1,7 @@
 "use client";
 
 import { DragEvent, createContext, useContext, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Background,
   Controls,
@@ -22,7 +23,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDeletePolicy, useUpdatePolicy } from "@/hooks/use-console";
 import { PolicyProgressBar, applyProgress, type PolicyProgress } from "@/components/policies/policy-thinking";
-import { ApiError, activatePolicy, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
+import { ApiError, activatePolicy, approvalPolicySummary, fetchApprovalPolicies, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
 import { PolicyForm } from "@/components/policies/policy-form";
@@ -719,6 +721,12 @@ function NodeInspector({
 }) {
   const { t } = useI18n();
   const data = node.data;
+  const { groups: groupAccess } = useEntitlements();
+  const approvalPolicies = useQuery({
+    queryKey: ["approval-policies"],
+    queryFn: fetchApprovalPolicies,
+    enabled: groupAccess && data.kind === "decision",
+  });
   const classification = data.classification;
   return (
     <div className="mt-3">
@@ -773,11 +781,28 @@ function NodeInspector({
         </select>
       ) : null}
       {data.kind === "decision" ? (
+        <>
         <select disabled={disabled} value={data.decision ?? "deny"} onChange={(event) => onChange({ decision: event.target.value as FlowData["decision"] })} className={inputClass}>
           <option value="allow">{t("policies.action.allow")}</option>
           <option value="approval">{t("policies.action.approval")}</option>
           <option value="deny">{t("policies.action.deny")}</option>
         </select>
+        {groupAccess && data.decision === "approval" ? (
+          <select
+            disabled={disabled}
+            value={data.approvalPolicyId ?? ""}
+            onChange={(event) => onChange({ approvalPolicyId: event.target.value })}
+            className={`${inputClass} mt-2`}
+          >
+            <option value="">{t("team.approvalPolicy")}</option>
+            {(approvalPolicies.data ?? []).map((policy) => (
+              <option key={policy.id} value={policy.id}>
+                {policy.name} · {approvalPolicySummary(policy)}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        </>
       ) : null}
       {data.kind === "enforcement" ? (
         <>

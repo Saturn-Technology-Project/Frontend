@@ -217,9 +217,20 @@ function mapApproval(
       : undefined,
     arguments: args,
     risk: approvalRisk(amountValue),
-    status: (["pending", "approved", "rejected"].includes(approval.status)
-      ? approval.status
-      : "pending") as Approval["status"],
+    status: (
+      ["pending", "approved", "rejected", "expired", "cancelled", "invalidated"].includes(approval.status)
+        ? approval.status
+        : "pending"
+    ) as Approval["status"],
+    requiredCount: approval.required_count ?? 1,
+    approvedCount: approval.approved_count ?? 0,
+    requirements: (approval.requirements ?? []).map((item) => ({
+      groupId: item.group_id,
+      groupName: item.group_name,
+      requiredCount: item.required_count,
+      approvedCount: item.approved_count,
+    })),
+    executionState: approval.execution_state ?? "none",
     requestedAt: approval.created_at,
     resolvedAt: approval.resolved_at ?? undefined,
     resolvedBy:

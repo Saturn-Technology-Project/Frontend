@@ -6,8 +6,8 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
-const planIds = ["free", "pro", "enterprise"] as const;
-const planRank: Record<(typeof planIds)[number], number> = { free: 0, pro: 1, enterprise: 2 };
+const planIds = ["free", "pro", "team", "enterprise"] as const;
+const planRank: Record<(typeof planIds)[number], number> = { free: 0, pro: 1, team: 2, enterprise: 3 };
 
 function planAction(current: string, id: (typeof planIds)[number]) {
   const rank = planRank[current as (typeof planIds)[number]] ?? 0;
@@ -61,7 +61,7 @@ export default function SubscriptionPage() {
             </SettingRow>
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 gap-6 xl:grid-cols-4">
             {plans.map((plan) => (
               <article
                 key={plan.id}
