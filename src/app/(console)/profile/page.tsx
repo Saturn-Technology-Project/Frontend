@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { PhotoField } from "@/components/account/photo-field";
+import { EmailNotices } from "@/components/account/email-notices";
 import { SignInSecurity } from "@/components/account/sign-in-security";
 import { Button } from "@/components/ui/button";
 import { ApiError, changePassword, updatePersonalPhoto, updateProfile } from "@/lib/api";
@@ -173,6 +174,8 @@ export default function ProfilePage() {
       </form>
 
       <SignInSecurity />
+
+      <EmailNotices />
 
       <section className="mt-10 max-w-md border-t border-border pt-8">
         <h2 className="text-[13px] font-medium">{t("settings.colorMode")}</h2>

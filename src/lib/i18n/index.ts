@@ -1,7 +1,17 @@
 "use client";
 
 import { messages, type Locale } from "@/lib/i18n/messages";
-import { useLocaleStore } from "@/stores/locale-store";
+import { updateAccountLocale } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import { beginLocaleSave, endLocaleSave, markLocaleChoice, useLocaleStore } from "@/stores/locale-store";
+
+export function accountLocale(locale: Locale): "zh-Hant" | "en-US" {
+  return locale === "en" ? "en-US" : "zh-Hant";
+}
+
+export function localeFromAccount(value: string | null | undefined): Locale {
+  return value?.toLowerCase().startsWith("en") ? "en" : "zh";
+}
 
 function getPath(source: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((value, key) => {
@@ -27,15 +37,32 @@ export function translate(
   return text;
 }
 
+export function chooseLocale(locale: Locale) {
+  markLocaleChoice();
+  useLocaleStore.getState().setLocale(locale);
+  const signedIn = useAuthStore.getState().user;
+  if (!signedIn) return;
+  const code = accountLocale(locale);
+  beginLocaleSave();
+  void updateAccountLocale(code)
+    .then((saved) => {
+      const current = useAuthStore.getState().user;
+      if (current?.id === signedIn.id) {
+        useAuthStore.setState({ user: { ...current, locale: saved.locale } });
+      }
+    })
+    .catch(() => undefined)
+    .finally(endLocaleSave);
+}
+
 export function useI18n() {
   const locale = useLocaleStore((state) => state.locale);
-  const setLocale = useLocaleStore((state) => state.setLocale);
 
   function t(path: string, vars?: Record<string, string | number>) {
     return translate(locale, path, vars);
   }
 
-  return { locale, setLocale, t };
+  return { locale, setLocale: chooseLocale, t };
 }
 
 function lookup(locale: Locale, path: string): string | undefined {

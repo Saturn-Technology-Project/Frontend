@@ -34,7 +34,7 @@ function LocaleDocument({ children }: { children: ReactNode }) {
   const locale = useLocaleStore((state) => state.locale);
 
   useEffect(() => {
-    document.documentElement.lang = locale === "zh" ? "zh-Hant" : "en";
+    document.documentElement.lang = locale === "zh" ? "zh-Hant" : "en-US";
   }, [locale]);
 
   return children;

@@ -18,6 +18,7 @@ export interface AuthUser {
     team: "none" | "read" | "write";
   };
   agentEditIds?: string[] | null;
+  locale?: string;
   agents?: { id: string; name: string }[];
   mcpServers?: { id: string; name: string }[];
 }

@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/lib/auth";
-import { useLocaleStore } from "@/stores/locale-store";
+import { localeRevisionNow, localeSavePending, useLocaleStore } from "@/stores/locale-store";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "@/types";
 import type { ApiAgentSettings } from "@/lib/agent-config";
@@ -195,6 +195,7 @@ export interface AuthUserResponse {
   assigned_mcp_server_ids?: string[];
   agent_edit_ids?: string[] | null;
   mcp_gateway?: { status: string; connected: number; total: number };
+  locale?: string;
 }
 
 export interface LoginResponse {
@@ -213,6 +214,12 @@ export interface MfaStatus {
   passkeys: { id: string; created_at: string }[];
 }
 
+export interface NoticeSettings {
+  approval: boolean;
+  execute: boolean;
+  audit: boolean;
+}
+
 export function toAuthSession(token: string | null, user: AuthUserResponse) {
   return {
     token,
@@ -226,6 +233,7 @@ export function toAuthSession(token: string | null, user: AuthUserResponse) {
       role: user.role ?? user.employee?.role ?? undefined,
       permissions: user.permissions,
       agentEditIds: user.agent_edit_ids ?? null,
+      locale: user.locale,
       agents: user.agents.map((agent) => ({ id: agent.id, name: agent.name })),
       mcpServers: user.mcp_servers.map((server) => ({
         id: server.id,
@@ -367,7 +375,7 @@ export function requestSignupCode(name: string, email: string, password: string)
 export async function registerAccount(name: string, email: string, password: string, code: string) {
   const result = await post<LoginResponse>(
     "/auth/register",
-    { name, email, password, code },
+    { name, email, password, code, locale: useLocaleStore.getState().locale },
     false
   );
   await establishSession(result);
@@ -423,9 +431,17 @@ export async function updateOrgPhoto(photo: string | null) {
 }
 
 export async function fetchMe() {
+  const revision = localeRevisionNow();
   const user = await get<AuthUserResponse>("/auth/me");
   useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
+  if (user.locale && revision === localeRevisionNow() && !localeSavePending()) {
+    useLocaleStore.getState().setLocale(user.locale.toLowerCase().startsWith("en") ? "en" : "zh");
+  }
   return user;
+}
+
+export function updateAccountLocale(locale: string) {
+  return patch<{ locale: string }>("/auth/locale", { locale });
 }
 
 export async function restoreSession(): Promise<boolean> {
@@ -464,6 +480,14 @@ export function changePassword(currentPassword: string, newPassword: string) {
 
 export function fetchMfa() {
   return get<MfaStatus>("/auth/mfa");
+}
+
+export function fetchNotices() {
+  return get<NoticeSettings>("/auth/notices");
+}
+
+export function updateNotices(body: NoticeSettings) {
+  return patch<NoticeSettings>("/auth/notices", body);
 }
 
 export function requestEmailMfa() {
