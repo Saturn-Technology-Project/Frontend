@@ -42,7 +42,19 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
       }),
     [category, needle]
   );
-  const featured = visible.filter((entry) => entry.featured);
+  const { featured, grouped } = useMemo(() => {
+    const featuredEntries = category === "all" ? visible.filter((entry) => entry.featured) : [];
+    const featuredIds = new Set(featuredEntries.map((entry) => entry.id));
+    const groups = marketCategories
+      .map((item) => ({
+        category: item,
+        entries: visible
+          .filter((entry) => entry.category === item && !featuredIds.has(entry.id))
+          .sort((left, right) => marketName(left.id).localeCompare(marketName(right.id))),
+      }))
+      .filter((group) => group.entries.length > 0);
+    return { featured: featuredEntries, grouped: groups };
+  }, [category, visible]);
   const selected = marketCatalog.find((entry) => entry.id === selectedId) ?? null;
 
   function open(entry: MarketEntry, nextTab: "overview" | "setup" = "overview") {
@@ -147,27 +159,29 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
           </section>
         ) : null}
 
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium">{t("marketplace.all")}</h2>
-          {visible.length === 0 ? (
-            <p className="mt-4 text-[13px] text-muted-foreground">{t("marketplace.noMatch")}</p>
-          ) : (
-            <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {visible.map((entry) => (
-                <MarketCard
-                  key={entry.id}
-                  entry={entry}
-                  locale={locale}
-                  selected={selectedId === entry.id}
-                  connected={servers.some((server) => entry.endpoint && sameEndpoint(server.endpoint, entry.endpoint))}
-                  onOpen={() => open(entry)}
-                  onConnect={() => void connectEntry(entry)}
-                  busy={busyId === entry.id}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
+        {grouped.length === 0 && featured.length === 0 ? (
+          <p className="mt-8 text-[13px] text-muted-foreground">{t("marketplace.noMatch")}</p>
+        ) : (
+          grouped.map((group) => (
+            <section key={group.category} className="mt-8">
+              <h2 className="text-[15px] font-medium">{t(`marketplace.categories.${group.category}`)}</h2>
+              <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.entries.map((entry) => (
+                  <MarketCard
+                    key={entry.id}
+                    entry={entry}
+                    locale={locale}
+                    selected={selectedId === entry.id}
+                    connected={servers.some((server) => entry.endpoint && sameEndpoint(server.endpoint, entry.endpoint))}
+                    onOpen={() => open(entry)}
+                    onConnect={() => void connectEntry(entry)}
+                    busy={busyId === entry.id}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))
+        )}
       </div>
 
       {custom || selected ? (
