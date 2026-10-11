@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { addGroupMember, createGroup, fetchGroups, removeGroupMember } from "@/lib/api";
+import { addGroupMember, createGroup, deleteGroup, fetchGroups, removeGroupMember } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { OrgMember } from "@/lib/api";
 
@@ -14,10 +14,12 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
+  const [confirming, setConfirming] = useState("");
   const groups = useQuery({ queryKey: ["groups"], queryFn: fetchGroups });
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["groups"] });
+    await queryClient.invalidateQueries({ queryKey: ["approval-policies"] });
   };
 
   const addGroup = useMutation({
@@ -36,6 +38,14 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
     onSuccess: refresh,
   });
 
+  const removeGroup = useMutation({
+    mutationFn: (groupId: string) => deleteGroup(groupId),
+    onSuccess: async () => {
+      setConfirming("");
+      await refresh();
+    },
+  });
+
   function submitGroup(event: FormEvent) {
     event.preventDefault();
     if (!name.trim()) return;
@@ -52,7 +62,30 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
       <ul className="mt-4 space-y-4">
         {rows.map((group) => (
           <li key={group.id} className="rounded-xl border border-border p-4">
-            <div className="text-[13px] font-medium">{group.name}</div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[13px] font-medium">{group.name}</div>
+              {canWrite ? (
+                confirming === group.id ? (
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => setConfirming("")}>
+                      {t("team.cancel")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={removeGroup.isPending}
+                      onClick={() => removeGroup.mutate(group.id)}
+                    >
+                      {t("team.confirmDeleteGroup")}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => setConfirming(group.id)}>
+                    {t("team.deleteGroup")}
+                  </Button>
+                )
+              ) : null}
+            </div>
             {group.description ? <p className="mt-1 text-[12px] text-muted-foreground">{group.description}</p> : null}
             <ul className="mt-3 space-y-2">
               {group.members.map((member) => {
@@ -110,10 +143,10 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
           </Button>
         </form>
       ) : null}
-      {addGroup.isError || membership.isError ? (
+      {addGroup.isError || membership.isError || removeGroup.isError ? (
         <p className="mt-3 text-[13px] text-destructive">
-          {(addGroup.error || membership.error) instanceof Error
-            ? (addGroup.error || membership.error)?.message
+          {(addGroup.error || membership.error || removeGroup.error) instanceof Error
+            ? (addGroup.error || membership.error || removeGroup.error)?.message
             : t("common.apiError")}
         </p>
       ) : null}

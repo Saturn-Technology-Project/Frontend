@@ -687,6 +687,10 @@ export function removeGroupMember(groupId: string, employeeId: string) {
   return request<OrgGroup>(`/org/groups/${groupId}/members/${employeeId}`, { method: "DELETE" });
 }
 
+export function deleteGroup(groupId: string) {
+  return del(`/org/groups/${groupId}`);
+}
+
 export function fetchApprovalPolicies() {
   return get<ApprovalPolicyRecord[]>("/org/approval-policies");
 }
