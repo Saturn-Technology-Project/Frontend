@@ -5,32 +5,21 @@ import { QueryGate } from "@/components/layout/query-gate";
 import { buttonVariants } from "@/components/ui/button";
 import { useConsole } from "@/hooks/use-console";
 import { useAuthStore } from "@/lib/auth";
+import { activityChains, chainPreview } from "@/components/activity/activity-timeline";
 import { relativeTime } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { profileIdentity, saturnMcpAgents } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 
 export default function OverviewPage() {
   const { t, locale } = useI18n();
   const user = useAuthStore((state) => state.user);
-  const org = useAuthStore((state) => state.org);
   const name = user?.name || "there";
   const { data, isPending, isError } = useConsole();
-  const identity =
-    user && org
-      ? profileIdentity({
-          userId: user.id,
-          organizationId: org.id,
-          kind: org.kind,
-          plan: org.plan,
-        })
-      : "";
-  const agents = saturnMcpAgents(data?.agents ?? [], identity);
+  const agents = (data?.agents ?? []).filter((agent) => agent.origin === "saturn_mcp");
   const servers = data?.mcpServers ?? [];
-  const runs = data?.runs ?? [];
   const events = data?.events ?? [];
   const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
-  const calls = runs.reduce((sum, run) => sum + run.actions.length, 0);
+  const calls = events.filter((event) => event.event === "tool_executed").length;
   const usage = new Map<string, number>();
   for (const event of events) {
     if (!event.tool) continue;
@@ -57,7 +46,7 @@ export default function OverviewPage() {
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat href="/agents" label={t("overview.activeAgents")} value={agents.length} />
           <Stat href="/tools/connections" label={t("overview.connectedMcps")} value={servers.length} />
-          <Stat href="/runs" label={t("overview.toolCalls")} value={calls} />
+          <Stat href="/activity" label={t("overview.toolCalls")} value={calls} />
           <Stat href="/approvals" label={t("overview.approvals")} value={pending} />
         </div>
 
@@ -67,7 +56,7 @@ export default function OverviewPage() {
               <h2 className="text-[15px] font-medium">{t("overview.recentActivity")}</h2>
               {events.length > 0 ? (
                 <Link href="/activity" className="text-[12px] text-muted-foreground hover:text-foreground">
-                  {t("runs.viewAudit")}
+                  {t("activity.viewAudit")}
                 </Link>
               ) : null}
             </div>
@@ -75,19 +64,39 @@ export default function OverviewPage() {
               <p className="mt-6 text-[13px] text-muted-foreground">{t("activity.empty")}</p>
             ) : (
               <ul className="mt-4 divide-y divide-border">
-                {events.slice(0, 6).map((event) => (
-                  <li key={event.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px]">{event.title}</div>
-                      <div className="mt-0.5 text-[12px] text-muted-foreground">
-                        {event.actor} · {relativeTime(event.at, locale)}
-                      </div>
-                    </div>
-                    {event.result ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-success">{event.result}</span>
-                    ) : null}
-                  </li>
-                ))}
+                {activityChains(events).slice(0, 6).map((chain) => {
+                  const preview = chainPreview(chain, data?.toolSets ?? [], data?.mcpServers ?? [], locale, t);
+                  return (
+                    <li key={preview.id}>
+                      <Link
+                        href={`/activity?event=${preview.id}`}
+                        className="flex flex-col gap-2 py-3 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-medium">{preview.headline}</div>
+                          <div className="mt-0.5 truncate text-[12px] text-muted-foreground">
+                            {preview.initiator}
+                            {preview.steps > 1 ? ` · ${t("activity.steps", { n: preview.steps })}` : ` · ${t(preview.kindKey)}`}
+                            {` · ${relativeTime(preview.at, locale)}`}
+                          </div>
+                        </div>
+                        {preview.outcomeText ? (
+                          <span
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[11px]",
+                              preview.tone === "ok" && "bg-success/10 text-success",
+                              preview.tone === "bad" && "bg-destructive/10 text-destructive",
+                              preview.tone === "wait" && "bg-warning/15 text-warning",
+                              preview.tone === "plain" && "bg-muted text-foreground"
+                            )}
+                          >
+                            {preview.outcomeText}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

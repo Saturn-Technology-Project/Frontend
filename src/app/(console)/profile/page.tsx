@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
+import { PhotoField } from "@/components/account/photo-field";
 import { Button } from "@/components/ui/button";
-import { ApiError, changePassword, updateProfile } from "@/lib/api";
+import { ApiError, changePassword, updatePersonalPhoto, updateProfile } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,10 @@ export default function ProfilePage() {
     setName(user.name);
     setEmail(user.email);
   }, [user]);
+
+  const photo = useMutation({
+    mutationFn: updatePersonalPhoto,
+  });
 
   const save = useMutation({
     mutationFn: () => updateProfile({ name: name.trim(), email: email.trim() }),
@@ -75,6 +80,17 @@ export default function ProfilePage() {
     <div className="px-4 py-5 md:px-8 md:py-6">
       <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("profile.title")}</h1>
       <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("profile.subtitle")}</p>
+
+      <div className="mt-8 max-w-md">
+        <PhotoField
+          photo={user?.photo}
+          name={user?.name || ""}
+          canEdit
+          pending={photo.isPending}
+          onChange={(next) => photo.mutate(next)}
+        />
+        {photo.isError ? <p className="mt-3 text-[13px] text-destructive">{photo.error.message}</p> : null}
+      </div>
 
       <form onSubmit={submit} className="mt-8 max-w-md">
         <label className="block text-[12px] text-muted-foreground">

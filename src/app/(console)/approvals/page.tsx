@@ -118,7 +118,7 @@ function ApprovalCard({
       </button>
       <div className="flex items-center justify-between px-5 pb-4">
         <Link
-          href={`/agents/${approval.agentId}/runs/${approval.runId}`}
+          href={`/activity?event=${approval.runId}`}
           className="text-[12px] text-muted-foreground hover:text-foreground"
         >
           {t("approvals.openRun")}

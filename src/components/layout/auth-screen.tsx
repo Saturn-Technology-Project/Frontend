@@ -16,7 +16,7 @@ export function AuthScreen({ children }: { children: ReactNode }) {
             onClick={() => setLocale("en")}
             className={locale === "en" ? "text-foreground" : "text-muted-foreground"}
           >
-            EN
+            English(US)
           </button>
           <span className="text-border">/</span>
           <button
@@ -24,7 +24,7 @@ export function AuthScreen({ children }: { children: ReactNode }) {
             onClick={() => setLocale("zh")}
             className={locale === "zh" ? "text-foreground" : "text-muted-foreground"}
           >
-            中文
+            繁體中文
           </button>
         </div>
       </header>

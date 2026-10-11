@@ -4,6 +4,8 @@ import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "
 import type { ApiAgentSettings } from "@/lib/agent-config";
 
 const API_BASE = "/saturn-api";
+const SATURN_AI_BASE =
+  process.env.NEXT_PUBLIC_SATURN_AI_URL ?? "https://saturn-ai-629072855899.asia-east1.run.app";
 
 export class ApiError extends Error {
   constructor(
@@ -80,31 +82,6 @@ export interface ApiPolicy {
   updated_at?: string | null;
 }
 
-export interface ApiAction {
-  id: string;
-  run_id: string;
-  tool: string;
-  arguments: Record<string, unknown>;
-  policy_decision: string | null;
-  policy_id?: string | null;
-  policy_rule_id?: string | null;
-  policy_version?: number | null;
-  policy_reason?: string | null;
-  status: string;
-  result: Record<string, unknown> | null;
-}
-
-export interface ApiRun {
-  id: string;
-  agent_id: string;
-  input: string;
-  status: string;
-  approval_id: string | null;
-  actions: ApiAction[];
-  created_at: string;
-  updated_at: string;
-}
-
 export interface ApiApproval {
   id: string;
   run_id: string;
@@ -179,16 +156,25 @@ export interface AccessPermissions {
   team: "none" | "read" | "write";
 }
 
+export interface Entitlements {
+  gateway: boolean;
+  tool_set_limit: number | null;
+  policies: boolean;
+  audit: "basic" | "full" | string;
+  audit_days: number;
+}
+
 export interface AuthUserResponse {
   id: string;
   email: string;
   name: string;
+  photo?: string | null;
   status: string;
   role: string | null;
   permissions: AccessPermissions;
   is_platform_admin?: boolean;
-  organization: { id: string; name: string; plan?: string; kind?: string };
-  enterprise: { id: string; name: string; plan?: string; kind?: string };
+  organization: { id: string; name: string; plan?: string; kind?: string; photo?: string | null; entitlements?: Entitlements };
+  enterprise: { id: string; name: string; plan?: string; kind?: string; photo?: string | null; entitlements?: Entitlements };
   employee: { id: string; title: string; status: string; role: string; permissions: AccessPermissions } | null;
   agents: { id: string; name: string; status: string }[];
   mcp_servers: {
@@ -218,6 +204,7 @@ export function toAuthSession(token: string | null, user: AuthUserResponse) {
       id: user.id,
       email: user.email,
       name: user.name,
+      photo: user.photo ?? null,
       status: user.status,
       employeeTitle: user.employee?.title,
       role: user.role ?? user.employee?.role ?? undefined,
@@ -366,6 +353,21 @@ export async function updateProfile(body: { name: string; email: string }) {
   return user;
 }
 
+export async function updatePersonalPhoto(photo: string | null) {
+  const user = await patch<AuthUserResponse>("/auth/me/photo", { photo });
+  useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
+  return user;
+}
+
+export async function updateOrgPhoto(photo: string | null) {
+  const organization = await patch<{ id: string; name: string; photo?: string | null }>("/org/photo", { photo });
+  const state = useAuthStore.getState();
+  if (state.org) {
+    useAuthStore.setState({ org: { ...state.org, photo: organization.photo ?? null } });
+  }
+  return organization;
+}
+
 export async function fetchMe() {
   const user = await get<AuthUserResponse>("/auth/me");
   useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
@@ -433,6 +435,10 @@ export interface OrgInvite {
   expires_at: string;
 }
 
+export function exportActivity() {
+  return get<unknown[]>("/activity/export");
+}
+
 export async function fetchOrg() {
   return get<{
     organization: {
@@ -440,7 +446,8 @@ export async function fetchOrg() {
       name: string;
       plan?: string;
       kind?: string;
-      addons?: { id: string; name: string; href?: string | null }[];
+      photo?: string | null;
+      entitlements?: Entitlements;
     };
     catalog: { resources: { id: string; actions: string[] }[]; roles: { id: string; permissions: AccessPermissions }[] };
     me: OrgMember | null;
@@ -448,7 +455,7 @@ export async function fetchOrg() {
 }
 
 export interface SubscriptionLine {
-  kind: "plan" | "addon" | string;
+  kind: "plan" | string;
   id: string;
   name: string;
   amount: string;
@@ -471,7 +478,6 @@ export interface Subscription {
   organization_name: string;
   status: string;
   plan: SubscriptionLine;
-  addons: SubscriptionLine[];
   renews_on: string;
   payment: { brand: string; last4: string; exp: string; demo: boolean };
   invoices: SubscriptionInvoice[];
@@ -531,13 +537,32 @@ export async function acceptInvite(token: string, password: string) {
   return result;
 }
 
+async function fetchAppMcp(): Promise<ApiAppMcp> {
+  const empty: ApiAppMcp = { servers: [], attachments: {} };
+  const token = useAuthStore.getState().token;
+  if (!token) return empty;
+  try {
+    const response = await fetch(`${SATURN_AI_BASE}/app-mcp`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return empty;
+    const body = (await response.json()) as ApiAppMcp;
+    return {
+      servers: Array.isArray(body.servers) ? body.servers : [],
+      attachments: body.attachments && typeof body.attachments === "object" ? body.attachments : {},
+    };
+  } catch {
+    return empty;
+  }
+}
+
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, runs, approvals, activity, wallets, payments, x402, health, mcpServers, toolSets, appMcp] =
+  const [agents, tools, policies, approvals, activity, wallets, payments, x402, health, mcpServers, toolSets, appMcp] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
       get<ApiPolicy[]>("/policies"),
-      get<ApiRun[]>("/runs"),
       get<ApiApproval[]>("/approvals"),
       get<ApiActivity[]>("/activity"),
       get<ApiWallet[]>("/wallets"),
@@ -546,14 +571,13 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiHealth>("/health"),
       get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
       get<ApiToolSet[]>("/tool-sets").catch(() => []),
-      get<ApiAppMcp>("/app-mcp").catch(() => ({ servers: [], attachments: {} })),
+      fetchAppMcp(),
     ]);
 
   return mapConsole({
     agents,
     tools,
     policies,
-    runs,
     approvals,
     activity,
     wallets,

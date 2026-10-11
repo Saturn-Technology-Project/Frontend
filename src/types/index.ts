@@ -298,6 +298,7 @@ export interface Approval {
   policy: string;
   policyVersion?: number;
   triggeredRule?: string;
+  arguments?: Record<string, unknown>;
   risk?: "low" | "medium" | "high";
   status: ApprovalStatus;
   requestedAt: string;

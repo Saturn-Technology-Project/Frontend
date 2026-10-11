@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { QueryGate } from "@/components/layout/query-gate";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { Button } from "@/components/ui/button";
 import { useConsole, useCreatePolicy } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
@@ -18,6 +20,7 @@ export default function CreatePolicyPage() {
   const { data, isPending, isError } = useConsole();
   const createPolicy = useCreatePolicy();
   const canWrite = canAccess(useAuthStore((state) => state.user?.permissions), "policies", "write");
+  const { policies: policyAccess } = useEntitlements();
   const [source, setSource] = useState<"set" | "scratch">("set");
   const [setId, setSetId] = useState("");
   const [error, setError] = useState("");
@@ -29,6 +32,14 @@ export default function CreatePolicyPage() {
 
   if (!canWrite) {
     return <div className="px-4 py-6 text-[13px] text-muted-foreground md:px-10 md:py-10">{t("policies.notFound")}</div>;
+  }
+
+  if (!policyAccess) {
+    return (
+      <div className="px-4 py-6 md:px-10 md:py-10">
+        <UpgradePrompt />
+      </div>
+    );
   }
 
   return (

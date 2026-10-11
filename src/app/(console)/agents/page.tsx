@@ -296,11 +296,12 @@ function AgentPanel({
   const [confirming, setConfirming] = useState(false);
   const copy = agentCopy(locale, agent.id, agent);
   const toolSet = toolSets.find((set) => set.id === agent.toolSetId) ?? null;
-  const matched = useMemo(() => eventsFor(toolSet, events), [toolSet, events]);
+  const matched = useMemo(() => eventsFor(agent.id, events), [agent.id, events]);
+  const requests = matched.filter((event) => event.event === "tool_requested");
   const counts = useMemo(() => {
     const usage = new Map<string, number>();
     for (const event of matched) {
-      if (!event.tool) continue;
+      if (event.event !== "tool_requested" || !event.tool) continue;
       usage.set(event.tool, (usage.get(event.tool) ?? 0) + 1);
     }
     return [...usage.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -395,7 +396,7 @@ function AgentPanel({
 
         <h3 className="mt-6 text-[13px] font-medium">{t("agents.usage")}</h3>
         <div className="mt-1 text-[12px] text-muted-foreground">{t("agents.calls")}</div>
-        <div className="text-[22px] font-medium tracking-tight">{matched.length}</div>
+        <div className="text-[22px] font-medium tracking-tight">{requests.length}</div>
         {counts.length === 0 ? (
           <p className="mt-2 text-[13px] text-muted-foreground">{t("agents.noUsage")}</p>
         ) : (
@@ -487,8 +488,18 @@ function Node({ label }: { label: string }) {
   return <span className="inline-flex max-w-full truncate rounded-lg border border-border bg-background px-2.5 py-1 text-[12px]">{label}</span>;
 }
 
-function eventsFor(toolSet: ToolSet | null, events: ActivityEvent[]) {
-  if (!toolSet) return [];
-  const names = new Set(toolSet.items.map((item) => item.name));
-  return events.filter((event) => event.tool && names.has(event.tool));
+function auditNo(event: ActivityEvent) {
+  const value = event.raw?.audit_no;
+  return typeof value === "number" || typeof value === "string" ? String(value) : "";
+}
+
+// Only the request carries the agent; the policy, approval and execution events of the same call share its audit number.
+function eventsFor(agentId: string, events: ActivityEvent[]) {
+  const calls = new Set(
+    events
+      .filter((event) => event.event === "tool_requested" && event.actorId === agentId)
+      .map(auditNo)
+      .filter(Boolean)
+  );
+  return events.filter((event) => event.actorId === agentId || calls.has(auditNo(event)));
 }

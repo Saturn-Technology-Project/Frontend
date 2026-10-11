@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useConsole } from "@/hooks/use-console";
+import { exportActivity } from "@/lib/api";
 import { formatClock, formatDayLabel, relativeTime } from "@/lib/format";
-import { eventActor, eventText, useI18n } from "@/lib/i18n";
+import { eventActor, eventText, useI18n, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ActivityEvent, ActorKind, McpServer, Policy, ToolSet } from "@/types";
 
@@ -237,6 +238,8 @@ function outcomeKey(result: string | undefined) {
   if (value === "deny" || value === "denied") return "activity.denied";
   if (value === "requested") return "activity.requested";
   if (value === "pending" || value === "approval_required") return "activity.pending";
+  if (value === "approved") return "approvals.approved";
+  if (value === "rejected") return "approvals.rejected";
   return "";
 }
 
@@ -270,10 +273,55 @@ function Body({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQuery: string }) {
+export function activityOutcome(result: string | undefined) {
+  return outcomeKey(result);
+}
+
+export function activityChains(events: ActivityEvent[]) {
+  return buildChains(events);
+}
+
+export function chainPreview(
+  chain: Chain,
+  toolSets: ToolSet[],
+  servers: McpServer[],
+  locale: Locale,
+  t: (path: string, vars?: Record<string, string | number>) => string,
+) {
+  const head = chain.events[chain.events.length - 1];
+  const request = chain.events.find((event) => event.event === "tool_requested");
+  const executed = [...chain.events].reverse().find((event) => event.event === "tool_executed");
+  const server = serverOf(head, toolSets, servers) || chain.events.map((event) => serverOf(event, toolSets, servers)).find(Boolean) || "";
+  const decided = [...chain.events].reverse().find((event) => event.event === "approval_granted" || event.event === "approval_rejected");
+  const outcome = executed?.result || decided?.result || head.result;
+  return {
+    id: chain.id,
+    no: chain.no,
+    at: chain.at,
+    headline: head.tool ? (server ? `${head.tool} · ${server}` : head.tool) : eventText(locale, head.titleKey, head.title),
+    initiator: request ? eventActor(locale, request) : eventActor(locale, chain.events[0]),
+    outcomeText: outcomeKey(outcome) ? t(outcomeKey(outcome)) : outcome || "",
+    tone: outcome ? resultTone(outcome) : "plain",
+    steps: chain.events.length,
+    kindKey: kindLabel[head.actorKind],
+    runId: request?.runId || head.runId,
+    reason: typeof head.raw?.reason === "string" ? head.raw.reason : "",
+  };
+}
+
+export function AuditLog({
+  events,
+  urlQuery,
+  focusEvent = "",
+  detailed = false,
+}: {
+  events: ActivityEvent[];
+  urlQuery: string;
+  focusEvent?: string;
+  detailed?: boolean;
+}) {
   const { t, locale } = useI18n();
   const { data } = useConsole();
-  const runs = data?.runs ?? [];
   const policies = data?.policies ?? [];
   const toolSets = data?.toolSets ?? [];
   const servers = data?.mcpServers ?? [];
@@ -283,13 +331,24 @@ export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQue
   const [agentFilter, setAgentFilter] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [openBody, setOpenBody] = useState<string | null>(null);
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     setQuery(urlQuery);
   }, [urlQuery]);
 
-  const needle = query.trim().toLowerCase();
+  const needle = detailed ? query.trim().toLowerCase() : "";
   const built = useMemo(() => buildChains(events), [events]);
+
+  useEffect(() => {
+    if (!focusEvent) return;
+    const chain = built.find(
+      (item) => item.id === focusEvent || item.events.some((event) => event.id === focusEvent || event.runId === focusEvent)
+    );
+    if (!chain) return;
+    if (detailed) setOpenId(chain.id);
+    document.getElementById(`audit-${chain.id}`)?.scrollIntoView({ block: "center" });
+  }, [built, detailed, focusEvent]);
   const serverOptions = useMemo(() => {
     return [...new Set(built.map((chain) => chainServer(chain, toolSets, servers)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   }, [built, servers, toolSets]);
@@ -329,17 +388,45 @@ export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQue
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.audit")}</h1>
-          <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("activity.subtitle")}</p>
+          <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">
+            {detailed ? t("activity.subtitle") : t("plan.activityBasic")}
+          </p>
         </div>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t("activity.search")}
-          className="h-10 w-full rounded-full border border-border bg-muted px-4 text-base outline-none focus:border-ring md:h-9 md:text-[13px] lg:w-[280px]"
-        />
+        {detailed ? (
+          <div className="flex w-full flex-col gap-2 lg:w-auto lg:items-end">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("activity.search")}
+              className="h-10 w-full rounded-full border border-border bg-muted px-4 text-base outline-none focus:border-ring md:h-9 md:text-[13px] lg:w-[280px]"
+            />
+            <button
+              type="button"
+              className="h-9 self-start rounded-lg border border-border px-3 text-[13px] hover:bg-muted lg:self-end"
+              onClick={() => {
+                setExportError("");
+                void exportActivity().then(
+                  (rows) => {
+                    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "activity.json";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  },
+                  () => setExportError(t("plan.upgradeBody"))
+                );
+              }}
+            >
+              {t("activity.export")}
+            </button>
+          </div>
+        ) : null}
       </div>
+      {exportError ? <p className="mt-2 text-[13px] text-destructive">{exportError}</p> : null}
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      {detailed ? <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <select
           aria-label={t("activity.time")}
           value={timeRange}
@@ -374,7 +461,7 @@ export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQue
             <option key={agent.id} value={agent.id}>{agent.name}</option>
           ))}
         </select>
-      </div>
+      </div> : null}
       <p className="mt-3 text-[12px] text-muted-foreground">{t("activity.count", { n: chains.length })}</p>
 
       {events.length === 0 ? (
@@ -408,53 +495,51 @@ export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQue
               </div>
               <ul>
                 {dayChains.map((chain) => {
-                  const open = openId === chain.id;
-                  const head = chain.events[chain.events.length - 1];
-                  const request = chain.events.find((event) => event.event === "tool_requested");
-                  const executed = [...chain.events].reverse().find((event) => event.event === "tool_executed");
-                  const server = serverOf(head, toolSets, servers) || chain.events.map((event) => serverOf(event, toolSets, servers)).find(Boolean) || "";
-                  const headline = head.tool ? (server ? `${head.tool} · ${server}` : head.tool) : eventText(locale, head.titleKey, head.title);
-                  const initiator = request ? eventActor(locale, request) : eventActor(locale, chain.events[0]);
-                  const outcome = executed?.result || head.result;
-                  const outcomeText = outcomeKey(outcome) ? t(outcomeKey(outcome)) : outcome || "";
-                  const tone = outcome ? resultTone(outcome) : "plain";
-                  const run = runs.find((item) => item.id === (request?.runId || head.runId));
+                  const preview = chainPreview(chain, toolSets, servers, locale, t);
+                  const open = detailed && openId === preview.id;
                   return (
-                    <li key={chain.id} className="border-b border-border last:border-0">
+                    <li id={`audit-${preview.id}`} key={preview.id} className="border-b border-border last:border-0">
                       <button
                         type="button"
-                        aria-expanded={open}
-                        onClick={() => setOpenId(open ? null : chain.id)}
+                        aria-expanded={detailed ? open : undefined}
+                        onClick={() => {
+                          if (detailed) setOpenId(open ? null : preview.id);
+                        }}
                         className={cn("flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/50", open && "bg-muted/40")}
                       >
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center justify-between gap-3">
                             <span className="flex items-center gap-2">
-                              <span className="font-mono text-[12px] font-medium text-foreground">#{chain.no}</span>
-                              <span className="font-mono text-[11px] text-muted-foreground">{formatClock(chain.at)}</span>
+                              <span className="font-mono text-[12px] font-medium text-foreground">#{preview.no}</span>
+                              <span className="font-mono text-[11px] text-muted-foreground">{formatClock(preview.at)}</span>
                             </span>
-                            {outcomeText ? (
+                            {preview.outcomeText ? (
                               <span
                                 className={cn(
                                   "rounded-full px-2 py-0.5 text-[11px]",
-                                  tone === "ok" && "bg-success/10 text-success",
-                                  tone === "bad" && "bg-destructive/10 text-destructive",
-                                  tone === "wait" && "bg-warning/15 text-warning",
-                                  tone === "plain" && "bg-muted text-foreground"
+                                  preview.tone === "ok" && "bg-success/10 text-success",
+                                  preview.tone === "bad" && "bg-destructive/10 text-destructive",
+                                  preview.tone === "wait" && "bg-warning/15 text-warning",
+                                  preview.tone === "plain" && "bg-muted text-foreground"
                                 )}
                               >
-                                {outcomeText}
+                                {preview.outcomeText}
                               </span>
                             ) : null}
                           </span>
-                          <span className="mt-1 block truncate text-[14px] font-medium">{headline}</span>
+                          <span className="mt-1 block truncate text-[14px] font-medium">{preview.headline}</span>
                           <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                            {initiator}
-                            {chain.events.length > 1 ? ` · ${t("activity.steps", { n: chain.events.length })}` : ` · ${t(kindLabel[head.actorKind])}`}
-                            {` · ${relativeTime(chain.at, locale)}`}
+                            {preview.initiator}
+                            {detailed && preview.steps > 1 ? ` · ${t("activity.steps", { n: preview.steps })}` : ` · ${t(preview.kindKey)}`}
+                            {` · ${relativeTime(preview.at, locale)}`}
                           </span>
+                          {!detailed && preview.reason ? (
+                            <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{preview.reason}</span>
+                          ) : null}
                         </span>
-                        <ChevronDown className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                        {detailed ? (
+                          <ChevronDown className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+                        ) : null}
                       </button>
                       {open ? (
                         <div className="px-4 pb-4">
@@ -473,8 +558,8 @@ export function AuditLog({ events, urlQuery }: { events: ActivityEvent[]; urlQue
                               </li>
                             ))}
                           </ol>
-                          {run ? (
-                            <Link href={`/agents/${run.agentId}/runs/${run.id}`} className="mt-3 inline-block pl-7 text-[12px] text-muted-foreground hover:text-foreground">
+                          {preview.runId ? (
+                            <Link href={`/activity?event=${preview.runId}`} className="mt-3 inline-block pl-7 text-[12px] text-muted-foreground hover:text-foreground">
                               {t("activity.openRun")}
                             </Link>
                           ) : null}
@@ -515,6 +600,8 @@ function ChainStep({
   const rawResponse = serverBody(raw.raw_response ?? raw.server_result);
   const requestKey = `${event.id}:request`;
   const responseKey = `${event.id}:response`;
+  const parametersKey = `${event.id}:parameters`;
+  const parameters = event.payload?.parameters;
   const requestLabel = raw.raw_request ? t("activity.rawRequest") : t("activity.originalRequest");
   const responseLabel = raw.raw_response ? t("activity.rawResponse") : t("activity.serverReturned");
   const outcome = outcomeKey(event.result) ? t(outcomeKey(event.result)) : event.result || "";
@@ -543,6 +630,7 @@ function ChainStep({
         <div className="mt-2">
           <Line label={t("activity.accordingTo")} value={policyBasis(event, policies, t("activity.noPolicy"))} />
           <Line label={t("activity.outcome")} value={outcome} />
+          <Line label={t("approvals.reason")} value={textOf(event.raw?.reason).trim()} />
         </div>
       ) : null}
       {event.event === "tool_executed" ? (
@@ -567,7 +655,14 @@ function ChainStep({
           {server ? <Line label={t("activity.mcpServer")} value={server} /> : null}
           {outcome ? <Line label={t("activity.outcome")} value={outcome} /> : null}
           <Body label={t("activity.input")} value={event.payload?.input} />
-          <Body label={t("activity.parameters")} value={event.payload?.parameters} />
+          {event.event === "approval_requested" && hasBody(parameters) ? (
+            <button type="button" className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground" onClick={() => onToggle(parametersKey)}>
+              {openBody === parametersKey ? t("activity.hideParameters") : t("activity.parameters")}
+            </button>
+          ) : (
+            <Body label={t("activity.parameters")} value={parameters} />
+          )}
+          {event.event === "approval_requested" && openBody === parametersKey ? <Body label={t("activity.parameters")} value={parameters} /> : null}
           <Body label={t("activity.result")} value={typeof event.payload?.result === "object" ? event.payload.result : undefined} />
         </div>
       ) : null}

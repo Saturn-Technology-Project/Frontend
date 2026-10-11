@@ -36,7 +36,7 @@ export function PolicyForm({
         </thead>
         <tbody>
           {rules.map((rule) => (
-            <tr key={rule.toolId} className="border-b border-border align-top">
+            <tr key={`${rule.toolId}:${rule.decisionId ?? ""}`} className="border-b border-border align-top">
               <td className="px-4 py-3 font-mono">{rule.tool || t("policies.kind.tool")}</td>
               <td className="px-4 py-3">
                 {rule.conditions.length === 0 ? (

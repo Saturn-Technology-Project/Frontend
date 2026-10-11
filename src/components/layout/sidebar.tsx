@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Avatar } from "@/components/account/photo-field";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { useMobileNav } from "@/components/layout/mobile-nav";
 import { useConsole } from "@/hooks/use-console";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { useOrg } from "@/hooks/use-team";
 import { logout } from "@/lib/api";
 import { canAccess } from "@/lib/access";
@@ -48,6 +50,7 @@ export function Sidebar() {
   const orgName = workspace.data?.organization.name ?? savedOrg?.name;
   const brand = personal ? t("nav.personalLabel") : orgName || "—";
   const { data } = useConsole();
+  const { policies: policyAccess } = useEntitlements();
   const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
   const approveOn = pathname === "/approvals" || pathname.startsWith("/approvals/");
 
@@ -70,7 +73,11 @@ export function Sidebar() {
       )}
     >
       <div className="flex h-14 items-center gap-2 px-4">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground">S</span>
+        <Avatar
+          photo={workspace.data?.organization.photo ?? savedOrg?.photo}
+          name={brand}
+          className="size-7 shrink-0 bg-primary text-[12px] font-semibold text-primary-foreground"
+        />
         <span className="truncate text-[15px] font-semibold tracking-tight">{brand}</span>
         <button
           type="button"
@@ -112,18 +119,31 @@ export function Sidebar() {
               )}
             >
               <NavIcon name={item.icon} />
-              {t(item.key)}
+              <span className="min-w-0 flex-1 truncate">{t(item.key)}</span>
+              {item.href === "/policies" && !policyAccess ? (
+                <span className="text-[11px] text-muted-foreground">Pro</span>
+              ) : null}
             </Link>
           );
         })}
       </nav>
-      <AccountFooter userName={user?.name || "—"} email={user?.email || "—"} canTeam={canTeam} />
+      <AccountFooter userName={user?.name || "—"} email={user?.email || "—"} photo={user?.photo} canTeam={canTeam} />
     </aside>
     </>
   );
 }
 
-function AccountFooter({ userName, email, canTeam }: { userName: string; email: string; canTeam: boolean }) {
+function AccountFooter({
+  userName,
+  email,
+  photo,
+  canTeam,
+}: {
+  userName: string;
+  email: string;
+  photo?: string | null;
+  canTeam: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -152,8 +172,8 @@ function AccountFooter({ userName, email, canTeam }: { userName: string; email: 
     <div ref={rootRef} className="border-t border-sidebar-border p-2">
       <div className="relative">
         {panel === "language" ? (
-          <div className="absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border border-border bg-card p-1 text-card-foreground shadow-lg">
-            <div className="px-2.5 py-2 text-[12px] font-medium">{t("settings.language")}</div>
+          <div className="absolute inset-x-0 bottom-full z-20 mb-1 flex flex-col gap-2 rounded-xl border border-border bg-card p-1.5 text-card-foreground shadow-lg">
+            <div className="px-2.5 py-1.5 text-[12px] font-medium">{t("settings.language")}</div>
             <Choice on={locale === "zh"} onClick={() => setLocale("zh")}>
               {t("settings.chinese")}
             </Choice>
@@ -178,7 +198,7 @@ function AccountFooter({ userName, email, canTeam }: { userName: string; email: 
       </div>
       <div className="relative mt-1">
         {panel === "account" ? (
-          <div className="absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border border-border bg-card p-1 text-card-foreground shadow-lg">
+          <div className="absolute inset-x-0 bottom-full z-20 mb-1.5 flex flex-col gap-2 rounded-xl border border-border bg-card p-1.5 text-card-foreground shadow-[0_8px_24px_rgba(17,17,16,0.08)]">
             <MenuLink href="/profile" active={pathname.startsWith("/profile")} onNavigate={() => setPanel(null)}>
               <NavIcon name="user" />
               {t("profile.title")}
@@ -193,10 +213,10 @@ function AccountFooter({ userName, email, canTeam }: { userName: string; email: 
               <NavIcon name="building" />
               {t("nav.organization")}
             </MenuLink>
-            <div className="mx-2 my-1 h-px bg-border" />
+            <div className="mx-2 h-px bg-border" />
             <button
               type="button"
-              className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-foreground hover:bg-muted"
               onClick={async () => {
                 setPanel(null);
                 await logout();
@@ -204,6 +224,7 @@ function AccountFooter({ userName, email, canTeam }: { userName: string; email: 
                 router.replace("/login");
               }}
             >
+              <NavIcon name="logout" />
               {t("login.signOut")}
             </button>
           </div>
@@ -218,9 +239,7 @@ function AccountFooter({ userName, email, canTeam }: { userName: string; email: 
             panel === "account" && "bg-sidebar-accent"
           )}
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[12px] font-medium text-foreground">
-            {(userName || "S").slice(0, 1).toUpperCase()}
-          </span>
+          <Avatar photo={photo} name={userName} className="size-8 shrink-0 text-[12px]" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px]">{userName}</span>
             <span className="block truncate text-[11px] text-muted-foreground">{email}</span>
@@ -247,8 +266,8 @@ function MenuLink({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
-        active && "bg-muted text-foreground"
+        "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-foreground hover:bg-muted",
+        active && "bg-muted font-medium"
       )}
     >
       {children}

@@ -1,6 +1,5 @@
 import { getSession } from "@/lib/auth";
 import type {
-  ApiAction,
   ApiActivity,
   ApiAgent,
   ApiApproval,
@@ -9,7 +8,6 @@ import type {
   ApiMcpServer,
   ApiPayment,
   ApiPolicy,
-  ApiRun,
   ApiTool,
   ApiToolSet,
   ApiWallet,
@@ -27,7 +25,6 @@ import type {
   ActorKind,
   Agent,
   AppMcp,
-  AgentRun,
   AgentWallet,
   Approval,
   ConsoleData,
@@ -37,14 +34,9 @@ import type {
   ToolSet,
   PaymentStatus,
   Policy,
-  PolicyCheck,
   PolicyNodeKind,
   PolicyCondition,
-  PolicyEvaluation,
   PolicyRule,
-  ProposedAction,
-  RunStatus,
-  RunStep,
   SystemService,
   ToolPermission,
   X402Price,
@@ -148,49 +140,6 @@ function decisionPermission(decision: string): ToolPermission {
   return "allow";
 }
 
-function mapRunStatus(status: string): RunStatus {
-  switch (status) {
-    case "queued":
-      return "queued";
-    case "waiting_approval":
-      return "awaiting_approval";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "cancelled":
-      return "rejected";
-    default:
-      return "running";
-  }
-}
-
-function mapStepStatus(status: string): RunStep["status"] {
-  if (
-    status === "completed" ||
-    status === "denied" ||
-    status === "rejected" ||
-    status === "failed"
-  ) {
-    return "completed";
-  }
-  if (status === "waiting_approval") return "running";
-  return "pending";
-}
-
-function actionKind(tool: string): ProposedAction["kind"] {
-  if (tool.includes("refund")) return "refund";
-  if (tool.includes("email")) return "email";
-  if (tool.includes("ticket")) return "ticket";
-  return "update";
-}
-
-function formatActionLabel(action: ApiAction): string {
-  const amount = formatAmount(action.arguments?.amount);
-  if (amount) return `${action.tool}  ${amount}`;
-  return action.tool;
-}
-
 function mapPolicyRule(rule: ApiPolicy["rules"][number]): PolicyRule {
   const conditions: PolicyCondition[] = (rule.conditions ?? []).map((item) => ({
     field: item.field,
@@ -281,116 +230,34 @@ function mapTools(tools: ApiTool[], policies: ApiPolicy[]): Integration[] {
   });
 }
 
-function mapRun(
-  run: ApiRun,
-  policies: ApiPolicy[],
-  approvals: ApiApproval[]
-): AgentRun {
-  const steps: RunStep[] = run.actions.map((action) => ({
-    id: action.id,
-    label: action.tool,
-    tool: action.tool,
-    status: mapStepStatus(action.status),
-    parameters: action.arguments,
-    result: action.result ?? undefined,
-  }));
-
-  const actions: ProposedAction[] = run.actions
-    .filter(
-      (action) =>
-        action.policy_decision === "approval_required" ||
-        action.status === "waiting_approval"
-    )
-    .map((action) => ({
-      id: action.id,
-      label: formatActionLabel(action),
-      kind: actionKind(action.tool),
-      requiresApproval: true,
-    }));
-
-  const policyChecks: PolicyCheck[] = run.actions
-    .filter((action) => action.policy_decision)
-    .map((action) => ({
-      id: action.id,
-      name: action.tool,
-      status:
-        action.policy_decision === "allow"
-          ? "pass"
-          : action.policy_decision === "deny"
-            ? "fail"
-            : "approval",
-    }));
-
-  const evaluations: PolicyEvaluation[] = run.actions.map((action) => {
-    const policy =
-      policies.find((item) => item.id === action.policy_id) ??
-      policies.find((item) => item.rules.some((rule) => rule.tool === action.tool));
-    const matched = policy?.rules.find((rule) => rule.id === action.policy_rule_id);
-    const approval = approvals.find((item) => item.action_id === action.id);
-    return {
-      id: action.id,
-      tool: action.tool,
-      arguments: action.arguments,
-      status: action.status,
-      result: action.result ?? undefined,
-      decision: action.policy_decision,
-      policyId: action.policy_id,
-      policyName: policy?.name,
-      policyVersion: action.policy_version ?? policy?.version ?? null,
-      matchedRuleId: action.policy_rule_id,
-      matchedRule: matched
-        ? matched.conditions && matched.conditions.length > 0
-          ? formatMatchedRule(matched.conditions)
-          : matched.condition
-        : undefined,
-      reason: action.policy_reason,
-      approvalId: approval?.id,
-      approvalStatus: approval
-        ? ((["pending", "approved", "rejected"].includes(approval.status)
-            ? approval.status
-            : "pending") as Approval["status"])
-        : undefined,
-      resolvedBy: approval?.resolved_by ?? undefined,
-      resolvedAt: approval?.resolved_at ?? undefined,
-    };
-  });
-
-  const done =
-    run.status === "completed" ||
-    run.status === "failed" ||
-    run.status === "cancelled";
-
-  return {
-    id: run.id,
-    agentId: run.agent_id,
-    prompt: run.input,
-    status: mapRunStatus(run.status),
-    steps,
-    actions,
-    policyChecks,
-    evaluations,
-    approvalId: run.approval_id ?? undefined,
-    startedAt: run.created_at,
-    completedAt: done ? run.updated_at : undefined,
-  };
-}
-
 function mapApproval(
   approval: ApiApproval,
-  run: ApiRun | undefined,
-  policies: ApiPolicy[]
+  policies: ApiPolicy[],
+  activity: ApiActivity[]
 ): Approval {
-  const action = run?.actions.find((item) => item.id === approval.action_id);
-  const args = action?.arguments ?? {};
-  const customer = String(
-    args.name ?? args.customer ?? args.customer_id ?? ""
+  const requested = activity.find(
+    (event) => event.event === "approval_requested" && event.payload?.approval_id === approval.id
   );
+  const evaluated = requested
+    ? activity.find(
+        (event) =>
+          event.event === "policy_evaluated" &&
+          event.tool === requested.tool &&
+          event.payload?.audit_no === requested.payload?.audit_no
+      )
+    : undefined;
+  const audited = evaluated?.payload ?? {};
+  const tool = requested?.tool ?? undefined;
+  const args = (requested?.payload?.arguments as Record<string, unknown> | undefined) ?? {};
+  const customer = String(
+    args.name ?? args.customer ?? args.customer_id ?? args.customerId ?? ""
+  );
+  const policyId = audited.policy_id as string | undefined;
   const policy =
-    policies.find((item) => item.id === action?.policy_id) ??
-    policies.find((item) =>
-      item.rules.some((rule) => rule.tool === action?.tool)
-    );
-  const matched = policy?.rules.find((rule) => rule.id === action?.policy_rule_id);
+    policies.find((item) => item.id === policyId) ??
+    policies.find((item) => item.rules.some((rule) => rule.tool === tool));
+  const ruleId = audited.matched_rule_id as string | undefined;
+  const matched = policy?.rules.find((rule) => rule.id === ruleId);
   const amountValue = approval.requested_amount ?? args.amount;
   const currencyRaw = args.currency ?? args.asset;
 
@@ -398,24 +265,23 @@ function mapApproval(
     id: approval.id,
     runId: approval.run_id,
     actionId: approval.action_id,
-    agentId: run?.agent_id ?? "",
-    action: action?.tool ?? approval.action_id,
+    agentId: requested?.actor_id ?? "",
+    action: tool ?? approval.action_id,
     amount: formatAmount(amountValue),
     currency:
-      currencyRaw != null && String(currencyRaw).trim()
-        ? String(currencyRaw)
-        : undefined,
+      currencyRaw != null && String(currencyRaw).trim() ? String(currencyRaw) : undefined,
     customer,
-    reason:
-      action?.policy_reason ||
-      String(args.reason ?? run?.input ?? ""),
+    reason: String(audited.reason ?? "") || String(args.reason ?? ""),
     policy: policy?.name ?? "",
-    policyVersion: action?.policy_version ?? policy?.version,
+    policyVersion: (audited.policy_version as number | undefined) ?? policy?.version,
     triggeredRule: matched
       ? matched.conditions && matched.conditions.length > 0
         ? formatMatchedRule(matched.conditions)
-        : matched.condition
+        : matched.condition && matched.condition !== "true"
+          ? matched.condition
+          : undefined
       : undefined,
+    arguments: args,
     risk: approvalRisk(amountValue),
     status: (["pending", "approved", "rejected"].includes(approval.status)
       ? approval.status
@@ -539,27 +405,17 @@ function mapAgent(
   agent: ApiAgent,
   tools: ApiTool[],
   policies: ApiPolicy[],
-  runs: ApiRun[],
   wallets: ApiWallet[]
 ): Agent {
-  const live = runs.some(
-    (run) =>
-      run.agent_id === agent.id &&
-      (run.status === "queued" ||
-        run.status === "running" ||
-        run.status === "waiting_approval")
-  );
-
   const assigned = Array.isArray(agent.settings?.tools)
     ? new Set(agent.settings.tools)
     : null;
-
   return {
     id: agent.id,
     name: agent.name,
     title: "Agent",
     description: agent.description,
-    running: live,
+    running: false,
     connected: Boolean(agent.connected),
     enrolled: Boolean(agent.enrolled),
     runtimeId: agent.runtime_id ?? null,
@@ -638,7 +494,6 @@ export function mapConsole(input: {
   agents: ApiAgent[];
   tools: ApiTool[];
   policies: ApiPolicy[];
-  runs: ApiRun[];
   approvals: ApiApproval[];
   activity: ApiActivity[];
   wallets: ApiWallet[];
@@ -649,7 +504,6 @@ export function mapConsole(input: {
   toolSets?: ApiToolSet[];
   appMcp?: ApiAppMcp | null;
 }): ConsoleData {
-  const runsById = new Map(input.runs.map((run) => [run.id, run]));
   const kind = input.x402?.kinds?.[0];
   const x402: X402Support | null = kind
     ? { scheme: kind.scheme, network: kind.network }
@@ -657,16 +511,16 @@ export function mapConsole(input: {
 
   return {
     agents: input.agents.map((agent) =>
-      mapAgent(agent, input.tools, input.policies, input.runs, input.wallets)
+      mapAgent(agent, input.tools, input.policies, input.wallets)
     ),
     integrations: mapTools(input.tools, input.policies),
     mcpServers: mapMcpServers(input.mcpServers ?? []),
     appMcp: mapAppMcp(input.appMcp),
     toolSets: mapToolSets(input.toolSets ?? []),
     policies: input.policies.map((policy) => mapPolicy(policy, input.agents)),
-    runs: input.runs.map((run) => mapRun(run, input.policies, input.approvals)),
+    runs: [],
     approvals: input.approvals.map((approval) =>
-      mapApproval(approval, runsById.get(approval.run_id), input.policies)
+      mapApproval(approval, input.policies, input.activity)
     ),
     events: input.activity
       .map((event) => mapActivity(event, input.agents))

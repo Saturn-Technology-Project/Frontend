@@ -20,6 +20,7 @@ export function NavIcon({ name, className = "size-4 shrink-0" }: { name: string;
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
     user: <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 19.5a7 7 0 0 1 14 0" />,
+    logout: <path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2M15 12H3m0 0 3-3M3 12l3 3" />,
     globe: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.4 2.7 3.6 5.7 3.6 9s-1.2 6.3-3.6 9c-2.4-2.7-3.6-5.7-3.6-9s1.2-6.3 3.6-9z" />,
   };
   return (

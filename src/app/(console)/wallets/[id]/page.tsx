@@ -132,7 +132,7 @@ export default function WalletDetailPage() {
                     {payment.runId && agent ? (
                       <div className="col-span-3 -mt-1 pb-1">
                         <Link
-                          href={`/agents/${agent.id}/runs/${payment.runId}`}
+                          href={`/activity?event=${payment.runId}`}
                           className="text-[12px] text-muted-foreground hover:text-foreground"
                         >
                           {t("activity.openRun")} · {relativeTime(payment.createdAt, locale)}

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { QueryGate } from "@/components/layout/query-gate";
 import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole } from "@/hooks/use-console";
+import { useEntitlements } from "@/hooks/use-entitlements";
 import { canAccess } from "@/lib/access";
 import { relativeTime } from "@/lib/format";
 import { useAuthStore } from "@/lib/auth";
@@ -14,6 +16,7 @@ export default function PoliciesPage() {
   const { t, locale } = useI18n();
   const { data, isPending, isError } = useConsole();
   const policies = data?.policies ?? [];
+  const { policies: policyAccess } = useEntitlements();
   const canWrite = canAccess(
     useAuthStore((state) => state.user?.permissions),
     "policies",
@@ -30,7 +33,7 @@ export default function PoliciesPage() {
               {t("policies.subtitle")}
             </p>
           </div>
-          {canWrite ? (
+          {canWrite && policyAccess ? (
             <Link
               href="/policies/new"
               className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90 sm:w-auto"
@@ -40,7 +43,11 @@ export default function PoliciesPage() {
           ) : null}
         </div>
 
-        {policies.length === 0 ? (
+        {!policyAccess ? (
+          <div className="mt-8 max-w-[680px]">
+            <UpgradePrompt />
+          </div>
+        ) : policies.length === 0 ? (
           <p className="mt-10 text-[13px] text-muted-foreground">{t("policies.empty")}</p>
         ) : (
           <ul className="mt-8 max-w-[680px] space-y-3">

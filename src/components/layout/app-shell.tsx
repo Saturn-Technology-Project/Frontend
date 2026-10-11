@@ -4,7 +4,7 @@
 
 import type { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
-import { MobileNavProvider, MobileTabBar, useMobileNav } from "@/components/layout/mobile-nav";
+import { MobileNavProvider, useMobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { UpgradeCover } from "@/components/layout/upgrade-cover";
 import { useOrg } from "@/hooks/use-team";
@@ -30,12 +30,11 @@ function Shell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
         <Header />
-        <main className={cn("min-h-0 flex-1 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0", open && "max-md:overflow-hidden")}>
+        <main className={cn("min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)] md:pb-0", open && "max-md:overflow-hidden")}>
           {children}
         </main>
       </div>
       {free ? <UpgradeCover /> : null}
-      <MobileTabBar />
     </div>
   );
 }

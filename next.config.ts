@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      { source: "/runs", destination: "/activity", permanent: false },
+      { source: "/agents/:id/runs/:runId", destination: "/activity?event=:runId", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

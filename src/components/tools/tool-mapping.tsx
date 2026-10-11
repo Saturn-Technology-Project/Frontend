@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown } from "lucide-react";
+import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { consoleQueryKey } from "@/hooks/use-console";
@@ -102,10 +103,14 @@ export function ToolSetEditor({
   servers,
   toolSets,
   agents,
+  toolSetLimit = 1,
+  canWrite,
 }: {
   servers: McpServer[];
   toolSets: ToolSet[];
   agents: Agent[];
+  toolSetLimit?: number | null;
+  canWrite: boolean;
 }) {
   const { t } = useI18n();
   const client = useQueryClient();
@@ -202,7 +207,7 @@ export function ToolSetEditor({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!name.trim() || pickedCount === 0) return;
+          if (!canWrite || !name.trim() || pickedCount === 0) return;
           save.mutate();
         }}
       >
@@ -220,7 +225,7 @@ export function ToolSetEditor({
             </h1>
             <label className="mt-4 block max-w-md text-[12px] text-muted-foreground">
               {t("tools.setName")}
-              <input value={name} onChange={(event) => setName(event.target.value)} className={cn(fieldClass, "mt-1.5")} />
+              <input value={name} disabled={!canWrite} onChange={(event) => setName(event.target.value)} className={cn(fieldClass, "mt-1.5")} />
             </label>
             <p className="mt-3 max-w-xl text-[13px] text-muted-foreground">{t("tools.setBoundary")}</p>
           </div>
@@ -271,14 +276,16 @@ export function ToolSetEditor({
                             </span>
                           </span>
                         </button>
-                        <div className="flex gap-1">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, true)}>
-                            {t("tools.selectShown")}
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, false)}>
-                            {t("tools.clearShown")}
-                          </Button>
-                        </div>
+                        {canWrite ? (
+                          <div className="flex gap-1">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, true)}>
+                              {t("tools.selectShown")}
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, false)}>
+                              {t("tools.clearShown")}
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                       {open ? (
                         <ul>
@@ -291,8 +298,9 @@ export function ToolSetEditor({
                               approval={Boolean(picked[tool.id])}
                               allowLabel={t("tools.allow")}
                               approvalLabel={t("tools.requireApproval")}
-                              onToggle={() => setPicked((current) => togglePicked(current, tool.id))}
-                              onApproval={(approval) => setPicked((current) => ({ ...current, [tool.id]: approval }))}
+                              disabled={!canWrite}
+                              onToggle={() => canWrite && setPicked((current) => togglePicked(current, tool.id))}
+                              onApproval={(approval) => canWrite && setPicked((current) => ({ ...current, [tool.id]: approval }))}
                             />
                           ))}
                         </ul>
@@ -313,8 +321,9 @@ export function ToolSetEditor({
                           approval={Boolean(picked[id])}
                           allowLabel={t("tools.allow")}
                           approvalLabel={t("tools.requireApproval")}
-                          onToggle={() => setPicked((current) => togglePicked(current, id))}
-                          onApproval={(approval) => setPicked((current) => ({ ...current, [id]: approval }))}
+                          disabled={!canWrite}
+                          onToggle={() => canWrite && setPicked((current) => togglePicked(current, id))}
+                          onApproval={(approval) => canWrite && setPicked((current) => ({ ...current, [id]: approval }))}
                         />
                       ))}
                     </ul>
@@ -325,16 +334,18 @@ export function ToolSetEditor({
           </div>
         </div>
 
-        <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-6 flex flex-col gap-3 border-t border-border bg-background/95 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between md:bottom-0">
+        <div className="sticky bottom-0 z-10 mt-6 flex flex-col gap-3 border-t border-border bg-background/95 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[13px] text-muted-foreground">{t("tools.selectedCount", { n: pickedCount })}</p>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
-              {t("agents.cancel")}
-            </Button>
-            <Button type="submit" disabled={save.isPending || !name.trim() || pickedCount === 0}>
-              {t("tools.saveSet")}
-            </Button>
-          </div>
+          {canWrite ? (
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => setEditing(null)}>
+                {t("agents.cancel")}
+              </Button>
+              <Button type="submit" disabled={save.isPending || !name.trim() || pickedCount === 0}>
+                {t("tools.saveSet")}
+              </Button>
+            </div>
+          ) : null}
         </div>
         {save.isError ? <p className="pb-3 text-[13px] text-destructive">{save.error.message}</p> : null}
         {remove.isError ? <p className="pb-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
@@ -349,9 +360,15 @@ export function ToolSetEditor({
           <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.mapping")}</h1>
           <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("tools.setsNote")}</p>
         </div>
-        <Button className="w-full sm:w-auto" onClick={() => load(null)} disabled={catalog.length === 0}>
-          {t("tools.newSet")}
-        </Button>
+        {!canWrite ? null : toolSetLimit != null && toolSets.length >= toolSetLimit ? (
+          <div className="w-full max-w-md sm:w-auto">
+            <UpgradePrompt title={t("plan.oneSet")} />
+          </div>
+        ) : (
+          <Button className="w-full sm:w-auto" onClick={() => load(null)} disabled={catalog.length === 0}>
+            {t("tools.newSet")}
+          </Button>
+        )}
       </div>
       {catalog.length === 0 ? <p className="mt-3 text-[12px] text-muted-foreground">{t("tools.noCatalog")}</p> : null}
       {toolSets.length === 0 ? (
@@ -377,9 +394,9 @@ export function ToolSetEditor({
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={() => load(set)}>
-                      {t("policies.edit")}
+                      {canWrite ? t("tools.edit") : t("tools.view")}
                     </Button>
-                    {confirming === set.id ? (
+                    {canWrite && confirming === set.id ? (
                       <>
                         <Button variant="ghost" size="sm" onClick={() => setConfirming(null)}>
                           {t("agents.cancel")}
@@ -388,11 +405,11 @@ export function ToolSetEditor({
                           {t("tools.confirmSet")}
                         </Button>
                       </>
-                    ) : (
+                    ) : canWrite ? (
                       <Button variant="ghost" size="sm" onClick={() => setConfirming(set.id)}>
                         {t("tools.remove")}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
                 {preview.length > 0 ? (
@@ -454,6 +471,7 @@ function ToolRow({
   approval,
   allowLabel,
   approvalLabel,
+  disabled = false,
   onToggle,
   onApproval,
 }: {
@@ -462,6 +480,7 @@ function ToolRow({
   approval: boolean;
   allowLabel: string;
   approvalLabel: string;
+  disabled?: boolean;
   onToggle: () => void;
   onApproval: (approval: boolean) => void;
 }) {
@@ -471,8 +490,9 @@ function ToolRow({
         type="button"
         role="checkbox"
         aria-checked={on}
+        disabled={disabled}
         onClick={onToggle}
-        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        className="flex min-w-0 flex-1 items-start gap-3 text-left disabled:cursor-default"
       >
         <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-foreground bg-foreground text-background" : "border-border bg-background")}>
           {on ? <Check className="size-3" /> : null}
@@ -484,10 +504,10 @@ function ToolRow({
       </button>
       {on ? (
         <span className="inline-flex gap-1 pl-7 sm:pl-0">
-          <Choice on={!approval} onClick={() => onApproval(false)}>
+          <Choice on={!approval} disabled={disabled} onClick={() => onApproval(false)}>
             {allowLabel}
           </Choice>
-          <Choice on={approval} onClick={() => onApproval(true)}>
+          <Choice on={approval} disabled={disabled} onClick={() => onApproval(true)}>
             {approvalLabel}
           </Choice>
         </span>
@@ -496,14 +516,15 @@ function ToolRow({
   );
 }
 
-function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; children: string }) {
+function Choice({ on, disabled = false, onClick, children }: { on: boolean; disabled?: boolean; onClick: () => void; children: string }) {
   return (
     <button
       type="button"
       aria-pressed={on}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        "h-7 rounded-full border px-2.5 text-[12px]",
+        "h-7 rounded-full border px-2.5 text-[12px] disabled:cursor-default",
         on ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
       )}
     >

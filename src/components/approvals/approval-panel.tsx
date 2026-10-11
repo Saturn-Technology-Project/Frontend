@@ -64,6 +64,21 @@ export function ApprovalPanel({
         <div className="divide-y divide-border px-6">
           <Field label={t("approvals.agent")} value={agentName} />
           <Field label={t("approvals.action")} value={approval.action} />
+          {approval.arguments && Object.keys(approval.arguments).length > 0 ? (
+            <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[112px_1fr] sm:gap-4">
+              <SectionLabel className="pt-0.5">{t("approvals.arguments")}</SectionLabel>
+              <dl className="min-w-0 space-y-1 font-mono text-[12px] leading-5">
+                {Object.entries(approval.arguments).map(([key, value]) => (
+                  <div key={key} className="flex gap-2">
+                    <dt className="shrink-0 text-muted-foreground">{key}</dt>
+                    <dd className="min-w-0 whitespace-pre-wrap break-words">
+                      {typeof value === "string" ? value : JSON.stringify(value)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ) : null}
           {approval.customer ? (
             <Field label={t("approvals.customer")} value={approval.customer} />
           ) : null}

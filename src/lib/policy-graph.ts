@@ -142,35 +142,48 @@ export function formRules(nodes: FlowNode[], edges: Edge[]): FormRule[] {
   }
   return nodes
     .filter((node) => node.data.kind === "tool")
-    .map((tool) => {
-      const conditions: FormCondition[] = [];
-      let decisionId: string | null = null;
-      let decision: FormRule["decision"] = "deny";
-      const seen = new Set<string>([tool.id]);
-      const walk = (id: string) => {
+    .flatMap((tool) => {
+      const rules: FormRule[] = [];
+      const reached = new Set<string>();
+      const walk = (id: string, path: Set<string>, conditions: FormCondition[]) => {
         for (const next of outgoing.get(id) ?? []) {
-          if (seen.has(next)) continue;
-          seen.add(next);
+          if (path.has(next)) continue;
           const node = byId.get(next);
           if (!node) continue;
-          if (node.data.kind === "condition") {
-            conditions.push({
-              id: node.id,
-              field: String(node.data.field ?? ""),
-              operator: String(node.data.operator ?? "eq"),
-              value: node.data.value ?? "",
-            });
-          }
-          if (node.data.kind === "decision" && !decisionId) {
-            decisionId = node.id;
+          if (node.data.kind === "decision") {
+            if (reached.has(node.id)) continue;
+            reached.add(node.id);
             const raw = node.data.decision;
-            decision = raw === "allow" || raw === "approval" || raw === "deny" ? raw : "deny";
+            rules.push({
+              toolId: tool.id,
+              tool: tool.data.tool || "",
+              decisionId: node.id,
+              decision: raw === "allow" || raw === "approval" || raw === "deny" ? raw : "deny",
+              conditions,
+            });
+            continue;
           }
-          if (node.data.kind !== "decision" && node.data.kind !== "enforcement") walk(next);
+          if (node.data.kind === "enforcement") continue;
+          const own =
+            node.data.kind === "condition"
+              ? [
+                  ...conditions,
+                  {
+                    id: node.id,
+                    field: String(node.data.field ?? ""),
+                    operator: String(node.data.operator ?? "eq"),
+                    value: node.data.value ?? "",
+                  },
+                ]
+              : conditions;
+          walk(next, new Set([...path, next]), own);
         }
       };
-      walk(tool.id);
-      return { toolId: tool.id, tool: tool.data.tool || "", decisionId, decision, conditions };
+      walk(tool.id, new Set([tool.id]), []);
+      if (rules.length === 0) {
+        rules.push({ toolId: tool.id, tool: tool.data.tool || "", decisionId: null, decision: "deny", conditions: [] });
+      }
+      return rules;
     });
 }
 

@@ -20,21 +20,8 @@ import {
   type PolicyWrite,
 } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import type { ConsoleData } from "@/types";
 
 export const consoleQueryKey = ["console"] as const;
-
-function hasInFlightRun(data: ConsoleData | undefined) {
-  return Boolean(
-    data?.runs.some(
-      (run) =>
-        run.status === "queued" ||
-        run.status === "running" ||
-        run.status === "awaiting_execution" ||
-        run.status === "executing"
-    )
-  );
-}
 
 export function useConsole() {
   const signedIn = useAuthStore((state) => Boolean(state.user));
@@ -43,8 +30,7 @@ export function useConsole() {
     queryFn: fetchConsole,
     enabled: signedIn,
     staleTime: 0,
-    refetchInterval: (query) =>
-      hasInFlightRun(query.state.data) ? 2_000 : 10_000,
+    refetchInterval: 10_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });

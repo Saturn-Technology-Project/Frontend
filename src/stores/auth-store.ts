@@ -7,6 +7,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  photo?: string | null;
   status: string;
   employeeTitle?: string;
   role?: string;
@@ -26,6 +27,14 @@ export interface AuthOrg {
   name: string;
   plan?: string;
   kind?: "personal" | "organization" | string;
+  photo?: string | null;
+  entitlements?: {
+    gateway: boolean;
+    tool_set_limit: number | null;
+    policies: boolean;
+    audit: string;
+    audit_days: number;
+  };
 }
 
 export interface AuthSession {

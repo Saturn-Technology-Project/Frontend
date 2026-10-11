@@ -1,101 +1,201 @@
 "use client";
 
 import Link from "next/link";
+import { useState, type ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Avatar, PhotoField } from "@/components/account/photo-field";
 import { QueryGate } from "@/components/layout/query-gate";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StatusLabel } from "@/components/ui/status-dot";
-import { useConsole } from "@/hooks/use-console";
-import { useOrg, useOrgMembers } from "@/hooks/use-team";
+import { orgQueryKey, useOrg, useOrgMembers, usePayInvoice, useSubscription } from "@/hooks/use-team";
 import { canAccess } from "@/lib/access";
+import { updateOrgPhoto, type SubscriptionInvoice } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
+function money(amount: string, currency: string, locale: "en" | "zh") {
+  const value = Number(amount);
+  return new Intl.NumberFormat(locale === "zh" ? "zh-TW" : "en-US", {
+    style: "currency",
+    currency: currency || "USD",
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatDay(iso: string, locale: "en" | "zh") {
+  return new Date(iso).toLocaleDateString(locale === "zh" ? "zh-TW" : "en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function SettingsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const sessionUser = useAuthStore((state) => state.user);
   const sessionOrg = useAuthStore((state) => state.org);
   const workspace = useOrg();
   const members = useOrgMembers();
-  const { data, isPending, isError } = useConsole();
+  const subscription = useSubscription();
+  const pay = usePayInvoice();
+  const [invoice, setInvoice] = useState<SubscriptionInvoice | null>(null);
   const organization = workspace.data?.organization;
   const kind = organization?.kind ?? sessionOrg?.kind;
   const plan = organization?.plan ?? sessionOrg?.plan;
   const personal = kind === "personal" || (kind == null && (plan === "free" || plan === "pro" || plan === "trial" || plan === "starter"));
   const canTeam = canAccess(sessionUser?.permissions, "team", "read") && !personal;
+  const canEditPhoto = canAccess(sessionUser?.permissions, "team", "write");
+  const client = useQueryClient();
+  const photo = useMutation({
+    mutationFn: updateOrgPhoto,
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: orgQueryKey });
+    },
+  });
   const name = organization?.name ?? sessionOrg?.name ?? "—";
-  const agents = data?.agents ?? [];
-  const servers = data?.mcpServers ?? [];
-  const addons = organization?.addons ?? [];
-  const apiOk = Boolean(data && !isError && data.services.every((service) => service.status === "operational"));
-  const planLabel = plan ? plan.slice(0, 1).toUpperCase() + plan.slice(1) : "—";
+  const photoUrl = organization?.photo ?? sessionOrg?.photo;
+  const billing = subscription.data;
+
+  async function confirmPay() {
+    if (!invoice) return;
+    try {
+      await pay.mutateAsync(invoice.id);
+      setInvoice(null);
+    } catch {
+      return;
+    }
+  }
 
   return (
-    <QueryGate isPending={isPending && !data && !sessionOrg} isError={false}>
-      <div className="px-4 py-5 md:px-8 md:py-6">
-        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("nav.organization")}</h1>
-        <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("settings.lead")}</p>
-
-        <section className="mt-6 rounded-xl border border-border bg-card p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="truncate text-[20px] font-semibold tracking-tight">{name}</div>
-              <div className="mt-1 text-[13px] text-muted-foreground">
-                {personal ? t("nav.personalLabel") : t("nav.team")} · {planLabel}
-              </div>
-            </div>
-            <Link href="/subscription" className="text-[13px] text-muted-foreground hover:text-foreground">
-              {t("nav.subscription")}
-            </Link>
-          </div>
-        </section>
-
-        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {canTeam ? (
-            <Stat href="/team" label={t("team.members")} value={members.data?.length} />
-          ) : null}
-          <Stat href="/agents" label={t("settings.agents")} value={data ? agents.length : undefined} />
-          <Stat href="/tools/connections" label={t("settings.mcpServers")} value={data ? servers.length : undefined} />
+    <QueryGate isPending={workspace.isPending && !sessionOrg} isError={false}>
+      <div className="px-4 py-6 md:px-10 md:py-8">
+        <div className="flex items-center gap-3">
+          <Avatar photo={photoUrl} name={name} shape="rounded" className="size-10 text-[16px]" />
+          <h1 className="truncate text-[26px] font-semibold tracking-tight">{name}</h1>
         </div>
 
-        <section className="mt-3 rounded-xl border border-border bg-card p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-[15px] font-medium">{t("settings.api")}</h2>
-              <p className="mt-1 max-w-md text-[13px] text-muted-foreground">{t("settings.apiBody")}</p>
-            </div>
-            <StatusLabel tone={apiOk ? "operational" : "down"}>
-              {apiOk ? t("settings.connected") : t("settings.disconnected")}
-            </StatusLabel>
-          </div>
-        </section>
+        <div className="mt-8 border-t border-border">
+          <SettingRow label={t("settings.logo")} hint={t("settings.logoHint")}>
+            <PhotoField
+              appearance="inline"
+              photo={photoUrl}
+              name={name}
+              canEdit={canEditPhoto}
+              pending={photo.isPending}
+              onChange={(next) => photo.mutate(next)}
+            />
+            {photo.isError ? <p className="mt-2 text-[13px] text-destructive">{photo.error.message}</p> : null}
+          </SettingRow>
+          <SettingRow label={t("settings.name")}>{name}</SettingRow>
+          {canTeam ? (
+            <SettingRow label={t("team.members")}>
+              <CountLink href="/team" value={members.data?.length} />
+            </SettingRow>
+          ) : null}
 
-        {addons.length > 0 ? (
-          <section className="mt-3 rounded-xl border border-border bg-card p-5">
-            <h2 className="text-[15px] font-medium">{t("subscription.addons")}</h2>
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {addons.map((addon) => (
-                <li key={addon.id}>
-                  {addon.href ? (
-                    <a href={addon.href} className="inline-flex rounded-full bg-muted px-3 py-1 text-[12px] hover:text-foreground">
-                      {addon.name}
-                    </a>
-                  ) : (
-                    <span className="inline-flex rounded-full bg-muted px-3 py-1 text-[12px]">{addon.name}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+          <SettingRow label={t("subscription.plan")}>
+            {billing ? (
+              <div className="flex items-baseline justify-between gap-4">
+                <span>{billing.plan.name}</span>
+                <Link href="/subscription" className="text-[13px] text-muted-foreground hover:text-foreground hover:underline">
+                  {t("subscription.managePlan")}
+                </Link>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">{subscription.isError ? t("common.apiError") : "—"}</span>
+            )}
+          </SettingRow>
+          <SettingRow label={t("subscription.renews")}>
+            {billing ? formatDay(billing.renews_on, locale) : "—"}
+          </SettingRow>
+          <SettingRow label={t("subscription.payment")}>
+            {billing?.payment.last4 && !billing.payment.demo ? (
+              <span>
+                {billing.payment.brand.toUpperCase()} ···· {billing.payment.last4}
+                {billing.payment.exp ? <span className="ml-3 text-muted-foreground">{billing.payment.exp}</span> : null}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{t("subscription.noPayment")}</span>
+            )}
+          </SettingRow>
+          <SettingRow label={t("subscription.invoices")}>
+            {!billing || billing.invoices.length === 0 ? (
+              <span className="text-muted-foreground">{t("subscription.emptyInvoices")}</span>
+            ) : (
+              <ul className="divide-y divide-border border-y border-border">
+                {billing.invoices.map((item) => (
+                  <li key={item.id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-[12px]">{item.number}</div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">{item.period}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="font-mono text-[12px]">{money(item.amount, item.currency, locale)}</span>
+                      <StatusLabel tone={item.status === "paid" ? "completed" : "pending"}>
+                        {item.status === "paid" ? t("subscription.paid") : t("subscription.open")}
+                      </StatusLabel>
+                      {item.status === "open" && billing.payment.last4 && !billing.payment.demo ? (
+                        <Button size="sm" variant="outline" onClick={() => setInvoice(item)}>
+                          {t("subscription.pay")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SettingRow>
+        </div>
       </div>
+
+      <Dialog open={Boolean(invoice)} onOpenChange={(open) => !open && setInvoice(null)}>
+        <DialogContent
+          showCloseButton={false}
+          className="w-[min(420px,calc(100%-2rem))] max-w-none gap-0 rounded-md p-0 ring-border sm:max-w-none"
+        >
+          <div className="border-b border-border px-6 py-5">
+            <DialogTitle className="text-[15px] font-medium tracking-tight">{t("subscription.payTitle")}</DialogTitle>
+            <DialogDescription className="mt-2 text-[13px] leading-6 text-muted-foreground">
+              {t("subscription.payBody")}
+            </DialogDescription>
+            {invoice ? (
+              <div className="mt-4 flex items-baseline justify-between text-[13px]">
+                <span className="font-mono text-[12px]">{invoice.number}</span>
+                <span>{money(invoice.amount, invoice.currency, locale)}</span>
+              </div>
+            ) : null}
+            {pay.isError ? <p className="mt-3 text-[13px] text-destructive">{t("common.requestFailed")}</p> : null}
+          </div>
+          <div className="flex items-center justify-end gap-2 px-6 py-4">
+            <Button variant="outline" onClick={() => setInvoice(null)}>
+              {t("agents.cancel")}
+            </Button>
+            <Button disabled={pay.isPending} onClick={() => void confirmPay()}>
+              {pay.isPending ? t("subscription.paying") : t("subscription.payCta")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </QueryGate>
   );
 }
 
-function Stat({ href, label, value }: { href: string; label: string; value: number | undefined }) {
+function SettingRow({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <Link href={href} className="rounded-xl border border-border bg-card px-4 py-4 hover:border-foreground/20">
-      <div className="text-[28px] font-semibold tracking-tight">{value == null ? "—" : value.toLocaleString()}</div>
-      <div className="mt-1 text-[12px] text-muted-foreground">{label}</div>
+    <div className="grid gap-2 border-b border-border py-5 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-8">
+      <div>
+        <div className="text-[13px] text-muted-foreground">{label}</div>
+        {hint ? <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{hint}</p> : null}
+      </div>
+      <div className="min-w-0 text-[14px]">{children}</div>
+    </div>
+  );
+}
+
+function CountLink({ href, value }: { href: string; value: number | undefined }) {
+  return (
+    <Link href={href} className="hover:underline">
+      {value == null ? "—" : value.toLocaleString()}
     </Link>
   );
 }
