@@ -56,32 +56,6 @@ export default function ToolDetailPage() {
             </section>
           ) : null}
 
-          {integration.x402 ? (
-            <section className="mt-10">
-              <SectionLabel>{t("tools.x402")}</SectionLabel>
-              <ul className="mt-3 divide-y divide-border border-y border-border text-[13px]">
-                <li className="flex items-center justify-between gap-4 py-3">
-                  <span>{t("tools.paid")}</span>
-                  <span className="font-mono">
-                    {integration.x402.price} {integration.x402.asset}
-                  </span>
-                </li>
-                <li className="flex items-center justify-between gap-4 py-3">
-                  <span>{t("wallets.network")}</span>
-                  <span className="font-mono">{integration.x402.network}</span>
-                </li>
-                {integration.x402.payTo ? (
-                  <li className="flex items-center justify-between gap-4 py-3">
-                    <span>{t("wallets.payTo")}</span>
-                    <span className="break-all font-mono text-[12px] text-muted-foreground">
-                      {integration.x402.payTo}
-                    </span>
-                  </li>
-                ) : null}
-              </ul>
-            </section>
-          ) : null}
-
           <section className="mt-10">
             <SectionLabel>{t("tools.list")}</SectionLabel>
             <ul className="mt-3 divide-y divide-border border-y border-border font-mono text-[13px]">

@@ -12,8 +12,6 @@ export type ToolConnection = "connected" | "degraded" | "disconnected";
 export type ToolPermission = "allow" | "approval" | "denied";
 export type ActorKind = "agent" | "human" | "saturn" | "tool" | "wallet";
 export type ServiceStatus = "operational" | "degraded" | "down";
-export type WalletStatus = "active" | "paused";
-export type PaymentStatus = "pending" | "verified" | "settled" | "denied" | "failed";
 
 export type AgentResponseStyle = "concise" | "professional" | "detailed";
 export type AgentAutonomy =
@@ -66,21 +64,12 @@ export interface Agent {
   registeredUserName: string | null;
   registeredUserEmail: string | null;
   policyIds: string[];
-  walletId?: string;
   settings: AgentSettings;
 }
 
 export interface ToolFunction {
   name: string;
   permission: ToolPermission;
-}
-
-export interface X402Price {
-  price: string;
-  network: string;
-  asset: string;
-  payTo?: string;
-  scheme?: string;
 }
 
 export interface Integration {
@@ -91,7 +80,6 @@ export interface Integration {
   toolCount: number;
   status: ToolConnection;
   functions: ToolFunction[];
-  x402?: X402Price;
 }
 
 export interface McpTool {
@@ -126,41 +114,6 @@ export interface ToolSet {
   name: string;
   description: string;
   items: ToolSetItem[];
-}
-
-export interface AgentWallet {
-  id: string;
-  agentId: string;
-  address: string;
-  network: string;
-  asset: string;
-  balance: string;
-  dailySpendLimit: string;
-  perTxLimit: string;
-  spentToday: string;
-  status: WalletStatus;
-  updatedAt: string;
-}
-
-export interface Payment {
-  id: string;
-  walletId: string;
-  runId?: string;
-  actionId?: string;
-  tool?: string;
-  amount: string;
-  asset: string;
-  network: string;
-  payTo: string;
-  status: PaymentStatus;
-  txHash?: string;
-  createdAt: string;
-  settledAt?: string;
-}
-
-export interface X402Support {
-  scheme: string;
-  network: string;
 }
 
 export type PolicyAction = "allow" | "approval_required" | "deny";
@@ -368,7 +321,4 @@ export interface ConsoleData {
   approvals: Approval[];
   events: ActivityEvent[];
   services: SystemService[];
-  wallets: AgentWallet[];
-  payments: Payment[];
-  x402: X402Support | null;
 }

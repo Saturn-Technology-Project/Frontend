@@ -48,7 +48,6 @@ export interface ApiTool {
   type: string;
   mcp_endpoint: string;
   permissions: unknown[];
-  x402?: Record<string, unknown> | null;
   status: string;
 }
 
@@ -109,44 +108,6 @@ export interface ApiActivity {
   result: string | null;
   payload: Record<string, unknown> | null;
   created_at: string;
-}
-
-export interface ApiWallet {
-  id: string;
-  agent_id: string;
-  address: string;
-  network: string;
-  asset: string;
-  balance: string | number;
-  daily_spend_limit: string | number;
-  per_tx_limit: string | number;
-  spent_today: string | number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ApiPayment {
-  id: string;
-  wallet_id: string;
-  run_id: string | null;
-  action_id: string | null;
-  tool: string | null;
-  amount: string | number;
-  asset: string;
-  network: string;
-  pay_to: string;
-  status: string;
-  tx_hash: string | null;
-  requirements: Record<string, unknown> | null;
-  payload: Record<string, unknown> | null;
-  facilitator: Record<string, unknown> | null;
-  created_at: string;
-  settled_at: string | null;
-}
-
-export interface ApiX402Supported {
-  kinds: { scheme: string; network: string }[];
 }
 
 export interface ApiHealth {
@@ -663,16 +624,13 @@ async function fetchAppMcp(): Promise<ApiAppMcp> {
 }
 
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, approvals, activity, wallets, payments, x402, health, mcpServers, toolSets, appMcp] =
+  const [agents, tools, policies, approvals, activity, health, mcpServers, toolSets, appMcp] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
       get<ApiPolicy[]>("/policies"),
       get<ApiApproval[]>("/approvals"),
       get<ApiActivity[]>("/activity"),
-      get<ApiWallet[]>("/wallets"),
-      get<ApiPayment[]>("/payments"),
-      get<ApiX402Supported>("/x402/supported"),
       get<ApiHealth>("/health"),
       get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
       get<ApiToolSet[]>("/tool-sets").catch(() => []),
@@ -685,9 +643,6 @@ export async function fetchConsole(): Promise<ConsoleData> {
     policies,
     approvals,
     activity,
-    wallets,
-    payments,
-    x402,
     health,
     mcpServers: mcpServers ?? [],
     toolSets: toolSets ?? [],
@@ -745,8 +700,6 @@ export interface AgentUpdateBody {
   runtime_id?: string | null;
   tool_set_id?: string | null;
   settings?: Partial<ApiAgentSettings>;
-  daily_spend_limit?: string | number;
-  per_tx_limit?: string | number;
 }
 
 export async function updateAgent(

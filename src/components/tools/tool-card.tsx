@@ -22,11 +22,7 @@ export function ToolCard({ integration }: { integration: Integration }) {
       <div className="mt-3 text-[12px] text-muted-foreground">
         {integration.description || t("tools.count", { n: integration.toolCount })}
       </div>
-      <div className="mt-1 text-[12px] text-muted-foreground">
-        {integration.x402
-          ? `x402 · ${integration.x402.price} ${integration.x402.asset}`
-          : t("tools.connected")}
-      </div>
+      <div className="mt-1 text-[12px] text-muted-foreground">{t("tools.connected")}</div>
     </Link>
   );
 }

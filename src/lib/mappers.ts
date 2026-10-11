@@ -6,14 +6,10 @@ import type {
   ApiHealth,
   ApiAppMcp,
   ApiMcpServer,
-  ApiPayment,
   ApiPolicy,
   ApiTool,
   ApiToolSet,
-  ApiWallet,
-  ApiX402Supported,
 } from "@/lib/api";
-import { parseAmount } from "@/lib/format";
 import { normalizeSettings } from "@/lib/agent-config";
 import {
   approvalRisk,
@@ -25,22 +21,17 @@ import type {
   ActorKind,
   Agent,
   AppMcp,
-  AgentWallet,
   Approval,
   ConsoleData,
   Integration,
   McpServer,
-  Payment,
   ToolSet,
-  PaymentStatus,
   Policy,
   PolicyNodeKind,
   PolicyCondition,
   PolicyRule,
   SystemService,
   ToolPermission,
-  X402Price,
-  X402Support,
 } from "@/types";
 
 const EVENT_META: Record<string, { title: string; titleKey: string }> = {
@@ -69,62 +60,6 @@ const EVENT_META: Record<string, { title: string; titleKey: string }> = {
   x402_failed: { title: "x402 failed", titleKey: "event.x402Failed" },
   prompt_updated: { title: "Updated prompt", titleKey: "event.promptUpdated" },
 };
-
-function money(value: unknown): string {
-  return parseAmount(value).toFixed(2);
-}
-
-function mapX402(config: Record<string, unknown> | null | undefined): X402Price | undefined {
-  if (!config) return undefined;
-  const price = config.price;
-  if (price == null || price === "") return undefined;
-  return {
-    price: String(price),
-    network: config.network != null ? String(config.network) : "",
-    asset: config.asset != null ? String(config.asset) : "",
-    payTo: config.pay_to ? String(config.pay_to) : undefined,
-    scheme: config.scheme ? String(config.scheme) : undefined,
-  };
-}
-
-function mapWallet(wallet: ApiWallet): AgentWallet {
-  return {
-    id: wallet.id,
-    agentId: wallet.agent_id,
-    address: wallet.address,
-    network: wallet.network,
-    asset: wallet.asset,
-    balance: money(wallet.balance),
-    dailySpendLimit: money(wallet.daily_spend_limit),
-    perTxLimit: money(wallet.per_tx_limit),
-    spentToday: money(wallet.spent_today),
-    status: wallet.status === "paused" ? "paused" : "active",
-    updatedAt: wallet.updated_at,
-  };
-}
-
-function mapPayment(payment: ApiPayment): Payment {
-  const status = (
-    ["pending", "verified", "settled", "denied", "failed"].includes(payment.status)
-      ? payment.status
-      : "pending"
-  ) as PaymentStatus;
-  return {
-    id: payment.id,
-    walletId: payment.wallet_id,
-    runId: payment.run_id ?? undefined,
-    actionId: payment.action_id ?? undefined,
-    tool: payment.tool ?? undefined,
-    amount: money(payment.amount),
-    asset: payment.asset,
-    network: payment.network,
-    payTo: payment.pay_to,
-    status,
-    txHash: payment.tx_hash ?? undefined,
-    createdAt: payment.created_at,
-    settledAt: payment.settled_at ?? undefined,
-  };
-}
 
 function formatAmount(value: unknown): string | undefined {
   if (value == null || value === "") return undefined;
@@ -225,7 +160,6 @@ function mapTools(tools: ApiTool[], policies: ApiPolicy[]): Integration[] {
       toolCount: functions.length,
       status: tool.status === "active" ? "connected" : "disconnected",
       functions,
-      x402: mapX402(tool.x402),
     };
   });
 }
@@ -401,12 +335,7 @@ function mapServices(health: ApiHealth | undefined): SystemService[] {
   }));
 }
 
-function mapAgent(
-  agent: ApiAgent,
-  tools: ApiTool[],
-  policies: ApiPolicy[],
-  wallets: ApiWallet[]
-): Agent {
+function mapAgent(agent: ApiAgent, tools: ApiTool[], policies: ApiPolicy[]): Agent {
   const assigned = Array.isArray(agent.settings?.tools)
     ? new Set(agent.settings.tools)
     : null;
@@ -436,7 +365,6 @@ function mapAgent(
         return ids.length === 0 || ids.includes(agent.id);
       })
       .map((policy) => policy.id),
-    walletId: wallets.find((wallet) => wallet.agent_id === agent.id)?.id,
     settings: normalizeSettings(agent.settings, agent.model, agent),
   };
 }
@@ -496,23 +424,13 @@ export function mapConsole(input: {
   policies: ApiPolicy[];
   approvals: ApiApproval[];
   activity: ApiActivity[];
-  wallets: ApiWallet[];
-  payments: ApiPayment[];
-  x402: ApiX402Supported | null;
   health: ApiHealth;
   mcpServers?: ApiMcpServer[];
   toolSets?: ApiToolSet[];
   appMcp?: ApiAppMcp | null;
 }): ConsoleData {
-  const kind = input.x402?.kinds?.[0];
-  const x402: X402Support | null = kind
-    ? { scheme: kind.scheme, network: kind.network }
-    : null;
-
   return {
-    agents: input.agents.map((agent) =>
-      mapAgent(agent, input.tools, input.policies, input.wallets)
-    ),
+    agents: input.agents.map((agent) => mapAgent(agent, input.tools, input.policies)),
     integrations: mapTools(input.tools, input.policies),
     mcpServers: mapMcpServers(input.mcpServers ?? []),
     appMcp: mapAppMcp(input.appMcp),
@@ -526,8 +444,5 @@ export function mapConsole(input: {
       .map((event) => mapActivity(event, input.agents))
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
     services: mapServices(input.health),
-    wallets: input.wallets.map(mapWallet),
-    payments: input.payments.map(mapPayment),
-    x402,
   };
 }
