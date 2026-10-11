@@ -202,6 +202,14 @@ export function ToolSetEditor({
     });
   }
 
+  function applyServerMode(tools: McpTool[], approval: boolean) {
+    setPicked((current) => {
+      const next = { ...current };
+      for (const tool of tools) next[tool.id] = approval;
+      return next;
+    });
+  }
+
   if (editing !== null) {
     return (
       <form
@@ -257,6 +265,7 @@ export function ToolSetEditor({
             ) : (
               <div className="mt-4 space-y-4">
                 {visible.map((server) => {
+                  const serverTools = catalog.find((item) => item.id === server.id)?.tools ?? server.tools;
                   const selectedHere = server.tools.filter((tool) => tool.id in picked).length;
                   const open = Boolean(needle) || !folded[server.id];
                   return (
@@ -277,7 +286,13 @@ export function ToolSetEditor({
                           </span>
                         </button>
                         {canWrite ? (
-                          <div className="flex gap-1">
+                          <div className="flex flex-wrap gap-1">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => applyServerMode(serverTools, false)}>
+                              {t("tools.allowAll")}
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => applyServerMode(serverTools, true)}>
+                              {t("tools.requireApprovalAll")}
+                            </Button>
                             <Button type="button" variant="ghost" size="sm" onClick={() => applyShown(server.tools, true)}>
                               {t("tools.selectShown")}
                             </Button>

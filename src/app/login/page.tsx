@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
-import { ApiError, login, requestPasswordReset, resetPassword } from "@/lib/api";
+import { ApiError, login, loginWithEmailCode, loginWithPasskey, requestPasswordReset, resetPassword } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +26,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready, signedIn } = useSessionProbe();
-  const [mode, setMode] = useState<"sign-in" | "forgot" | "reset" | "done">("sign-in");
+  const [mode, setMode] = useState<"sign-in" | "forgot" | "reset" | "done" | "mfa">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [challenge, setChallenge] = useState("");
+  const [methods, setMethods] = useState<string[]>([]);
   const [nextPassword, setNextPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -50,10 +52,19 @@ function LoginForm() {
     setError("");
     setPending(true);
     try {
-      await login(email.trim(), password);
+      const result = await login(email.trim(), password);
+      if ("mfa_required" in result) {
+        setChallenge(result.challenge);
+        setMethods(result.methods);
+        setCode("");
+        setMode("mfa");
+        return;
+      }
       router.replace(next || "/overview");
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 401 ? t("login.invalid") : t("common.apiError"));
+      if (err instanceof ApiError && err.status === 401) setError(t("login.invalid"));
+      else if (err instanceof ApiError) setError(err.message);
+      else setError(t("common.apiError"));
     } finally {
       setPending(false);
     }
@@ -68,6 +79,34 @@ function LoginForm() {
       setMode("reset");
     } catch (err) {
       fail(err, t("common.apiError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onMfa(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      await loginWithEmailCode(challenge, code.trim());
+      router.replace(next || "/overview");
+    } catch (err) {
+      setError(err instanceof ApiError && err.status === 400 ? t("login.codeInvalid") : t("common.apiError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onPasskey() {
+    setError("");
+    setPending(true);
+    try {
+      await loginWithPasskey(challenge);
+      router.replace(next || "/overview");
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError(t("profile.passkeyUnsupported"));
     } finally {
       setPending(false);
     }
@@ -180,6 +219,45 @@ function LoginForm() {
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? t("login.updatingPassword") : t("login.updatePassword")}
           </Button>
+          <BackButton
+            label={t("login.backToSignIn")}
+            onClick={() => {
+              setError("");
+              setMode("sign-in");
+            }}
+          />
+        </form>
+      ) : null}
+
+      {mode === "mfa" ? (
+        <form onSubmit={methods.includes("email") ? onMfa : (event) => event.preventDefault()}>
+          <h1 className="text-[22px] font-medium tracking-tight">{t("login.mfaTitle")}</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.mfaBody")}</p>
+          {methods.includes("email") ? (
+            <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {t("login.code")}
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                maxLength={6}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                className={fieldClass}
+                required
+              />
+            </label>
+          ) : null}
+          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {methods.includes("email") ? (
+            <Button type="submit" className="mt-6 w-full" disabled={pending || code.length !== 6}>
+              {pending ? t("login.signingIn") : t("login.submit")}
+            </Button>
+          ) : null}
+          {methods.includes("passkey") ? (
+            <Button type="button" variant={methods.includes("email") ? "outline" : "default"} className="mt-2 w-full" disabled={pending} onClick={onPasskey}>
+              {t("login.usePasskey")}
+            </Button>
+          ) : null}
           <BackButton
             label={t("login.backToSignIn")}
             onClick={() => {

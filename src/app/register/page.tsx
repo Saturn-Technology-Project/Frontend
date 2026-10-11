@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
-import { ApiError, registerAccount } from "@/lib/api";
+import { ApiError, registerAccount, requestSignupCode } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 const fieldClass =
@@ -34,10 +34,11 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready, signedIn } = useSessionProbe();
-  const [step, setStep] = useState<"choose" | "personal">("choose");
+  const [step, setStep] = useState<"choose" | "personal" | "confirm">("choose");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const next = searchParams.get("next");
@@ -52,11 +53,29 @@ function RegisterForm() {
     setError("");
     setPending(true);
     try {
-      await registerAccount(name.trim(), email.trim(), password);
+      await requestSignupCode(name.trim(), email.trim(), password);
+      setStep("confirm");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));
+      else if (err instanceof ApiError && err.status === 400 && /password/i.test(err.message)) setError(t("login.passwordShort"));
+      else if (err instanceof ApiError) setError(err.message);
+      else setError(t("common.apiError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onConfirm(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+    setPending(true);
+    try {
+      await registerAccount(name.trim(), email.trim(), password, code.trim());
       router.replace(next || "/overview");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));
-      else if (err instanceof ApiError && err.status === 400) setError(t("login.passwordShort"));
+      else if (err instanceof ApiError && err.status === 400) setError(t("login.codeInvalid"));
+      else if (err instanceof ApiError) setError(err.message);
       else setError(t("common.apiError"));
     } finally {
       setPending(false);
@@ -97,6 +116,38 @@ function RegisterForm() {
     );
   }
 
+  if (step === "confirm") {
+    return (
+      <AuthScreen>
+        <form onSubmit={onConfirm}>
+          <h1 className="text-[22px] font-medium tracking-tight">{t("login.confirmTitle")}</h1>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.confirmBody")}</p>
+          <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("login.code")}
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              maxLength={6}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              className={fieldClass}
+              required
+            />
+          </label>
+          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          <div className="mt-6 flex gap-2">
+            <Button type="button" variant="outline" onClick={() => { setError(""); setStep("personal"); }}>
+              {t("login.back")}
+            </Button>
+            <Button type="submit" className="flex-1" disabled={pending || code.length !== 6}>
+              {pending ? t("login.creating") : t("login.create")}
+            </Button>
+          </div>
+        </form>
+      </AuthScreen>
+    );
+  }
+
   return (
     <AuthScreen>
       <form onSubmit={onSubmit}>
@@ -131,11 +182,11 @@ function RegisterForm() {
         </label>
         {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
         <div className="mt-6 flex gap-2">
-          <Button type="button" variant="outline" onClick={() => setStep("choose")}>
+          <Button type="button" variant="outline" onClick={() => { setError(""); setStep("choose"); }}>
             {t("login.back")}
           </Button>
           <Button type="submit" className="flex-1" disabled={pending}>
-            {pending ? t("login.creating") : t("login.create")}
+            {pending ? t("login.sendingCode") : t("login.sendCode")}
           </Button>
         </div>
         <Link href={loginHref} className="mt-4 inline-flex h-8 items-center text-[13px] text-muted-foreground hover:text-foreground">

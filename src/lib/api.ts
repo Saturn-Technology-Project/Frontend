@@ -1,7 +1,12 @@
 import { useAuthStore } from "@/lib/auth";
+import { useLocaleStore } from "@/stores/locale-store";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "@/types";
 import type { ApiAgentSettings } from "@/lib/agent-config";
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from "@simplewebauthn/browser";
 
 const API_BASE = "/saturn-api";
 const SATURN_AI_BASE =
@@ -197,6 +202,17 @@ export interface LoginResponse {
   user: AuthUserResponse;
 }
 
+export interface LoginChallenge {
+  mfa_required: true;
+  challenge: string;
+  methods: string[];
+}
+
+export interface MfaStatus {
+  email_mfa: boolean;
+  passkeys: { id: string; created_at: string }[];
+}
+
 export function toAuthSession(token: string | null, user: AuthUserResponse) {
   return {
     token,
@@ -323,18 +339,56 @@ async function establishSession(result: LoginResponse) {
   }
 }
 
-export async function login(email: string, password: string) {
-  const result = await post<LoginResponse>("/auth/login", { email, password }, false);
+export async function login(email: string, password: string): Promise<LoginResponse | LoginChallenge> {
+  const result = await post<LoginResponse & Partial<LoginChallenge>>(
+    "/auth/login",
+    { email, password, locale: useLocaleStore.getState().locale },
+    false
+  );
+  if (result.mfa_required && result.challenge) {
+    return { mfa_required: true, challenge: result.challenge, methods: result.methods ?? [] };
+  }
+  if (!result.token || !result.user) {
+    throw new ApiError(500, "Could not sign in");
+  }
+  const session = { token: result.token, user: result.user };
+  await establishSession(session);
+  return session;
+}
+
+export function requestSignupCode(name: string, email: string, password: string) {
+  return post<void>(
+    "/auth/register/code",
+    { name, email, password, locale: useLocaleStore.getState().locale },
+    false
+  );
+}
+
+export async function registerAccount(name: string, email: string, password: string, code: string) {
+  const result = await post<LoginResponse>(
+    "/auth/register",
+    { name, email, password, code },
+    false
+  );
   await establishSession(result);
   return result;
 }
 
-export async function registerAccount(name: string, email: string, password: string) {
-  const result = await post<LoginResponse>(
-    "/auth/register",
-    { name, email, password },
+export async function loginWithEmailCode(challenge: string, code: string) {
+  const result = await post<LoginResponse>("/auth/login/email", { challenge, code }, false);
+  await establishSession(result);
+  return result;
+}
+
+export async function loginWithPasskey(challenge: string) {
+  const { startAuthentication } = await import("@simplewebauthn/browser");
+  const options = await post<PublicKeyCredentialRequestOptionsJSON>(
+    "/auth/login/passkey/options",
+    { challenge },
     false
   );
+  const credential = await startAuthentication({ optionsJSON: options });
+  const result = await post<LoginResponse>("/auth/login/passkey", { challenge, credential }, false);
   await establishSession(result);
   return result;
 }
@@ -394,7 +448,7 @@ export async function restoreSession(): Promise<boolean> {
 }
 
 export function requestPasswordReset(email: string) {
-  return post<void>("/auth/forgot-password", { email }, false);
+  return post<void>("/auth/forgot-password", { email, locale: useLocaleStore.getState().locale }, false);
 }
 
 export function resetPassword(email: string, code: string, password: string) {
@@ -406,6 +460,33 @@ export function changePassword(currentPassword: string, newPassword: string) {
     current_password: currentPassword,
     new_password: newPassword,
   });
+}
+
+export function fetchMfa() {
+  return get<MfaStatus>("/auth/mfa");
+}
+
+export function requestEmailMfa() {
+  return post<void>("/auth/mfa/email/code", { locale: useLocaleStore.getState().locale });
+}
+
+export function enableEmailMfa(code: string) {
+  return post<void>("/auth/mfa/email", { code });
+}
+
+export function disableEmailMfa() {
+  return del("/auth/mfa/email");
+}
+
+export async function registerPasskey() {
+  const { startRegistration } = await import("@simplewebauthn/browser");
+  const options = await post<PublicKeyCredentialCreationOptionsJSON>("/auth/passkeys/options", {});
+  const credential = await startRegistration({ optionsJSON: options });
+  return post<MfaStatus["passkeys"][number]>("/auth/passkeys", { credential });
+}
+
+export function deletePasskey(id: string) {
+  return del(`/auth/passkeys/${id}`);
 }
 
 export interface OrgMember {

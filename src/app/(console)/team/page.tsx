@@ -18,6 +18,7 @@ import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { AccessPermissions, OrgMember } from "@/lib/api";
+import type { Agent } from "@/types";
 
 const RESOURCES: (keyof AccessPermissions)[] = ["agents", "policies", "approvals", "team"];
 const LEVELS: AccessPermissions["agents"][] = ["none", "read", "write"];
@@ -270,7 +271,7 @@ function MemberEditor({
   onSave,
 }: {
   member: OrgMember;
-  agents: { id: string; name: string }[];
+  agents: Agent[];
   catalogRoles: { id: string; permissions: AccessPermissions }[];
   canWrite: boolean;
   saving: boolean;
@@ -299,6 +300,27 @@ function MemberEditor({
     }),
     [t]
   );
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const buckets = new Map<string, Agent[]>();
+    for (const agent of agents) {
+      const key = agent.registeredUserEmail || agent.registeredUserName || "";
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+        order.push(key);
+      }
+      buckets.get(key)?.push(agent);
+    }
+    return order.map((key) => {
+      const items = buckets.get(key) ?? [];
+      return {
+        key: key || "unregistered",
+        name: items[0]?.registeredUserName || "",
+        email: items[0]?.registeredUserEmail || "",
+        agents: items,
+      };
+    });
+  }, [agents]);
 
   function onRoleChange(next: string) {
     setRole(next);
@@ -373,42 +395,57 @@ function MemberEditor({
       {agents.length > 0 ? (
         <div>
           <div className="text-[12px] text-muted-foreground">{t("team.agents")}</div>
-          <ul className="mt-1.5 divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {agents.map((agent) => {
-              const assigned = agentIds.includes(agent.id);
-              return (
-                <li key={agent.id} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                  <label className="flex min-w-0 items-center gap-2 text-[13px]">
-                    <input
-                      type="checkbox"
-                      checked={assigned}
-                      disabled={!canWrite}
-                      onChange={(event) => {
-                        setAgentIds((current) =>
-                          event.target.checked ? [...current, agent.id] : current.filter((id) => id !== agent.id)
-                        );
-                        if (!event.target.checked) setEditIds((current) => current.filter((id) => id !== agent.id));
-                      }}
-                    />
-                    <span className="truncate">{agent.name}</span>
-                  </label>
-                  <label className={cn("flex items-center gap-2 text-[12px]", assigned ? "text-foreground" : "text-muted-foreground")}>
-                    <input
-                      type="checkbox"
-                      checked={assigned && editIds.includes(agent.id)}
-                      disabled={!canWrite || !assigned}
-                      onChange={(event) => {
-                        setEditIds((current) =>
-                          event.target.checked ? [...current, agent.id] : current.filter((id) => id !== agent.id)
-                        );
-                      }}
-                    />
-                    {t("team.canModify")}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-1.5 space-y-3">
+            {groups.map((group) => (
+              <section key={group.key}>
+                <div className="flex items-baseline gap-2 px-1">
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t("team.registeredBy")}</span>
+                  <span className="truncate text-[13px] font-medium">
+                    {group.name || group.email || t("team.unregistered")}
+                  </span>
+                  {group.name && group.email ? (
+                    <span className="truncate text-[12px] text-muted-foreground">{group.email}</span>
+                  ) : null}
+                </div>
+                <ul className="mt-1.5 divide-y divide-border overflow-hidden rounded-lg border border-border">
+                  {group.agents.map((agent) => {
+                    const assigned = agentIds.includes(agent.id);
+                    return (
+                      <li key={agent.id} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                        <label className="flex min-w-0 items-center gap-2 text-[13px]">
+                          <input
+                            type="checkbox"
+                            checked={assigned}
+                            disabled={!canWrite}
+                            onChange={(event) => {
+                              setAgentIds((current) =>
+                                event.target.checked ? [...current, agent.id] : current.filter((id) => id !== agent.id)
+                              );
+                              if (!event.target.checked) setEditIds((current) => current.filter((id) => id !== agent.id));
+                            }}
+                          />
+                          <span className="truncate">{agent.name}</span>
+                        </label>
+                        <label className={cn("flex items-center gap-2 text-[12px]", assigned ? "text-foreground" : "text-muted-foreground")}>
+                          <input
+                            type="checkbox"
+                            checked={assigned && editIds.includes(agent.id)}
+                            disabled={!canWrite || !assigned}
+                            onChange={(event) => {
+                              setEditIds((current) =>
+                                event.target.checked ? [...current, agent.id] : current.filter((id) => id !== agent.id)
+                              );
+                            }}
+                          />
+                          {t("team.canModify")}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         </div>
       ) : null}
 
