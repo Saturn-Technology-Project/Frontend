@@ -45,6 +45,7 @@ const EVENT_META: Record<string, { title: string; titleKey: string }> = {
   },
   approval_granted: { title: "Approved", titleKey: "event.approvalGranted" },
   approval_rejected: { title: "Rejected", titleKey: "event.approvalRejected" },
+  approval_expired: { title: "Approval expired", titleKey: "event.approvalExpired" },
   tool_executed: { title: "Tool executed", titleKey: "event.toolExecuted" },
   run_completed: { title: "Run completed", titleKey: "event.runCompleted" },
   run_failed: { title: "Run failed", titleKey: "event.runFailed" },
@@ -231,6 +232,9 @@ function mapApproval(
       approvedCount: item.approved_count,
     })),
     executionState: approval.execution_state ?? "none",
+    expiresAt: approval.expires_at ?? undefined,
+    resubmitExpiresAt: approval.resubmit_expires_at ?? undefined,
+    expiredPhase: approval.expired_phase ?? undefined,
     requestedAt: approval.created_at,
     resolvedAt: approval.resolved_at ?? undefined,
     resolvedBy:

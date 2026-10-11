@@ -17,10 +17,16 @@ export function useEntitlements() {
   // The server entitlements object is authoritative. Until a response includes it,
   // the existing plan field is the same source of truth. An unknown or missing plan stays Free.
   const policies = entitlements ? entitlements.policies === true : proPlan(plan);
+  const webhooks = entitlements
+    ? "webhooks" in entitlements
+      ? entitlements.webhooks === true
+      : policies
+    : proPlan(plan);
   const groups = entitlements ? entitlements.groups === true : plan === "team" || plan === "enterprise";
   const limit = entitlements?.tool_set_limit;
   return {
     policies,
+    webhooks,
     groups,
     toolSetLimit: entitlements
       ? policies

@@ -263,6 +263,9 @@ export interface Approval {
     approvedCount: number;
   }[];
   executionState?: string;
+  expiresAt?: string;
+  resubmitExpiresAt?: string;
+  expiredPhase?: string;
   requestedAt: string;
   resolvedAt?: string;
   resolvedBy?: string;

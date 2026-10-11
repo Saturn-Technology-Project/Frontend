@@ -24,6 +24,7 @@ const items = [
   { href: "/tools/mapping", key: "nav.mapping", icon: "sliders" },
   { href: "/policies", key: "nav.policies", icon: "shield" },
   { href: "/activity", key: "nav.audit", icon: "list" },
+  { href: "/webhooks", key: "nav.webhooks", icon: "webhook" },
 ] as const;
 
 export function Sidebar() {
@@ -50,7 +51,7 @@ export function Sidebar() {
   const orgName = workspace.data?.organization.name ?? savedOrg?.name;
   const brand = personal ? t("nav.personalLabel") : orgName || "—";
   const { data } = useConsole();
-  const { policies: policyAccess } = useEntitlements();
+  const { policies: policyAccess, webhooks: webhookAccess } = useEntitlements();
   const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
   const approveOn = pathname === "/approvals" || pathname.startsWith("/approvals/");
 
@@ -120,7 +121,7 @@ export function Sidebar() {
             >
               <NavIcon name={item.icon} />
               <span className="min-w-0 flex-1 truncate">{t(item.key)}</span>
-              {item.href === "/policies" && !policyAccess ? (
+              {(item.href === "/policies" && !policyAccess) || (item.href === "/webhooks" && !webhookAccess) ? (
                 <span className="text-[11px] text-muted-foreground">Pro</span>
               ) : null}
             </Link>

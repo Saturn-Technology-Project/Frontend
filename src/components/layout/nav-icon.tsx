@@ -10,6 +10,13 @@ export function NavIcon({ name, className = "size-4 shrink-0" }: { name: string;
     sliders: <path d="M4 8h16M4 16h16M8 8v0M16 16v0M9 6v4M15 14v4" />,
     shield: <path d="M12 3 5 6v6c0 4.5 3 7 7 9 4-2 7-4.5 7-9V6z" />,
     list: <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" />,
+    webhook: (
+      <>
+        <path d="M16.5 16.5H12a3 3 0 1 1 0-6h4.5" />
+        <circle cx="6.5" cy="13.5" r="2.2" />
+        <path d="M18.2 8.2 16.4 6.4M18.2 8.2l2-2M18.2 8.2V5.2" />
+      </>
+    ),
     building: <path d="M4 20h16M6 20V6h12v14M10 10h.01M14 10h.01M10 14h.01M14 14h.01" />,
     users: <path d="M16 19v-1a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v1M10 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 19v-1a3 3 0 0 0-2-2.8M16 6.1a3 3 0 0 1 0 5.8" />,
     gear: (

@@ -9,8 +9,20 @@ import {
 } from "@/components/ui/dialog";
 import { SectionLabel } from "@/components/ui/section-label";
 import { useConsole } from "@/hooks/use-console";
+import { approvalDeadline, approvalStatusKey, remainingParts } from "@/lib/approval-deadline";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
+
+function deadlineText(
+  iso: string,
+  locale: "en" | "zh",
+  t: (path: string, vars?: Record<string, string | number>) => string
+) {
+  const remaining = remainingParts(iso);
+  const when = new Date(iso).toLocaleString(locale === "zh" ? "zh-TW" : "en-US");
+  if (!remaining) return when;
+  return `${when} · ${t("approvals.remaining")} ${t(remaining.key, { count: remaining.count ?? 0 })}`;
+}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -123,6 +135,20 @@ export function ApprovalPanel({
                 approved: approval.approvedCount ?? 0,
                 required: approval.requiredCount ?? 0,
               })}
+            />
+          ) : null}
+          <Field label={t("approvals.status")} value={t(approvalStatusKey(approval))} />
+          <p className="py-3 text-[13px] leading-5 text-muted-foreground">{t("approvals.notExecuted")}</p>
+          {approvalDeadline(approval) ? (
+            <Field
+              label={t("approvals.deadline")}
+              value={deadlineText(approvalDeadline(approval)!, locale, t)}
+            />
+          ) : null}
+          {approval.resolvedAt && approval.status !== "pending" ? (
+            <Field
+              label={t("approvals.approvedAt")}
+              value={new Date(approval.resolvedAt).toLocaleString(locale === "zh" ? "zh-TW" : "en-US")}
             />
           ) : null}
           {approval.executionState && approval.executionState !== "none" ? (

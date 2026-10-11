@@ -104,6 +104,9 @@ export interface ApiApproval {
     approved_count: number;
   }[];
   execution_state?: string;
+  expires_at?: string | null;
+  resubmit_expires_at?: string | null;
+  expired_phase?: string | null;
 }
 
 export interface ApiActivity {
@@ -135,6 +138,7 @@ export interface Entitlements {
   gateway: boolean;
   tool_set_limit: number | null;
   policies: boolean;
+  webhooks?: boolean;
   groups?: boolean;
   audit: "basic" | "full" | string;
   audit_days: number;
@@ -1052,4 +1056,97 @@ export async function rejectApproval(approvalId: string) {
   return post<{ status: string; action: string; result: string | null }>(
     `/approvals/${approvalId}/reject`
   );
+}
+
+export interface WebhookEndpointRecord {
+  id: string;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  has_secret: boolean;
+  created_at: string;
+  updated_at: string;
+  secret?: string;
+}
+
+export interface WebhookAttemptRecord {
+  id: string;
+  status_code: number | null;
+  error: string;
+  created_at: string;
+}
+
+export interface WebhookDeliveryRecord {
+  id: string;
+  event_type: string;
+  event_id: string;
+  status: string;
+  attempt_count: number;
+  last_status_code: number | null;
+  last_error: string;
+  created_at: string;
+  updated_at: string;
+  attempts: WebhookAttemptRecord[];
+}
+
+export interface ApprovalWindowRecord {
+  pending_ttl_minutes: number;
+  resubmit_ttl_minutes: number;
+}
+
+export function fetchWebhooks() {
+  return get<WebhookEndpointRecord[]>("/org/webhooks");
+}
+
+export function createWebhook(body: { url: string; events: string[] }) {
+  return post<WebhookEndpointRecord>("/org/webhooks", body);
+}
+
+export function updateWebhook(id: string, body: { url?: string; events?: string[]; enabled?: boolean }) {
+  return patch<WebhookEndpointRecord>(`/org/webhooks/${id}`, body);
+}
+
+export function rotateWebhookSecret(id: string) {
+  return post<{ secret: string }>(`/org/webhooks/${id}/rotate`);
+}
+
+export async function downloadWebhookSecret(id: string) {
+  const headers = new Headers();
+  const token = useAuthStore.getState().token;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_BASE}/org/webhooks/${id}/secret`, {
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new ApiError(response.status, await apiErrorMessage(response));
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `saturn-webhook-${id}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function testWebhook(id: string) {
+  return post<WebhookDeliveryRecord>(`/org/webhooks/${id}/test`);
+}
+
+export function fetchWebhookDeliveries(id: string) {
+  return get<WebhookDeliveryRecord[]>(`/org/webhooks/${id}/deliveries`);
+}
+
+export function retryWebhookDelivery(id: string) {
+  return post<WebhookDeliveryRecord>(`/org/webhooks/deliveries/${id}/retry`);
+}
+
+export function fetchApprovalWindow() {
+  return get<ApprovalWindowRecord>("/org/approval-window");
+}
+
+export function updateApprovalWindow(body: ApprovalWindowRecord) {
+  return patch<ApprovalWindowRecord>("/org/approval-window", body);
 }

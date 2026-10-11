@@ -33,6 +33,7 @@ export interface AuthOrg {
     gateway: boolean;
     tool_set_limit: number | null;
     policies: boolean;
+    webhooks?: boolean;
     audit: string;
     audit_days: number;
   };

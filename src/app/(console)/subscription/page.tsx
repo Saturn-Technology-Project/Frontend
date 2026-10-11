@@ -33,7 +33,10 @@ export default function SubscriptionPage() {
     price: t(`plans.${id}.price`),
     period: t(`plans.${id}.period`),
     tagline: t(`plans.${id}.tagline`),
-    points: [1, 2, 3, 4, 5].map((index) => t(`plans.${id}.point${index}`)),
+    points: [
+      ...[1, 2, 3, 4, 5].map((index) => t(`plans.${id}.point${index}`)),
+      ...(id === "free" ? [] : [t("plans.webhooks")]),
+    ],
   }));
   const currentPlan = (data?.plan.id ?? "free").toLowerCase();
 

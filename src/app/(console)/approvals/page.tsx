@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useConsole, useResolveApproval } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
+import { approvalDeadline, approvalStatusKey, remainingParts, showApproval } from "@/lib/approval-deadline";
 import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
@@ -17,7 +18,7 @@ export default function ApprovalsPage() {
   const { data, isPending, isError } = useConsole();
   const resolveApproval = useResolveApproval();
   const approvals = (data?.approvals ?? [])
-    .filter((item) => item.status === "pending")
+    .filter(showApproval)
     .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = approvals.find((item) => item.id === activeId) ?? null;
@@ -72,6 +73,43 @@ export default function ApprovalsPage() {
   );
 }
 
+function ApprovalTiming({ approval }: { approval: Approval }) {
+  const { t, locale } = useI18n();
+  const deadline = approvalDeadline(approval);
+  const remaining = remainingParts(deadline);
+  const when = deadline
+    ? new Date(deadline).toLocaleString(locale === "zh" ? "zh-TW" : "en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+  return (
+    <div className="mt-3 text-[13px] text-muted-foreground">
+      <div>{t(approvalStatusKey(approval))}</div>
+      {approval.resolvedAt && approval.status !== "pending" ? (
+        <div>
+          {t("approvals.approvedAt")}{" "}
+          {new Date(approval.resolvedAt).toLocaleString(locale === "zh" ? "zh-TW" : "en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+      ) : null}
+      {when ? (
+        <div>
+          {t("approvals.deadline")} {when}
+          {remaining ? ` · ${t("approvals.remaining")} ${t(remaining.key, { count: remaining.count ?? 0 })}` : ""}
+        </div>
+      ) : null}
+      <div>{t("approvals.notExecuted")}</div>
+    </div>
+  );
+}
+
 function ApprovalCard({
   approval,
   canWrite,
@@ -115,6 +153,7 @@ function ApprovalCard({
             {t("approvals.reason")}: {approval.reason}
           </div>
         ) : null}
+        <ApprovalTiming approval={approval} />
       </button>
       <div className="flex items-center justify-between px-5 pb-4">
         <Link

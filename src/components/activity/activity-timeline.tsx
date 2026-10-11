@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useConsole } from "@/hooks/use-console";
 import { exportActivity } from "@/lib/api";
@@ -24,6 +23,7 @@ const chainEvents = new Set([
   "approval_requested",
   "approval_granted",
   "approval_rejected",
+  "approval_expired",
   "tool_executed",
   "wallet_evaluated",
   "x402_payment_required",
@@ -40,7 +40,7 @@ type Chain = {
 
 function matchesQuery(event: ActivityEvent, query: string, title: string, actor: string) {
   if (!query) return true;
-  return [title, actor, event.tool, event.result, event.detail, event.event, event.runId]
+  return [title, actor, event.tool, event.result, event.detail, event.event, event.id, event.runId]
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
@@ -243,6 +243,20 @@ function outcomeKey(result: string | undefined) {
   return "";
 }
 
+function executedSuccessfully(events: ActivityEvent[]) {
+  return events.some((event) => event.event === "tool_executed" && /^(completed|success)$/i.test(event.result || ""));
+}
+
+function chainBadge(events: ActivityEvent[]) {
+  const released = events.some((event) => event.event === "approval_granted" && (event.result || "").toLowerCase() === "approved");
+  const reviewed = released || events.some((event) => event.event === "approval_granted" || event.event === "approval_rejected");
+  const executed = events.some((event) => event.event === "tool_executed");
+  if (reviewed && executedSuccessfully(events)) return { key: "activity.confirmed", tone: "ok" as const };
+  if (executed) return null;
+  if (released) return { key: "activity.awaitingResubmit", tone: "wait" as const };
+  return null;
+}
+
 function policyBasis(event: ActivityEvent, policies: Policy[], none: string) {
   const raw = event.raw ?? {};
   const stored = textOf(raw.policy_name).trim();
@@ -294,17 +308,18 @@ export function chainPreview(
   const server = serverOf(head, toolSets, servers) || chain.events.map((event) => serverOf(event, toolSets, servers)).find(Boolean) || "";
   const decided = [...chain.events].reverse().find((event) => event.event === "approval_granted" || event.event === "approval_rejected");
   const outcome = executed?.result || decided?.result || head.result;
+  const badge = chainBadge(chain.events);
   return {
     id: chain.id,
     no: chain.no,
     at: chain.at,
     headline: head.tool ? (server ? `${head.tool} · ${server}` : head.tool) : eventText(locale, head.titleKey, head.title),
     initiator: request ? eventActor(locale, request) : eventActor(locale, chain.events[0]),
-    outcomeText: outcomeKey(outcome) ? t(outcomeKey(outcome)) : outcome || "",
-    tone: outcome ? resultTone(outcome) : "plain",
+    outcomeText: badge ? t(badge.key) : outcomeKey(outcome) ? t(outcomeKey(outcome)) : outcome || "",
+    tone: badge?.tone ?? (outcome ? resultTone(outcome) : "plain"),
     steps: chain.events.length,
     kindKey: kindLabel[head.actorKind],
-    runId: request?.runId || head.runId,
+    runId: chain.events.map((event) => event.runId || textOf(event.raw?.run_id)).find(Boolean) || "",
     reason: typeof head.raw?.reason === "string" ? head.raw.reason : "",
   };
 }
@@ -533,6 +548,11 @@ export function AuditLog({
                             {detailed && preview.steps > 1 ? ` · ${t("activity.steps", { n: preview.steps })}` : ` · ${t(preview.kindKey)}`}
                             {` · ${relativeTime(preview.at, locale)}`}
                           </span>
+                          {preview.runId ? (
+                            <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+                              {t("activity.runId")} {preview.runId}
+                            </span>
+                          ) : null}
                           {!detailed && preview.reason ? (
                             <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{preview.reason}</span>
                           ) : null}
@@ -558,11 +578,6 @@ export function AuditLog({
                               </li>
                             ))}
                           </ol>
-                          {preview.runId ? (
-                            <Link href={`/activity?event=${preview.runId}`} className="mt-3 inline-block pl-7 text-[12px] text-muted-foreground hover:text-foreground">
-                              {t("activity.openRun")}
-                            </Link>
-                          ) : null}
                         </div>
                       ) : null}
                     </li>
@@ -613,6 +628,9 @@ function ChainStep({
         {title}
       </div>
       <div className="mt-1 font-mono text-[11px] text-muted-foreground">{formatClock(event.at)}</div>
+      <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+        {t("activity.eventId")} {event.id}
+      </div>
       {event.event === "tool_requested" ? (
         <div className="mt-2">
           <Line label={t("activity.initiator")} value={actor} />
