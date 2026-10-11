@@ -5,9 +5,10 @@ import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { PhotoField } from "@/components/account/photo-field";
 import { EmailNotices } from "@/components/account/email-notices";
+import { ReauthForm } from "@/components/account/reauth-form";
 import { SignInSecurity } from "@/components/account/sign-in-security";
 import { Button } from "@/components/ui/button";
-import { ApiError, changePassword, updatePersonalPhoto, updateProfile } from "@/lib/api";
+import { ApiError, changePassword, confirmEmailChange, updatePersonalPhoto, updateProfile } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,10 @@ export default function ProfilePage() {
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [saved, setSaved] = useState(false);
+  const [needsReauth, setNeedsReauth] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [currentCode, setCurrentCode] = useState("");
+  const [nextCode, setNextCode] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -32,10 +37,10 @@ export default function ProfilePage() {
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
-    if (!user) return;
+    if (!user || pendingEmail) return;
     setName(user.name);
     setEmail(user.email);
-  }, [user]);
+  }, [user, pendingEmail]);
 
   const photo = useMutation({
     mutationFn: updatePersonalPhoto,
@@ -43,7 +48,29 @@ export default function ProfilePage() {
 
   const save = useMutation({
     mutationFn: () => updateProfile({ name: name.trim(), email: email.trim() }),
-    onSuccess: () => setSaved(true),
+    onSuccess: (next) => {
+      setNeedsReauth(false);
+      if (next.email_change_pending) {
+        setPendingEmail(email.trim());
+        setSaved(false);
+        return;
+      }
+      setPendingEmail("");
+      setSaved(true);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 403) setNeedsReauth(true);
+    },
+  });
+
+  const confirmEmail = useMutation({
+    mutationFn: () => confirmEmailChange(currentCode, nextCode),
+    onSuccess: () => {
+      setPendingEmail("");
+      setCurrentCode("");
+      setNextCode("");
+      setSaved(true);
+    },
   });
 
   const password = useMutation({
@@ -109,13 +136,54 @@ export default function ProfilePage() {
             className={fieldClass}
           />
         </label>
+        {pendingEmail ? (
+          <div className="mt-4">
+            <p className="text-[13px] text-muted-foreground">{t("profile.emailChangeBody")}</p>
+            <label className="mt-3 block text-[12px] text-muted-foreground">
+              {t("profile.currentCode")}
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={currentCode}
+                maxLength={6}
+                onChange={(event) => setCurrentCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                className={fieldClass}
+              />
+            </label>
+            <label className="mt-3 block text-[12px] text-muted-foreground">
+              {t("profile.nextCode")}
+              <input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={nextCode}
+                maxLength={6}
+                onChange={(event) => setNextCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                className={fieldClass}
+              />
+            </label>
+            <Button
+              type="button"
+              className="mt-3"
+              disabled={confirmEmail.isPending || currentCode.length !== 6 || nextCode.length !== 6}
+              onClick={() => confirmEmail.mutate()}
+            >
+              {t("profile.confirmEnable")}
+            </Button>
+            {confirmEmail.isError ? (
+              <p className="mt-3 text-[13px] text-destructive">{confirmEmail.error.message}</p>
+            ) : null}
+          </div>
+        ) : null}
+        {needsReauth ? <ReauthForm busy={save.isPending} onReady={() => save.mutate()} /> : null}
         <div className="mt-4 flex items-center gap-3">
           <Button type="submit" disabled={save.isPending || !name.trim() || !email.trim()}>
             {t("profile.save")}
           </Button>
           {saved ? <span className="text-[13px] text-muted-foreground">{t("profile.saved")}</span> : null}
         </div>
-        {save.isError ? <p className="mt-3 text-[13px] text-destructive">{save.error.message}</p> : null}
+        {save.isError && !(save.error instanceof ApiError && save.error.status === 403) ? (
+          <p className="mt-3 text-[13px] text-destructive">{save.error.message}</p>
+        ) : null}
       </form>
 
       <form onSubmit={submitPassword} className="mt-10 max-w-md border-t border-border pt-8">

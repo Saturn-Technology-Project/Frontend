@@ -157,6 +157,7 @@ export interface AuthUserResponse {
   agent_edit_ids?: string[] | null;
   mcp_gateway?: { status: string; connected: number; total: number };
   locale?: string;
+  email_change_pending?: boolean;
 }
 
 export interface LoginResponse {
@@ -461,6 +462,34 @@ export function enableEmailMfa(code: string) {
 
 export function disableEmailMfa() {
   return del("/auth/mfa/email");
+}
+
+export function reauthenticate(password: string) {
+  return post<void>("/auth/reauth", { password });
+}
+
+export function requestReauthCode() {
+  return post<void>("/auth/reauth/email/code", { locale: useLocaleStore.getState().locale });
+}
+
+export function reauthenticateWithCode(code: string) {
+  return post<void>("/auth/reauth", { code });
+}
+
+export async function reauthenticateWithPasskey() {
+  const { startAuthentication } = await import("@simplewebauthn/browser");
+  const options = await post<PublicKeyCredentialRequestOptionsJSON>("/auth/reauth/passkey/options", {});
+  const credential = await startAuthentication({ optionsJSON: options });
+  return post<void>("/auth/reauth", { credential });
+}
+
+export async function confirmEmailChange(currentCode: string, nextCode: string) {
+  const user = await post<AuthUserResponse>("/auth/email/confirm", {
+    current_code: currentCode,
+    next_code: nextCode,
+  });
+  useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
+  return user;
 }
 
 export async function registerPasskey() {

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { ReauthForm } from "@/components/account/reauth-form";
 import {
   ApiError,
   deletePasskey,
@@ -24,6 +25,7 @@ export function SignInSecurity() {
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [stepUp, setStepUp] = useState<null | { kind: "email" } | { kind: "passkey"; id: string }>(null);
   const status = useQuery({
     queryKey: ["mfa"],
     queryFn: fetchMfa,
@@ -32,6 +34,14 @@ export function SignInSecurity() {
   function fail(err: unknown) {
     setMessage("");
     setError(err instanceof ApiError ? err.message : t("common.apiError"));
+  }
+
+  function retryStepUp() {
+    if (!stepUp) return;
+    const next = stepUp;
+    setStepUp(null);
+    if (next.kind === "email") disable.mutate();
+    else remove.mutate(next.id);
   }
 
   const send = useMutation({
@@ -60,11 +70,19 @@ export function SignInSecurity() {
   const disable = useMutation({
     mutationFn: disableEmailMfa,
     onSuccess: async () => {
+      setStepUp(null);
       setError("");
       setMessage(t("profile.emailOff"));
       await queryClient.invalidateQueries({ queryKey: ["mfa"] });
     },
-    onError: fail,
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 403) {
+        setError("");
+        setStepUp({ kind: "email" });
+        return;
+      }
+      fail(err);
+    },
   });
 
   const add = useMutation({
@@ -86,11 +104,19 @@ export function SignInSecurity() {
   const remove = useMutation({
     mutationFn: deletePasskey,
     onSuccess: async () => {
+      setStepUp(null);
       setError("");
       setMessage("");
       await queryClient.invalidateQueries({ queryKey: ["mfa"] });
     },
-    onError: fail,
+    onError: (err, id) => {
+      if (err instanceof ApiError && err.status === 403) {
+        setError("");
+        setStepUp({ kind: "passkey", id });
+        return;
+      }
+      fail(err);
+    },
   });
 
   function confirm(event: FormEvent) {
@@ -161,6 +187,7 @@ export function SignInSecurity() {
         </Button>
       </div>
 
+      {stepUp ? <ReauthForm busy={disable.isPending || remove.isPending} onReady={retryStepUp} /> : null}
       {message ? <p className="mt-3 text-[13px] text-muted-foreground">{message}</p> : null}
       {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
       {status.isError && !(status.error instanceof ApiError && status.error.status === 404) ? (
