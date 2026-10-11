@@ -702,6 +702,17 @@ export function createApprovalPolicy(body: {
   return post<ApprovalPolicyRecord>("/org/approval-policies", body);
 }
 
+export function updateApprovalPolicy(
+  id: string,
+  body: {
+    required_count?: number;
+    requirements?: { group_id: string; required_count: number }[];
+    allow_requester?: boolean;
+  }
+) {
+  return patch<ApprovalPolicyRecord>(`/org/approval-policies/${id}`, body);
+}
+
 export async function acceptInvite(token: string, password: string) {
   const result = await post<LoginResponse>("/auth/accept-invite", { token, password }, false);
   await establishSession(result);

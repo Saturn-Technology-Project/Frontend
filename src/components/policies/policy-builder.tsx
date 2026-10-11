@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, createContext, useContext, useMemo, useState } from "react";
+import { DragEvent, createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Background,
@@ -23,12 +23,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDeletePolicy, useUpdatePolicy } from "@/hooks/use-console";
 import { PolicyProgressBar, applyProgress, type PolicyProgress } from "@/components/policies/policy-thinking";
-import { ApiError, activatePolicy, approvalPolicySummary, fetchApprovalPolicies, simulatePolicy, streamPolicy, validatePolicy, type PolicyDiff, type PolicyValidation } from "@/lib/api";
+import { ApiError, activatePolicy, createApprovalPolicy, fetchApprovalPolicies, fetchGroups, simulatePolicy, streamPolicy, updateApprovalPolicy, validatePolicy, type ApprovalPolicyRecord, type PolicyDiff, type PolicyValidation } from "@/lib/api";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
 import { PolicyForm } from "@/components/policies/policy-form";
-import { blankData, definitionFromRules, newNode, toDefinition, toFlow, type FlowData, type FlowNode } from "@/lib/policy-graph";
+import { approvalSummary, blankData, definitionFromRules, newNode, toDefinition, toFlow, type FlowData, type FlowNode, type NodeApprovalRequirement } from "@/lib/policy-graph";
 import { cn } from "@/lib/utils";
 import type { Agent, Policy, PolicyDefinition, PolicyNodeKind, ToolSet, ToolSetItem } from "@/types";
 
@@ -60,6 +60,7 @@ function PolicyNodeView({ data, selected }: NodeProps<FlowNode>) {
   const { t } = useI18n();
   const agents = useContext(AgentContext);
   const title = nodeTitle(data, agents, t);
+  const composed = data.kind === "decision" ? approvalSummary(data) : "";
   return (
     <div className={cn("min-w-[168px] rounded-md border bg-card px-3 py-2 shadow-sm", selected ? "border-foreground" : "border-border")}>
       <Handle type="target" position={Position.Left} className="!size-2 !border-0 !bg-foreground" />
@@ -67,6 +68,7 @@ function PolicyNodeView({ data, selected }: NodeProps<FlowNode>) {
       <div className={cn("mt-1 text-[13px] font-medium", data.kind === "decision" && data.decision === "deny" && "text-destructive")}>
         {title}
       </div>
+      {composed ? <div className="mt-1 text-[12px] text-muted-foreground">{composed}</div> : null}
       <Handle type="source" position={Position.Right} className="!size-2 !border-0 !bg-foreground" />
     </div>
   );
@@ -131,6 +133,28 @@ function BuilderCanvas({
   const flow = useReactFlow<FlowNode, Edge>();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const { groups: groupAccess } = useEntitlements();
+  const approvalPolicies = useQuery({
+    queryKey: ["approval-policies"],
+    queryFn: fetchApprovalPolicies,
+    enabled: groupAccess,
+  });
+  useEffect(() => {
+    const policies = approvalPolicies.data;
+    if (!policies) return;
+    setNodes((current) => {
+      let changed = false;
+      const next = current.map((node) => {
+        if (node.data.kind !== "decision" || node.data.decision !== "approval") return node;
+        if (node.data.approvalRequirements || !node.data.approvalPolicyId) return node;
+        const policy = policies.find((item) => item.id === node.data.approvalPolicyId);
+        if (!policy) return node;
+        changed = true;
+        return { ...node, data: { ...node.data, ...draftFromPolicy(policy) } };
+      });
+      return changed ? next : current;
+    });
+  }, [approvalPolicies.data, setNodes]);
   const [name, setName] = useState(policy.name);
   const [setId, setSetId] = useState(policy.toolSetId ?? policy.definition?.toolSetId ?? "");
   const [status, setStatus] = useState(policy.status);
@@ -218,8 +242,8 @@ function BuilderCanvas({
   }
 
   async function persist() {
-    const definition = editorDefinition();
-    if (view === "json") applyGraph(definition);
+    const definition = await syncNodeApprovals(editorDefinition(), name, groupAccess, t("policies.approvalIncomplete"));
+    applyGraph(definition);
     const saved = await update.mutateAsync({
       id: policy.id,
       body: {
@@ -722,10 +746,10 @@ function NodeInspector({
   const { t } = useI18n();
   const data = node.data;
   const { groups: groupAccess } = useEntitlements();
-  const approvalPolicies = useQuery({
-    queryKey: ["approval-policies"],
-    queryFn: fetchApprovalPolicies,
-    enabled: groupAccess && data.kind === "decision",
+  const orgGroups = useQuery({
+    queryKey: ["groups"],
+    queryFn: fetchGroups,
+    enabled: groupAccess && data.kind === "decision" && data.decision === "approval",
   });
   const classification = data.classification;
   return (
@@ -782,25 +806,32 @@ function NodeInspector({
       ) : null}
       {data.kind === "decision" ? (
         <>
-        <select disabled={disabled} value={data.decision ?? "deny"} onChange={(event) => onChange({ decision: event.target.value as FlowData["decision"] })} className={inputClass}>
+        <select
+          disabled={disabled}
+          value={data.decision ?? "deny"}
+          onChange={(event) => {
+            const decision = event.target.value as FlowData["decision"];
+            onChange({
+              decision,
+              ...(decision === "approval" && !data.approvalRequirements
+                ? { approvalRequirements: [{ groupId: "", requiredCount: 1 }], allowRequester: false }
+                : {}),
+            });
+          }}
+          className={inputClass}
+        >
           <option value="allow">{t("policies.action.allow")}</option>
           <option value="approval">{t("policies.action.approval")}</option>
           <option value="deny">{t("policies.action.deny")}</option>
         </select>
         {groupAccess && data.decision === "approval" ? (
-          <select
+          <ApprovalComposer
             disabled={disabled}
-            value={data.approvalPolicyId ?? ""}
-            onChange={(event) => onChange({ approvalPolicyId: event.target.value })}
-            className={`${inputClass} mt-2`}
-          >
-            <option value="">{t("team.approvalPolicy")}</option>
-            {(approvalPolicies.data ?? []).map((policy) => (
-              <option key={policy.id} value={policy.id}>
-                {policy.name} · {approvalPolicySummary(policy)}
-              </option>
-            ))}
-          </select>
+            rows={data.approvalRequirements ?? [{ groupId: "", requiredCount: 1 }]}
+            allowRequester={data.allowRequester ?? false}
+            groups={orgGroups.data ?? []}
+            onChange={onChange}
+          />
         ) : null}
         </>
       ) : null}
@@ -818,6 +849,173 @@ function NodeInspector({
       )}
     </div>
   );
+}
+
+function ApprovalComposer({
+  rows,
+  groups,
+  allowRequester,
+  disabled,
+  onChange,
+}: {
+  rows: NodeApprovalRequirement[];
+  groups: { id: string; name: string }[];
+  allowRequester: boolean;
+  disabled: boolean;
+  onChange: (patch: Partial<FlowData>) => void;
+}) {
+  const { t } = useI18n();
+  function write(next: NodeApprovalRequirement[]) {
+    onChange({ approvalRequirements: next });
+  }
+  return (
+    <div className="mt-3 grid gap-2">
+      <p className="text-[12px] text-muted-foreground">{t("policies.approvalBody")}</p>
+      {rows.map((row, index) => (
+        <div key={`${index}-${row.groupId}`} className="grid gap-2">
+          <select
+            disabled={disabled}
+            value={row.groupId}
+            aria-label={t("policies.approvalGroup")}
+            onChange={(event) => {
+              const group = groups.find((item) => item.id === event.target.value);
+              write(rows.map((item, itemIndex) => (
+                itemIndex === index ? { ...item, groupId: event.target.value, groupName: group?.name ?? "" } : item
+              )));
+            }}
+            className={inputClass}
+          >
+            <option value="">{t("policies.approvalGroup")}</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <label className="text-[12px] text-muted-foreground">
+              {t("policies.approvalCount")}
+              <input
+                disabled={disabled}
+                type="number"
+                min={1}
+                max={20}
+                value={row.requiredCount}
+                onChange={(event) => {
+                  const count = Number(event.target.value);
+                  write(rows.map((item, itemIndex) => (
+                    itemIndex === index ? { ...item, requiredCount: Number.isFinite(count) ? count : 1 } : item
+                  )));
+                }}
+                className={`${inputClass} w-24`}
+              />
+            </label>
+            {rows.length > 1 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => write(rows.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                {t("policies.removeApprovalGroup")}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ))}
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled || rows.length >= 10}
+          onClick={() => write(rows.concat({ groupId: "", requiredCount: 1 }))}
+        >
+          {t("policies.addApprovalGroup")}
+        </Button>
+      </div>
+      <label className="flex items-center gap-2 text-[13px]">
+        <input
+          type="checkbox"
+          disabled={disabled}
+          checked={allowRequester}
+          onChange={(event) => onChange({ allowRequester: event.target.checked })}
+        />
+        {t("policies.allowRequester")}
+      </label>
+    </div>
+  );
+}
+
+function draftFromPolicy(policy: ApprovalPolicyRecord): Pick<FlowData, "approvalRequirements" | "allowRequester"> {
+  const requirements = policy.requirements ?? [];
+  if (requirements.length > 0) {
+    return {
+      approvalRequirements: requirements.map((item) => ({
+        groupId: item.group_id,
+        groupName: item.group_name,
+        requiredCount: item.required_count,
+      })),
+      allowRequester: policy.allow_requester,
+    };
+  }
+  return {
+    approvalRequirements: [{ groupId: policy.group_id ?? "", requiredCount: policy.required_count || 1 }],
+    allowRequester: policy.allow_requester,
+  };
+}
+
+async function syncNodeApprovals(definition: PolicyDefinition, policyName: string, groupAccess: boolean, incomplete: string) {
+  if (!groupAccess) return definition;
+  const nodes = [];
+  for (const node of definition.nodes) {
+    nodes.push(await syncApprovalNode(node, policyName, incomplete));
+  }
+  return { ...definition, nodes };
+}
+
+async function syncApprovalNode(node: PolicyDefinition["nodes"][number], policyName: string, incomplete: string) {
+  if (node.type !== "decision" || !node.data || typeof node.data !== "object") return node;
+  const data = node.data;
+  if (data.decision !== "approval" || !Array.isArray(data.approvalRequirements)) return node;
+  const rows = data.approvalRequirements.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    return [{
+      groupId: typeof row.groupId === "string" ? row.groupId : "",
+      requiredCount: typeof row.requiredCount === "number" ? row.requiredCount : Number(row.requiredCount),
+    }];
+  });
+  const chosen = rows.filter((row) => row.groupId);
+  if ((rows.length > 1 && chosen.length !== rows.length) || new Set(chosen.map((row) => row.groupId)).size !== chosen.length) {
+    throw new ApiError(400, incomplete);
+  }
+  if (chosen.some((row) => !Number.isInteger(row.requiredCount) || row.requiredCount < 1 || row.requiredCount > 20)) {
+    throw new ApiError(400, incomplete);
+  }
+  const allowRequester = data.allowRequester === true;
+  const policyId = typeof data.approvalPolicyId === "string" ? data.approvalPolicyId : "";
+  if (chosen.length === 0) {
+    const count = Number.isInteger(rows[0]?.requiredCount) ? rows[0].requiredCount : 1;
+    if (!policyId && count <= 1) return node;
+    if (count < 1 || count > 20) throw new ApiError(400, incomplete);
+    const saved = policyId
+      ? await updateApprovalPolicy(policyId, { required_count: count, requirements: [], allow_requester: allowRequester })
+      : await createApprovalPolicy({ name: approvalRecordName(policyName, node.id), required_count: count, allow_requester: allowRequester });
+    return { ...node, data: { ...data, approvalPolicyId: saved.id } };
+  }
+  const requirements = chosen.map((row) => ({ group_id: row.groupId, required_count: row.requiredCount }));
+  const saved = policyId
+    ? await updateApprovalPolicy(policyId, { requirements, allow_requester: allowRequester })
+    : await createApprovalPolicy({
+        name: approvalRecordName(policyName, node.id),
+        requirements,
+        allow_requester: allowRequester,
+      });
+  return { ...node, data: { ...data, approvalPolicyId: saved.id } };
+}
+
+function approvalRecordName(policyName: string, nodeId: string) {
+  return `${(policyName.trim() || "Approval").slice(0, 40)} ${nodeId}`.slice(0, 80);
 }
 
 function Meta({ label, value }: { label: string; value: string }) {

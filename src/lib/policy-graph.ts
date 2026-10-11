@@ -11,6 +11,8 @@ export interface FlowData extends Record<string, unknown> {
   op?: "and" | "or" | "not";
   decision?: "allow" | "approval" | "deny";
   approvalPolicyId?: string;
+  approvalRequirements?: NodeApprovalRequirement[];
+  allowRequester?: boolean;
   rateLimit?: string;
   classification?: {
     status?: string;
@@ -22,7 +24,20 @@ export interface FlowData extends Record<string, unknown> {
   };
 }
 
+export interface NodeApprovalRequirement {
+  groupId: string;
+  groupName?: string;
+  requiredCount: number;
+}
+
 export type FlowNode = Node<FlowData, "policy">;
+
+export function approvalSummary(data: FlowData) {
+  if (data.decision !== "approval") return "";
+  const rows = (data.approvalRequirements ?? []).filter((row) => row.groupId);
+  if (rows.length === 0) return "";
+  return rows.map((row) => `${row.groupName || row.groupId} ${row.requiredCount}`).join(" + ");
+}
 
 const KINDS: PolicyNodeKind[] = ["subject", "tool", "condition", "logic", "decision", "enforcement"];
 
