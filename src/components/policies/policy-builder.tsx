@@ -885,7 +885,7 @@ function ApprovalComposer({
             }}
             className={inputClass}
           >
-            <option value="">{t("policies.approvalGroup")}</option>
+            <option value="">{t("policies.approvalAnyone")}</option>
             {groups.map((group) => (
               <option key={group.id} value={group.id}>
                 {group.name}
