@@ -806,7 +806,7 @@ export const en = {
     failed: "Could not load webhook settings.",
     formatTitle: "Event format",
     formatLead: "Each delivery is one JSON body. type is approval.granted, approval.rejected, or approval.expired. phase is pending or resubmit only for approval.expired.",
-    signatureLead: "Saturn-Webhook-Signature is v1= plus the hex HMAC-SHA256 of the timestamp, a period, and the raw body.",
+    signatureLead: "Saturn-Webhook-Signature is v1= followed by hex(HMAC-SHA256(secret, timestamp + \".\" + raw body)). The secret is the file you download.",
   },
   profile: {
     title: "Profile",
@@ -1822,7 +1822,7 @@ export const zh: DeepString<typeof en> = {
     failed: "無法載入 Webhook 設定。",
     formatTitle: "事件格式",
     formatLead: "每次投遞是一份 JSON。type 為 approval.granted、approval.rejected 或 approval.expired。phase 只有在 approval.expired 時才是 pending 或 resubmit。",
-    signatureLead: "Saturn-Webhook-Signature 是 v1= 加上簽章。簽章是 timestamp、一個句點、以及原始 body 的 HMAC-SHA256，以十六進位表示。",
+    signatureLead: "Saturn-Webhook-Signature 是 v1= 接上 hex(HMAC-SHA256(密鑰, timestamp + \".\" + 原始 body))。密鑰是下載的那個檔案。",
   },
   profile: {
     title: "個人資料",

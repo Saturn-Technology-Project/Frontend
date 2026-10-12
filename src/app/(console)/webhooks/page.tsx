@@ -28,7 +28,7 @@ const fieldClass =
 
 const EVENT_FORMAT = `Saturn-Webhook-Id: whe_0123abcd
 Saturn-Webhook-Timestamp: 1791763200
-Saturn-Webhook-Signature: v1=<hex HMAC-SHA256 of "1791763200.{body}">
+Saturn-Webhook-Signature: v1=<hex(HMAC-SHA256(secret, "1791763200." + body))>
 Content-Type: application/json
 
 {
