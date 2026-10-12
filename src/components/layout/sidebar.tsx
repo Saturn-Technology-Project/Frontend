@@ -53,7 +53,8 @@ export function Sidebar() {
   const { data } = useConsole();
   const { policies: policyAccess, webhooks: webhookAccess } = useEntitlements();
   const pending = data?.approvals.filter((item) => item.status === "pending").length ?? 0;
-  const approveOn = pathname === "/approvals" || pathname.startsWith("/approvals/");
+  const approveOn = pathname === "/approvals";
+  const resubmitOn = pathname === "/approvals/resubmit";
 
   return (
     <>
@@ -102,6 +103,16 @@ export function Sidebar() {
           {pending > 0 ? (
             <span className="rounded-full bg-foreground px-1.5 text-[11px] leading-5 text-background">{pending}</span>
           ) : null}
+        </Link>
+        <Link
+          href="/approvals/resubmit"
+          className={cn(
+            "flex h-11 items-center gap-2.5 rounded-lg px-2.5 text-[14px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground md:h-9 md:text-[13px]",
+            resubmitOn && "bg-sidebar-accent text-foreground hover:bg-sidebar-accent"
+          )}
+        >
+          <NavIcon name="resubmit" />
+          <span className="min-w-0 flex-1 truncate">{t("nav.resubmit")}</span>
         </Link>
         <div className="mx-2.5 my-2 h-px bg-sidebar-border" role="separator" />
         {items.map((item) => {

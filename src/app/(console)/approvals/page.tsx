@@ -8,17 +8,21 @@ import { Button } from "@/components/ui/button";
 import { useConsole, useResolveApproval } from "@/hooks/use-console";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
-import { approvalDeadline, approvalStatusKey, remainingParts, showApproval } from "@/lib/approval-deadline";
+import { approvalDeadline, approvalStatusKey, isResubmitTask, remainingParts, showApproval } from "@/lib/approval-deadline";
 import { relativeTime } from "@/lib/format";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
 
 export default function ApprovalsPage() {
+  return <ApprovalsScreen mode="approve" />;
+}
+
+export function ApprovalsScreen({ mode }: { mode: "approve" | "resubmit" }) {
   const { t } = useI18n();
   const { data, isPending, isError } = useConsole();
   const resolveApproval = useResolveApproval();
   const approvals = (data?.approvals ?? [])
-    .filter(showApproval)
+    .filter(mode === "resubmit" ? isResubmitTask : showApproval)
     .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = approvals.find((item) => item.id === activeId) ?? null;
@@ -31,12 +35,16 @@ export default function ApprovalsPage() {
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
       <div className="px-4 py-5 md:px-8 md:py-6">
-        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">{t("approvals.title")}</h1>
+        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[26px]">
+          {t(mode === "resubmit" ? "approvals.resubmitTitle" : "approvals.title")}
+        </h1>
         <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
-          {t("approvals.subtitle")}
+          {t(mode === "resubmit" ? "approvals.resubmitSubtitle" : "approvals.subtitle")}
         </p>
         {approvals.length === 0 ? (
-          <p className="mt-10 text-[13px] text-muted-foreground">{t("approvals.empty")}</p>
+          <p className="mt-10 text-[13px] text-muted-foreground">
+            {t(mode === "resubmit" ? "approvals.resubmitEmpty" : "approvals.empty")}
+          </p>
         ) : (
           <ul className="mt-8 max-w-[640px] space-y-3">
             {approvals.map((approval) => (

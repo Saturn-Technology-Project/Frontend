@@ -1,8 +1,13 @@
 import type { Approval } from "@/types";
 
+export function isResubmitTask(approval: Approval) {
+  if (approval.status === "approved" && (approval.executionState ?? "none") === "none") return true;
+  return approval.status === "expired" && approval.expiredPhase === "resubmit";
+}
+
 export function showApproval(approval: Approval) {
-  if (approval.status === "pending" || approval.status === "expired") return true;
-  return approval.status === "approved" && (approval.executionState ?? "none") === "none";
+  if (isResubmitTask(approval)) return false;
+  return approval.status === "pending" || approval.status === "expired";
 }
 
 export function approvalStatusKey(approval: Approval) {

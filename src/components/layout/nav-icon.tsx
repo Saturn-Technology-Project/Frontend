@@ -4,6 +4,7 @@ export function NavIcon({ name, className = "size-4 shrink-0" }: { name: string;
   const paths: Record<string, ReactNode> = {
     home: <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" />,
     check: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 12.2l2.3 2.3 4.7-5" />,
+    resubmit: <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" />,
     grid: <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />,
     link: <path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7L12.7 18" />,
     bot: <path d="M12 8V5M8 8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3zM9 13h.01M15 13h.01" />,
