@@ -306,6 +306,47 @@ function post<T>(path: string, body?: unknown, auth = true) {
   );
 }
 
+export type RecoveryBackup = {
+  v: number;
+  kdf: string;
+  salt: string;
+  nonce: string;
+  ciphertext: string;
+  org_key_version: number;
+};
+
+export type PayloadEnvelope = {
+  v: number;
+  org_key_version: number;
+  nonce: string;
+  ciphertext: string;
+  wrapped_dek: string;
+  content_sha256: string;
+};
+
+export type PayloadKeyStatus = {
+  active_version: number | null;
+  encryption_status: string;
+  public_key: string | null;
+  historical_note: string;
+};
+
+export function revealActivity(eventId: string) {
+  return post<{ envelope?: PayloadEnvelope; decrypt?: string; arguments?: Record<string, unknown> }>(`/activity/${eventId}/reveal`, {});
+}
+
+export function fetchPayloadKeys() {
+  return get<PayloadKeyStatus>("/org/payload-keys");
+}
+
+export function createPayloadKey(body: { public_key: string; backup: RecoveryBackup }) {
+  return post("/org/payload-keys", body);
+}
+
+export function fetchPayloadBackup() {
+  return get<RecoveryBackup>("/org/payload-keys/backup");
+}
+
 function patch<T>(path: string, body: unknown) {
   return request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 }

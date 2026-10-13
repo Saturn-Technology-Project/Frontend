@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +11,8 @@ import {
 import { SectionLabel } from "@/components/ui/section-label";
 import { useConsole } from "@/hooks/use-console";
 import { approvalDeadline, approvalStatusKey, remainingParts } from "@/lib/approval-deadline";
+import { useAuthStore } from "@/lib/auth";
+import { openSealedActivity } from "@/lib/payload-crypto";
 import { agentCopy, useI18n } from "@/lib/i18n";
 import type { Approval } from "@/types";
 
@@ -47,6 +50,10 @@ export function ApprovalPanel({
   resolving?: boolean;
 }) {
   const { t, locale } = useI18n();
+  const orgId = useAuthStore((state) => state.org?.id) ?? "";
+  const [opened, setOpened] = useState<Record<string, unknown> | null>(null);
+  const [revealFailed, setRevealFailed] = useState(false);
+  const shown = opened ?? approval?.arguments;
   const { data } = useConsole();
   if (!approval) return null;
 
@@ -76,11 +83,11 @@ export function ApprovalPanel({
         <div className="divide-y divide-border px-6">
           <Field label={t("approvals.agent")} value={agentName} />
           <Field label={t("approvals.action")} value={approval.action} />
-          {approval.arguments && Object.keys(approval.arguments).length > 0 ? (
+          {shown && Object.keys(shown).length > 0 ? (
             <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-[112px_1fr] sm:gap-4">
               <SectionLabel className="pt-0.5">{t("approvals.arguments")}</SectionLabel>
               <dl className="min-w-0 space-y-1 font-mono text-[12px] leading-5">
-                {Object.entries(approval.arguments).map(([key, value]) => (
+                {Object.entries(shown).map(([key, value]) => (
                   <div key={key} className="flex gap-2">
                     <dt className="shrink-0 text-muted-foreground">{key}</dt>
                     <dd className="min-w-0 whitespace-pre-wrap break-words">
@@ -89,6 +96,26 @@ export function ApprovalPanel({
                   </div>
                 ))}
               </dl>
+            </div>
+          ) : null}
+          {approval.sealed && approval.activityEventId && !opened ? (
+            <div className="py-3">
+              <button
+                type="button"
+                className="text-[13px] text-muted-foreground underline hover:text-foreground"
+                onClick={() => {
+                  void openSealedActivity(approval.activityEventId!, orgId)
+                    .then((content) => {
+                      const args = content.arguments;
+                      setOpened(args && typeof args === "object" && !Array.isArray(args) ? (args as Record<string, unknown>) : content);
+                      setRevealFailed(false);
+                    })
+                    .catch(() => setRevealFailed(true));
+                }}
+              >
+                {t("activity.reveal")}
+              </button>
+              {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
             </div>
           ) : null}
           {approval.customer ? (

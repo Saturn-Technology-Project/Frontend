@@ -252,6 +252,8 @@ export interface Approval {
   policyVersion?: number;
   triggeredRule?: string;
   arguments?: Record<string, unknown>;
+  sealed?: boolean;
+  activityEventId?: string;
   risk?: "low" | "medium" | "high";
   status: ApprovalStatus;
   requiredCount?: number;
@@ -296,6 +298,7 @@ export interface ActivityEvent {
     result?: unknown;
     approval?: unknown;
     payment?: unknown;
+    sealed?: boolean;
   };
 }
 

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useConsole } from "@/hooks/use-console";
 import { exportActivity } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
+import { openSealedActivity } from "@/lib/payload-crypto";
 import { formatClock, formatDayLabel, relativeTime } from "@/lib/format";
 import { eventActor, eventText, useI18n, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -608,6 +610,9 @@ function ChainStep({
   onToggle: (key: string) => void;
 }) {
   const { t, locale } = useI18n();
+  const orgId = useAuthStore((state) => state.org?.id) ?? "";
+  const [opened, setOpened] = useState<Record<string, unknown> | null>(null);
+  const [revealFailed, setRevealFailed] = useState(false);
   const title = eventText(locale, event.titleKey, event.title);
   const actor = eventActor(locale, event);
   const raw = event.raw ?? {};
@@ -681,6 +686,24 @@ function ChainStep({
             <Body label={t("activity.parameters")} value={parameters} />
           )}
           {event.event === "approval_requested" && openBody === parametersKey ? <Body label={t("activity.parameters")} value={parameters} /> : null}
+          {event.payload?.sealed === true ? (
+            <button
+              type="button"
+              className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground"
+              onClick={() => {
+                void openSealedActivity(event.id, orgId)
+                  .then((content) => {
+                    setOpened(content);
+                    setRevealFailed(false);
+                  })
+                  .catch(() => setRevealFailed(true));
+              }}
+            >
+              {t("activity.reveal")}
+            </button>
+          ) : null}
+          {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
+          {opened ? <Body label={t("activity.reveal")} value={opened} /> : null}
           <Body label={t("activity.result")} value={typeof event.payload?.result === "object" ? event.payload.result : undefined} />
         </div>
       ) : null}

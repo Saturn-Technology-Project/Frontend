@@ -217,6 +217,8 @@ function mapApproval(
           : undefined
       : undefined,
     arguments: args,
+    sealed: requested?.payload?.sealed === true,
+    activityEventId: requested?.id,
     risk: approvalRisk(amountValue),
     status: (
       ["pending", "approved", "rejected", "expired", "cancelled", "invalidated"].includes(approval.status)
