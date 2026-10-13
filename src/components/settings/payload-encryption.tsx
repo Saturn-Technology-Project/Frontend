@@ -34,7 +34,7 @@ export function PayloadEncryption() {
       const secret = randomRecoveryKey();
       const backup = await recoveryBackup(secret, orgId, 1, privateKey);
       await createPayloadKey({ public_key: bytesToHex(publicKey), backup });
-      holdOrganizationKey(privateKey);
+      holdOrganizationKey(privateKey, publicKey);
       setHeld(true);
       setRecovery(bytesToHex(secret));
       setSaved(false);
@@ -48,7 +48,9 @@ export function PayloadEncryption() {
     try {
       const backup = await fetchPayloadBackup();
       const key = await openRecoveryBackup(hexToBytes(unlock), orgId, backup);
-      holdOrganizationKey(key);
+      const current = await fetchPayloadKeys();
+      if (!current.public_key) throw new Error("organization public key is missing");
+      holdOrganizationKey(key, hexToBytes(current.public_key));
       setHeld(true);
       setUnlock("");
     } catch {
