@@ -380,3 +380,15 @@ export async function unlockMemberKey(password: string) {
       backup,
       needs_assist: !missing,
     });
+    holdMemberKey(privateKey, publicKey, registered.id);
+    if (!missing && typeof sessionStorage !== "undefined") sessionStorage.setItem("saturn-member-rewrap", "1");
+  }
+}
+
+export async function openSealedActivity(eventId: string, organizationId: string) {
+  const revealed = await revealActivity(eventId);
+  if (revealed.decrypt === "client" && revealed.envelope) {
+    return decryptHeldEnvelope(organizationId, eventId, "audit", revealed.envelope);
+  }
+  return revealed;
+}
