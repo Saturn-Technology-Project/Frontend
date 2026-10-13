@@ -54,8 +54,10 @@ export function KeyAssistPrompt() {
     }
   }
 
+  if (!current) return null;
+
   return (
-    <Dialog open={Boolean(current)} onOpenChange={(open) => { if (!open) dismiss(); }}>
+    <Dialog open>
       <DialogContent showCloseButton={false} className="max-w-md">
         <DialogTitle className="text-[15px] font-medium">{t("activity.assist", { name: current?.name ?? "" })}</DialogTitle>
         <DialogDescription className="sr-only">{t("activity.assist", { name: current?.name ?? "" })}</DialogDescription>
