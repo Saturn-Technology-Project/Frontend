@@ -7,6 +7,7 @@ import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
 import { ApiError, login, loginWithEmailCode, loginWithPasskey, requestPasswordReset, resetPassword } from "@/lib/api";
+import { unlockMemberKey } from "@/lib/payload-crypto";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,7 @@ function LoginForm() {
     try {
       await loginWithEmailCode(challenge, code.trim());
       router.replace(next || "/overview");
+      await unlockMemberKey(password).catch(() => undefined);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 400 ? t("login.codeInvalid") : t("common.apiError"));
     } finally {

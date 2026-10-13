@@ -1,9 +1,55 @@
-import { revealActivity, type PayloadEnvelope, type RecoveryBackup } from "@/lib/api";
+import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
 
 const encoder = new TextEncoder();
 const WRAP_INFO = encoder.encode("saturn-payload-wrap-v1");
 const RECOVERY_INFO = encoder.encode("saturn-recovery-v1");
 const ZERO_SALT = new Uint8Array(32);
+
+const SESSION_KEY = "saturn-member-key";
+export const PASSWORD_ITERATIONS = 600_000;
+
+type HeldMemberKey = { privateKey: Uint8Array; publicKey: Uint8Array; memberKeyId: string };
+
+let heldMember: HeldMemberKey | null = null;
+
+export function holdMemberKey(privateKey: Uint8Array, publicKey: Uint8Array, memberKeyId: string) {
+  heldMember = { privateKey, publicKey, memberKeyId };
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({
+        privateKey: bytesToHex(privateKey),
+        publicKey: bytesToHex(publicKey),
+        memberKeyId,
+      }),
+    );
+  }
+}
+
+export function clearMemberKey() {
+  heldMember = null;
+  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+}
+
+export function memberKey(): HeldMemberKey | null {
+  if (heldMember) return heldMember;
+  if (typeof sessionStorage === "undefined") return null;
+  const raw = sessionStorage.getItem(SESSION_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { privateKey?: string; publicKey?: string; memberKeyId?: string };
+    if (!parsed.privateKey || !parsed.publicKey || !parsed.memberKeyId) return null;
+    heldMember = {
+      privateKey: hexToBytes(parsed.privateKey),
+      publicKey: hexToBytes(parsed.publicKey),
+      memberKeyId: parsed.memberKeyId,
+    };
+    return heldMember;
+  } catch {
+    return null;
+  }
+}
 
 let organizationPrivate: Uint8Array | null = null;
 let organizationPublic: Uint8Array | null = null;
@@ -156,12 +202,181 @@ export async function decryptEnvelope(privateKey: Uint8Array, publicKey: Uint8Ar
   return JSON.parse(new TextDecoder().decode(body)) as Record<string, unknown>;
 }
 
-export async function openSealedActivity(eventId: string, organizationId: string) {
-  const revealed = await revealActivity(eventId);
-  if (revealed.decrypt === "client" && revealed.envelope) {
-    const key = organizationKey();
-    if (!key || !organizationPublic) throw new Error("organization key is locked");
-    return decryptEnvelope(key, organizationPublic, organizationId, eventId, "audit", revealed.envelope);
-  }
-  return revealed;
+async function openWithKey(
+  privateKey: Uint8Array,
+  publicKey: Uint8Array,
+  wrappedHex: string,
+  wrapAad: string,
+  organizationId: string,
+  recordId: string,
+  payloadType: string,
+  envelope: PayloadEnvelope,
+) {
+  const dek = await unwrapSecret(privateKey, publicKey, wrappedHex, encoder.encode(wrapAad));
+  const aes = await crypto.subtle.importKey("raw", source(dek), "AES-GCM", false, ["decrypt"]);
+  const aad = encoder.encode(`${organizationId}\n${recordId}\n${payloadType}\n${envelope.v}`);
+  const body = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: source(hexToBytes(envelope.nonce)), additionalData: source(aad) },
+    aes,
+    source(hexToBytes(envelope.ciphertext)),
+  );
+  return JSON.parse(new TextDecoder().decode(body)) as Record<string, unknown>;
 }
+
+export async function decryptHeldEnvelope(
+  organizationId: string,
+  recordId: string,
+  payloadType: string,
+  envelope: PayloadEnvelope & { recipient_wraps?: { member_key_id?: string; wrapped_dek?: string }[] },
+) {
+  const mine = memberKey();
+  const wrap = mine?.memberKeyId
+    ? envelope.recipient_wraps?.find((item) => item.member_key_id === mine.memberKeyId && item.wrapped_dek)
+    : undefined;
+  if (mine && wrap?.wrapped_dek) {
+    return openWithKey(
+      mine.privateKey,
+      mine.publicKey,
+      wrap.wrapped_dek,
+      `dek\n${organizationId}\n${mine.memberKeyId}\n${recordId}\n${payloadType}`,
+      organizationId,
+      recordId,
+      payloadType,
+      envelope,
+    );
+  }
+  const orgPrivate = organizationKey();
+  if (!orgPrivate || !organizationPublic || !envelope.wrapped_dek) throw new Error("organization key is locked");
+  return openWithKey(
+    orgPrivate,
+    organizationPublic,
+    envelope.wrapped_dek,
+    `dek\n${organizationId}\n${envelope.org_key_version}\n${recordId}\n${payloadType}`,
+    organizationId,
+    recordId,
+    payloadType,
+    envelope,
+  );
+}
+
+export async function passwordBackup(password: string, userId: string, privateKey: Uint8Array): Promise<PasswordBackup> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const base = await crypto.subtle.importKey("raw", source(encoder.encode(password)), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: source(salt), iterations: PASSWORD_ITERATIONS },
+    base,
+    256,
+  );
+  const aes = await crypto.subtle.importKey("raw", source(new Uint8Array(bits)), "AES-GCM", false, ["encrypt"]);
+  const aad = encoder.encode(`password\n${userId}`);
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(privateKey)),
+  );
+  return {
+    v: 1,
+    kdf: "PBKDF2-HMAC-SHA256",
+    iterations: PASSWORD_ITERATIONS,
+    salt: bytesToHex(salt),
+    nonce: bytesToHex(nonce),
+    ciphertext: bytesToHex(ciphertext),
+  };
+}
+
+export async function openPasswordBackup(password: string, userId: string, backup: PasswordBackup) {
+  if (backup.kdf !== "PBKDF2-HMAC-SHA256" || backup.iterations !== PASSWORD_ITERATIONS) {
+    throw new Error("unsupported password backup");
+  }
+  const base = await crypto.subtle.importKey("raw", source(encoder.encode(password)), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: source(hexToBytes(backup.salt)), iterations: PASSWORD_ITERATIONS },
+    base,
+    256,
+  );
+  const aes = await crypto.subtle.importKey("raw", source(new Uint8Array(bits)), "AES-GCM", false, ["decrypt"]);
+  const aad = encoder.encode(`password\n${userId}`);
+  return new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: source(hexToBytes(backup.nonce)), additionalData: source(aad) },
+      aes,
+      source(hexToBytes(backup.ciphertext)),
+    ),
+  );
+}
+
+export function clearIgnoredAssists() {
+  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("saturn-assist-ignored");
+}
+
+export function ignoredAssists() {
+  if (typeof sessionStorage === "undefined") return new Set<string>();
+  return new Set((sessionStorage.getItem("saturn-assist-ignored") ?? "").split(",").filter(Boolean));
+}
+
+export function ignoreAssist(memberKeyId: string) {
+  const next = ignoredAssists();
+  next.add(memberKeyId);
+  sessionStorage.setItem("saturn-assist-ignored", [...next].join(","));
+}
+
+export async function helpMemberAccess(request: AssistRequest) {
+  const orgId = useAuthStore.getState().org?.id ?? "";
+  const mine = memberKey();
+  if (!mine || !orgId) throw new Error("organization key is locked");
+  const sources = await fetchMemberRewrap(request.member_key_id);
+  const records = [];
+  for (const item of sources.records) {
+    const own = item.own_wrap
+      ? await unwrapSecret(
+          mine.privateKey,
+          mine.publicKey,
+          item.own_wrap,
+          encoder.encode(`dek\n${orgId}\n${mine.memberKeyId}\n${item.id}\n${item.type}`),
+        ).catch(() => null)
+      : null;
+    const orgPrivate = organizationKey();
+    const opened =
+      own ??
+      (orgPrivate && organizationPublic && item.wrapped_dek
+        ? await unwrapSecret(
+            orgPrivate,
+            organizationPublic,
+            item.wrapped_dek,
+            encoder.encode(`dek\n${orgId}\n${item.org_key_version}\n${item.id}\n${item.type}`),
+          ).catch(() => null)
+        : null);
+    if (!opened) continue;
+    records.push({
+      id: item.id,
+      type: item.type,
+      wrapped_dek: await wrapSecret(
+        request.public_key,
+        opened,
+        encoder.encode(`dek\n${orgId}\n${request.member_key_id}\n${item.id}\n${item.type}`),
+      ),
+      content_sha256: item.content_sha256,
+    });
+  }
+  if (sources.records.length > 0 && records.length === 0) throw new Error("organization key is locked");
+  await submitMemberRewrap({ member_key_id: request.member_key_id, records });
+}
+
+export async function unlockMemberKey(password: string) {
+  clearIgnoredAssists();
+  const userId = useAuthStore.getState().user?.id ?? "";
+  if (!userId || !password) return;
+  try {
+    const backup = await fetchMemberBackup();
+    const privateKey = await openPasswordBackup(password, userId, backup);
+    holdMemberKey(privateKey, hexToBytes(backup.public_key), backup.member_key_id);
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("saturn-member-rewrap");
+  } catch (error) {
+    if (error instanceof ApiError && error.status !== 404) throw error;
+    const missing = error instanceof ApiError && error.status === 404;
+    const { publicKey, privateKey } = await generateX25519();
+    const backup = await passwordBackup(password, userId, privateKey);
+    const registered = await registerMemberPayloadKey({
+      public_key: bytesToHex(publicKey),
+      backup,
+      needs_assist: !missing,
+    });

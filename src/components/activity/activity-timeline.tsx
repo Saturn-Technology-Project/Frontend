@@ -5,7 +5,8 @@ import { ChevronDown } from "lucide-react";
 import { useConsole } from "@/hooks/use-console";
 import { exportActivity } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
-import { openSealedActivity } from "@/lib/payload-crypto";
+import { decryptHeldEnvelope, openSealedActivity } from "@/lib/payload-crypto";
+import type { PayloadEnvelope } from "@/lib/api";
 import { formatClock, formatDayLabel, relativeTime } from "@/lib/format";
 import { eventActor, eventText, useI18n, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -612,12 +613,15 @@ function ChainStep({
   const { t, locale } = useI18n();
   const orgId = useAuthStore((state) => state.org?.id) ?? "";
   const [opened, setOpened] = useState<Record<string, unknown> | null>(null);
+  const [requestView, setRequestView] = useState<unknown>(undefined);
+  const [responseView, setResponseView] = useState<unknown>(undefined);
   const [revealFailed, setRevealFailed] = useState(false);
   const title = eventText(locale, event.titleKey, event.title);
   const actor = eventActor(locale, event);
   const raw = event.raw ?? {};
-  const rawRequest = raw.raw_request ?? raw.arguments ?? event.payload?.parameters;
-  const rawResponse = serverBody(raw.raw_response ?? raw.server_result);
+  const rawRequest = requestView !== undefined ? requestView : raw.raw_request ?? raw.arguments ?? event.payload?.parameters;
+  const rawResponse = responseView !== undefined ? responseView : serverBody(raw.raw_response ?? raw.server_result);
+  const sealed = raw.sealed === true || isRecord(raw.envelope);
   const requestKey = `${event.id}:request`;
   const responseKey = `${event.id}:response`;
   const parametersKey = `${event.id}:parameters`;
@@ -625,6 +629,21 @@ function ChainStep({
   const requestLabel = raw.raw_request ? t("activity.rawRequest") : t("activity.originalRequest");
   const responseLabel = raw.raw_response ? t("activity.rawResponse") : t("activity.serverReturned");
   const outcome = outcomeKey(event.result) ? t(outcomeKey(event.result)) : event.result || "";
+
+  async function openSealed(kind: "request" | "response") {
+    setRevealFailed(false);
+    try {
+      const envelope = isRecord(raw.envelope) ? raw.envelope : null;
+      const content = envelope
+        ? await decryptHeldEnvelope(orgId, event.id, "audit", envelope as PayloadEnvelope)
+        : await openSealedActivity(event.id, orgId);
+      const opened = content as Record<string, unknown>;
+      if (kind === "request") setRequestView(opened.raw_request ?? opened.arguments ?? opened);
+      else setResponseView(serverBody(opened.raw_response ?? opened.server_result ?? opened.agent_result) ?? opened);
+    } catch {
+      setRevealFailed(true);
+    }
+  }
 
   return (
     <div>
@@ -641,12 +660,23 @@ function ChainStep({
           <Line label={t("activity.initiator")} value={actor} />
           <Line label={t("activity.requestedTool")} value={event.tool || ""} />
           <Line label={t("activity.mcpServer")} value={server} />
-          {hasBody(rawRequest) ? (
-            <button type="button" className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground" onClick={() => onToggle(requestKey)}>
-              {openBody === requestKey ? t("activity.hideRequest") : requestLabel}
+          {hasBody(rawRequest) || sealed ? (
+            <button
+              type="button"
+              className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground"
+              onClick={() => {
+                if (requestView !== undefined) {
+                  setRequestView(undefined);
+                  return;
+                }
+                if (hasBody(rawRequest)) onToggle(requestKey);
+                else void openSealed("request");
+              }}
+            >
+              {openBody === requestKey || requestView !== undefined ? t("activity.hideRequest") : requestLabel}
             </button>
           ) : null}
-          {openBody === requestKey ? <Body label={requestLabel} value={rawRequest} /> : null}
+          {openBody === requestKey || requestView !== undefined ? <Body label={requestLabel} value={rawRequest} /> : null}
         </div>
       ) : null}
       {event.event === "policy_evaluated" ? (
@@ -661,14 +691,26 @@ function ChainStep({
           <Line label={t("activity.tool")} value={event.tool || ""} />
           <Line label={t("activity.mcpServer")} value={server} />
           <Line label={t("activity.executionResult")} value={outcome} />
-          {hasBody(rawResponse) ? (
-            <button type="button" className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground" onClick={() => onToggle(responseKey)}>
-              {openBody === responseKey ? t("activity.hideRawResponse") : responseLabel}
+          {hasBody(rawResponse) || sealed ? (
+            <button
+              type="button"
+              className="mt-1 text-[13px] text-muted-foreground underline hover:text-foreground"
+              onClick={() => {
+                if (responseView !== undefined) {
+                  setResponseView(undefined);
+                  return;
+                }
+                if (hasBody(rawResponse)) onToggle(responseKey);
+                else void openSealed("response");
+              }}
+            >
+              {openBody === responseKey || responseView !== undefined ? t("activity.hideRawResponse") : responseLabel}
             </button>
           ) : (
             <p className="mt-1 text-[13px] text-muted-foreground">{t("activity.noServerBody")}</p>
           )}
-          {openBody === responseKey ? <Body label={responseLabel} value={rawResponse} /> : null}
+          {openBody === responseKey || responseView !== undefined ? <Body label={responseLabel} value={rawResponse} /> : null}
+          {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.rawLocked")}</p> : null}
         </div>
       ) : null}
       {event.event !== "tool_requested" && event.event !== "policy_evaluated" && event.event !== "tool_executed" ? (

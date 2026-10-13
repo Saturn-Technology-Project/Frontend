@@ -343,8 +343,67 @@ export function createPayloadKey(body: { public_key: string; backup: RecoveryBac
   return post("/org/payload-keys", body);
 }
 
+export type MemberBackup = {
+  member_key_id: string;
+  public_key: string;
+  v: number;
+  kdf: string;
+  iterations: number;
+  salt: string;
+  nonce: string;
+  ciphertext: string;
+};
+
+export type PasswordBackup = {
+  v: number;
+  kdf: string;
+  iterations: number;
+  salt: string;
+  nonce: string;
+  ciphertext: string;
+};
+
 export function fetchPayloadBackup() {
   return get<RecoveryBackup>("/org/payload-keys/backup");
+}
+
+export function fetchMemberBackup() {
+  return get<MemberBackup>("/org/payload-keys/member/backup");
+}
+
+export function registerMemberPayloadKey(body: { public_key: string; backup: PasswordBackup; needs_assist?: boolean }) {
+  return post<{ id: string; public_key: string }>("/org/payload-keys/member", body);
+}
+
+export type AssistRequest = {
+  user_id: string;
+  name: string;
+  member_key_id: string;
+  public_key: string;
+};
+
+export function fetchAssistRequests() {
+  return get<{ requests: AssistRequest[] }>("/org/payload-keys/member/assist");
+}
+
+export type RewrapSource = {
+  id: string;
+  type: string;
+  content_sha256: string;
+  org_key_version: number;
+  wrapped_dek: string;
+  own_wrap: string;
+};
+
+export function fetchMemberRewrap(memberKeyId: string) {
+  return get<{ records: RewrapSource[] }>(`/org/payload-keys/member/rewrap?member_key_id=${encodeURIComponent(memberKeyId)}`);
+}
+
+export function submitMemberRewrap(body: {
+  member_key_id: string;
+  records: { id: string; type: string; wrapped_dek: string; content_sha256: string }[];
+}) {
+  return post<{ migrated: number }>("/org/payload-keys/member/rewrap", body);
 }
 
 function patch<T>(path: string, body: unknown) {
@@ -422,6 +481,8 @@ export async function logout() {
   try {
     await post<void>("/auth/logout");
   } finally {
+    const { clearMemberKey } = await import("@/lib/payload-crypto");
+    clearMemberKey();
     useAuthStore.getState().clear();
   }
 }

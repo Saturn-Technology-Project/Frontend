@@ -4,6 +4,7 @@
 
 import type { ReactNode } from "react";
 import { Header } from "@/components/layout/header";
+import { KeyAssistPrompt } from "@/components/layout/key-assist-prompt";
 import { MobileNavProvider, useMobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { UpgradeCover } from "@/components/layout/upgrade-cover";
@@ -35,6 +36,7 @@ function Shell({ children }: { children: ReactNode }) {
         </main>
       </div>
       {free ? <UpgradeCover /> : null}
+      <KeyAssistPrompt />
     </div>
   );
 }
