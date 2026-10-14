@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { Providers } from "@/components/layout/providers";
 import "./globals.css";
 
@@ -17,7 +18,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // The proxy creates a request-specific CSP nonce. Rendering at request time
+  // lets Next attach that nonce to its framework and page scripts.
+  await connection();
+
   return (
     <html
       lang="zh-Hant"
