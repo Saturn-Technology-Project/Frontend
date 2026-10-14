@@ -61,6 +61,7 @@ function LoginForm() {
         setMode("mfa");
         return;
       }
+      await unlockMemberKey(password).catch(() => undefined);
       router.replace(next || "/overview");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) setError(t("login.invalid"));

@@ -1,4 +1,4 @@
-import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
+import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 const encoder = new TextEncoder();
@@ -319,14 +319,25 @@ export function ignoreAssist(memberKeyId: string) {
   sessionStorage.setItem("saturn-assist-ignored", [...next].join(","));
 }
 
+export async function unlockOrganizationKey(recoveryHex: string) {
+  const orgId = useAuthStore.getState().org?.id ?? "";
+  const recovery = recoveryHex.trim();
+  if (!orgId || !recovery) throw new Error("organization key is locked");
+  const [backup, status] = await Promise.all([fetchPayloadBackup(), fetchPayloadKeys()]);
+  if (!status.public_key) throw new Error("organization key is locked");
+  const privateKey = await openRecoveryBackup(hexToBytes(recovery), orgId, backup);
+  holdOrganizationKey(privateKey, hexToBytes(status.public_key));
+}
+
 export async function helpMemberAccess(request: AssistRequest) {
   const orgId = useAuthStore.getState().org?.id ?? "";
   const mine = memberKey();
-  if (!mine || !orgId) throw new Error("organization key is locked");
+  const orgPrivate = organizationKey();
+  if (!orgId || (!mine && !orgPrivate)) throw new Error("organization key is locked");
   const sources = await fetchMemberRewrap(request.member_key_id);
   const records = [];
   for (const item of sources.records) {
-    const own = item.own_wrap
+    const own = mine && item.own_wrap
       ? await unwrapSecret(
           mine.privateKey,
           mine.publicKey,
