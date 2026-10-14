@@ -141,7 +141,7 @@ export interface Entitlements {
   webhooks?: boolean;
   groups?: boolean;
   audit: "basic" | "full" | string;
-  audit_days: number;
+  audit_days: number | null;
 }
 
 export interface AuthUserResponse {

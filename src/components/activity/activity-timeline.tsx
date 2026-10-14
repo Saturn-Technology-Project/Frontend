@@ -433,7 +433,7 @@ export function AuditLog({
                     link.click();
                     URL.revokeObjectURL(url);
                   },
-                  () => setExportError(t("plan.upgradeBody"))
+                  () => setExportError(t("common.requestFailed"))
                 );
               }}
             >

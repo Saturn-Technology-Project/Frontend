@@ -28,17 +28,7 @@ export function useEntitlements() {
     policies,
     webhooks,
     groups,
-    toolSetLimit: entitlements
-      ? policies
-        ? typeof limit === "number"
-          ? limit
-          : null
-        : typeof limit === "number"
-          ? limit
-          : 1
-      : policies
-        ? null
-        : 1,
-    auditFull: entitlements ? entitlements.audit === "full" : policies,
+    toolSetLimit: entitlements ? (typeof limit === "number" ? limit : null) : null,
+    auditFull: entitlements ? entitlements.audit !== "basic" : true,
   };
 }

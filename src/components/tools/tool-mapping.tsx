@@ -103,7 +103,7 @@ export function ToolSetEditor({
   servers,
   toolSets,
   agents,
-  toolSetLimit = 1,
+  toolSetLimit = null,
   canWrite,
 }: {
   servers: McpServer[];

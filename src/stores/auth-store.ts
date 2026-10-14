@@ -35,7 +35,7 @@ export interface AuthOrg {
     policies: boolean;
     webhooks?: boolean;
     audit: string;
-    audit_days: number;
+    audit_days: number | null;
   };
 }
 
