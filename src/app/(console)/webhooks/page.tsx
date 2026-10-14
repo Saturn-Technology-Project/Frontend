@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
+import { UpgradeCover } from "@/components/layout/upgrade-cover";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
@@ -100,106 +100,105 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="px-4 py-6 md:px-10 md:py-8">
-      <h1 className="text-[26px] font-semibold tracking-tight">{t("webhooks.title")}</h1>
-      <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.subtitle")}</p>
+    <div className="relative min-h-[calc(100dvh-4rem)]">
+      <div className="px-4 py-6 md:px-10 md:py-8">
+        <h1 className="text-[26px] font-semibold tracking-tight">{t("webhooks.title")}</h1>
+        <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.subtitle")}</p>
 
-      <section className="mt-8 max-w-3xl">
-        <h2 className="text-[15px] font-medium">{t("webhooks.formatTitle")}</h2>
-        <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.formatLead")}</p>
-        <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.signatureLead")}</p>
-        <pre className="mt-4 overflow-x-auto border border-border bg-muted/40 p-4 font-mono text-[12px] leading-5">{EVENT_FORMAT}</pre>
-      </section>
+        {webhookAccess ? (
+          <>
+            <section className="mt-8 max-w-3xl">
+              <h2 className="text-[15px] font-medium">{t("webhooks.formatTitle")}</h2>
+              <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.formatLead")}</p>
+              <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">{t("webhooks.signatureLead")}</p>
+              <pre className="mt-4 overflow-x-auto border border-border bg-muted/40 p-4 font-mono text-[12px] leading-5">{EVENT_FORMAT}</pre>
+            </section>
 
-      <form
-        className="mt-8 max-w-xl border-t border-border py-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!canWrite) return;
-          saveWindow.mutate({
-            pending_ttl_minutes: Number(pendingValue),
-            resubmit_ttl_minutes: Number(resubmitValue),
-          });
-        }}
-      >
-        <div className="text-[13px] text-muted-foreground">{t("webhooks.window")}</div>
-        <p className="mt-1 text-[12px] text-muted-foreground">{t("webhooks.windowHint")}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="text-[13px]">
-            {t("webhooks.pendingTtl")}
-            <input
-              className={fieldClass}
-              inputMode="numeric"
-              value={pendingValue}
-              onChange={(event) => setPendingMinutes(event.target.value)}
-              disabled={!canWrite}
-            />
-          </label>
-          <label className="text-[13px]">
-            {t("webhooks.resubmitTtl")}
-            <input
-              className={fieldClass}
-              inputMode="numeric"
-              value={resubmitValue}
-              onChange={(event) => setResubmitMinutes(event.target.value)}
-              disabled={!canWrite}
-            />
-          </label>
-        </div>
-        {canWrite ? (
-          <Button className="mt-4" type="submit" disabled={saveWindow.isPending}>
-            {t("webhooks.save")}
-          </Button>
-        ) : null}
-        {saveWindow.isError ? <p className="mt-2 text-[13px] text-destructive">{saveWindow.error.message}</p> : null}
-      </form>
-
-      {webhookAccess ? (
-        <>
-          {canWrite ? (
-            <form className="max-w-xl border-t border-border py-5" onSubmit={onCreate}>
-              <label className="text-[13px]">
-                {t("webhooks.url")}
-                <input className={fieldClass} value={url} onChange={(event) => setUrl(event.target.value)} required />
-              </label>
-              <div className="mt-4 text-[13px]">{t("webhooks.events")}</div>
-              <div className="mt-2 flex flex-wrap gap-4 text-[13px]">
-                {EVENTS.map(([value, key]) => (
-                  <label key={value} className="flex items-center gap-2">
-                    <input type="checkbox" checked={events.includes(value)} onChange={() => toggleEvent(value)} />
-                    {t(key)}
-                  </label>
-                ))}
+            <form
+              className="mt-8 max-w-xl border-t border-border py-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!canWrite) return;
+                saveWindow.mutate({
+                  pending_ttl_minutes: Number(pendingValue),
+                  resubmit_ttl_minutes: Number(resubmitValue),
+                });
+              }}
+            >
+              <div className="text-[13px] text-muted-foreground">{t("webhooks.window")}</div>
+              <p className="mt-1 text-[12px] text-muted-foreground">{t("webhooks.windowHint")}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-[13px]">
+                  {t("webhooks.pendingTtl")}
+                  <input
+                    className={fieldClass}
+                    inputMode="numeric"
+                    value={pendingValue}
+                    onChange={(event) => setPendingMinutes(event.target.value)}
+                    disabled={!canWrite}
+                  />
+                </label>
+                <label className="text-[13px]">
+                  {t("webhooks.resubmitTtl")}
+                  <input
+                    className={fieldClass}
+                    inputMode="numeric"
+                    value={resubmitValue}
+                    onChange={(event) => setResubmitMinutes(event.target.value)}
+                    disabled={!canWrite}
+                  />
+                </label>
               </div>
-              <Button className="mt-4" type="submit" disabled={create.isPending || events.length === 0}>
-                {t("webhooks.create")}
-              </Button>
-              {create.isError ? <p className="mt-2 text-[13px] text-destructive">{create.error.message}</p> : null}
+              {canWrite ? (
+                <Button className="mt-4" type="submit" disabled={saveWindow.isPending}>
+                  {t("webhooks.save")}
+                </Button>
+              ) : null}
+              {saveWindow.isError ? <p className="mt-2 text-[13px] text-destructive">{saveWindow.error.message}</p> : null}
             </form>
-          ) : null}
 
-          {secret ? (
-            <p className="max-w-xl border border-border px-4 py-3 font-mono text-[12px] break-all">
-              {t("webhooks.secretOnce")}
-              <span className="mt-2 block">{secret}</span>
-            </p>
-          ) : null}
+            {canWrite ? (
+              <form className="max-w-xl border-t border-border py-5" onSubmit={onCreate}>
+                <label className="text-[13px]">
+                  {t("webhooks.url")}
+                  <input className={fieldClass} value={url} onChange={(event) => setUrl(event.target.value)} required />
+                </label>
+                <div className="mt-4 text-[13px]">{t("webhooks.events")}</div>
+                <div className="mt-2 flex flex-wrap gap-4 text-[13px]">
+                  {EVENTS.map(([value, key]) => (
+                    <label key={value} className="flex items-center gap-2">
+                      <input type="checkbox" checked={events.includes(value)} onChange={() => toggleEvent(value)} />
+                      {t(key)}
+                    </label>
+                  ))}
+                </div>
+                <Button className="mt-4" type="submit" disabled={create.isPending || events.length === 0}>
+                  {t("webhooks.create")}
+                </Button>
+                {create.isError ? <p className="mt-2 text-[13px] text-destructive">{create.error.message}</p> : null}
+              </form>
+            ) : null}
 
-          {endpoints.isError ? <p className="mt-6 text-[13px] text-muted-foreground">{failed}</p> : null}
-          {!endpoints.isPending && (endpoints.data?.length ?? 0) === 0 && !endpoints.isError ? (
-            <p className="mt-6 text-[13px] text-muted-foreground">{t("webhooks.empty")}</p>
-          ) : null}
-          <ul className="mt-4 max-w-3xl space-y-4">
-            {(endpoints.data ?? []).map((endpoint) => (
-              <EndpointCard key={endpoint.id} id={endpoint.id} url={endpoint.url} events={endpoint.events} enabled={endpoint.enabled} canWrite={canWrite} onSecret={setSecret} />
-            ))}
-          </ul>
-        </>
-      ) : (
-        <div className="mt-8 max-w-xl">
-          <UpgradePrompt />
-        </div>
-      )}
+            {secret ? (
+              <p className="max-w-xl border border-border px-4 py-3 font-mono text-[12px] break-all">
+                {t("webhooks.secretOnce")}
+                <span className="mt-2 block">{secret}</span>
+              </p>
+            ) : null}
+
+            {endpoints.isError ? <p className="mt-6 text-[13px] text-muted-foreground">{failed}</p> : null}
+            {!endpoints.isPending && (endpoints.data?.length ?? 0) === 0 && !endpoints.isError ? (
+              <p className="mt-6 text-[13px] text-muted-foreground">{t("webhooks.empty")}</p>
+            ) : null}
+            <ul className="mt-4 max-w-3xl space-y-4">
+              {(endpoints.data ?? []).map((endpoint) => (
+                <EndpointCard key={endpoint.id} id={endpoint.id} url={endpoint.url} events={endpoint.events} enabled={endpoint.enabled} canWrite={canWrite} onSecret={setSecret} />
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+      {!webhookAccess ? <UpgradeCover /> : null}
     </div>
   );
 }

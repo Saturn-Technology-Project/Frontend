@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
+import { UpgradeCover } from "@/components/layout/upgrade-cover";
 import { QueryGate } from "@/components/layout/query-gate";
 import { StatusLabel } from "@/components/ui/status-dot";
 import { useConsole } from "@/hooks/use-console";
@@ -25,79 +25,79 @@ export default function PoliciesPage() {
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
-      <div className="px-4 py-6 md:px-10 md:py-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-[22px] font-medium tracking-tight">{t("policies.title")}</h1>
-            <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
-              {t("policies.subtitle")}
-            </p>
+      <div className="relative min-h-[calc(100dvh-4rem)]">
+        <div className="px-4 py-6 md:px-10 md:py-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-[22px] font-medium tracking-tight">{t("policies.title")}</h1>
+              <p className="mt-2 max-w-xl text-[13px] text-muted-foreground">
+                {t("policies.subtitle")}
+              </p>
+            </div>
+            {canWrite && policyAccess ? (
+              <Link
+                href="/policies/new"
+                className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90 sm:w-auto"
+              >
+                {t("policies.create")}
+              </Link>
+            ) : null}
           </div>
-          {canWrite && policyAccess ? (
-            <Link
-              href="/policies/new"
-              className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-primary px-3 text-[13px] text-primary-foreground hover:bg-primary/90 sm:w-auto"
-            >
-              {t("policies.create")}
-            </Link>
+
+          {policyAccess && policies.length === 0 ? (
+            <p className="mt-10 text-[13px] text-muted-foreground">{t("policies.empty")}</p>
+          ) : null}
+          {policyAccess && policies.length > 0 ? (
+            <ul className="mt-8 max-w-[680px] space-y-3">
+              {policies.map((policy) => {
+                const domain = domainFromTool(policy.tools[0] ?? "");
+                const usedBy =
+                  policy.agents.length > 0
+                    ? policy.agents.join(", ")
+                    : t("policies.allAgents");
+                return (
+                  <li key={policy.id}>
+                    <Link
+                      href={`/policies/${policy.id}`}
+                      className="block border border-border px-5 py-5 hover:bg-muted/40"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="text-[15px] font-medium">{policy.name}</div>
+                        <StatusLabel tone={policy.status === "active" ? "active" : policy.status === "paused" ? "paused" : "pending"}>
+                          {t(
+                            policy.status === "draft"
+                              ? "policies.draft"
+                              : policy.status === "validated"
+                                ? "policies.validated"
+                                : policy.status === "paused"
+                                  ? "policies.paused"
+                                  : "policies.active"
+                          )}
+                        </StatusLabel>
+                      </div>
+                      <div className="mt-2 text-[13px] text-muted-foreground">
+                        {[domain, t("policies.rulesCount", { n: policy.rules.length })]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                      {policy.updatedAt ? (
+                        <div className="mt-1 text-[12px] text-muted-foreground">
+                          {t("policies.updated", {
+                            time: relativeTime(policy.updatedAt, locale),
+                          })}
+                        </div>
+                      ) : null}
+                      <div className="mt-4 text-[13px] text-muted-foreground">
+                        {t("policies.usedBy")}: {usedBy}
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           ) : null}
         </div>
-
-        {!policyAccess ? (
-          <div className="mt-8 max-w-[680px]">
-            <UpgradePrompt />
-          </div>
-        ) : policies.length === 0 ? (
-          <p className="mt-10 text-[13px] text-muted-foreground">{t("policies.empty")}</p>
-        ) : (
-          <ul className="mt-8 max-w-[680px] space-y-3">
-            {policies.map((policy) => {
-              const domain = domainFromTool(policy.tools[0] ?? "");
-              const usedBy =
-                policy.agents.length > 0
-                  ? policy.agents.join(", ")
-                  : t("policies.allAgents");
-              return (
-                <li key={policy.id}>
-                  <Link
-                    href={`/policies/${policy.id}`}
-                    className="block border border-border px-5 py-5 hover:bg-muted/40"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="text-[15px] font-medium">{policy.name}</div>
-                      <StatusLabel tone={policy.status === "active" ? "active" : policy.status === "paused" ? "paused" : "pending"}>
-                        {t(
-                          policy.status === "draft"
-                            ? "policies.draft"
-                            : policy.status === "validated"
-                              ? "policies.validated"
-                              : policy.status === "paused"
-                                ? "policies.paused"
-                                : "policies.active"
-                        )}
-                      </StatusLabel>
-                    </div>
-                    <div className="mt-2 text-[13px] text-muted-foreground">
-                      {[domain, t("policies.rulesCount", { n: policy.rules.length })]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </div>
-                    {policy.updatedAt ? (
-                      <div className="mt-1 text-[12px] text-muted-foreground">
-                        {t("policies.updated", {
-                          time: relativeTime(policy.updatedAt, locale),
-                        })}
-                      </div>
-                    ) : null}
-                    <div className="mt-4 text-[13px] text-muted-foreground">
-                      {t("policies.usedBy")}: {usedBy}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {!policyAccess ? <UpgradeCover /> : null}
       </div>
     </QueryGate>
   );

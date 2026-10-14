@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
+import { UpgradeCover } from "@/components/layout/upgrade-cover";
 import { QueryGate } from "@/components/layout/query-gate";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,11 @@ export default function CreatePolicyPage() {
 
   if (!policyAccess) {
     return (
-      <div className="px-4 py-6 md:px-10 md:py-10">
-        <UpgradePrompt />
+      <div className="relative min-h-[calc(100dvh-4rem)]">
+        <div className="px-4 py-6 md:px-10 md:py-10">
+          <h1 className="text-[22px] font-medium tracking-tight">{t("policies.create")}</h1>
+        </div>
+        <UpgradeCover />
       </div>
     );
   }
