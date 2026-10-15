@@ -1,10 +1,13 @@
+import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 const encoder = new TextEncoder();
-const WRAP_INFO = encoder.encode("saturn-payload-wrap-v1");
+const WRAP_INFO = encoder.encode("saturn-payload-mlkem1024-v1");
 const RECOVERY_INFO = encoder.encode("saturn-recovery-v1");
-const ZERO_SALT = new Uint8Array(32);
+const WRAP_VERSION = 2;
+const KEM_CIPHERTEXT_BYTES = ml_kem1024.lengths.cipherText ?? 1568;
+const SHA384_ZERO_SALT = new Uint8Array(48);
 
 const SESSION_KEY = "saturn-member-key";
 export const PASSWORD_ITERATIONS = 600_000;
@@ -79,97 +82,54 @@ function source(value: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(copy);
 }
 
-async function importPublic(raw: Uint8Array) {
-  return crypto.subtle.importKey("raw", source(raw), { name: "X25519" }, true, []);
-}
-
-function bytesToBase64Url(bytes: Uint8Array) {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
-}
-
-function base64UrlToBytes(value: string) {
-  const padded = value + "=".repeat((4 - (value.length % 4)) % 4);
-  const binary = atob(padded.replaceAll("-", "+").replaceAll("_", "/"));
-  const out = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) out[index] = binary.charCodeAt(index);
-  return out;
-}
-
-async function importPrivate(raw: Uint8Array, publicRaw: Uint8Array) {
-  return crypto.subtle.importKey(
-    "jwk",
-    {
-      crv: "X25519",
-      kty: "OKP",
-      d: bytesToBase64Url(raw),
-      x: bytesToBase64Url(publicRaw),
-      ext: true,
-      key_ops: ["deriveBits"],
-    },
-    { name: "X25519" },
-    true,
-    ["deriveBits"],
-  );
-}
-
-async function hkdf(secret: Uint8Array, salt: Uint8Array, info: Uint8Array) {
+async function hkdf(secret: Uint8Array, salt: Uint8Array, info: Uint8Array, hash: "SHA-256" | "SHA-384") {
   const key = await crypto.subtle.importKey("raw", source(secret), "HKDF", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: source(salt), info: source(info) }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash, salt: source(salt), info: source(info) }, key, 256);
   return new Uint8Array(bits);
 }
 
-export async function generateX25519() {
-  const pair = (await crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"])) as CryptoKeyPair;
-  const publicKey = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
-  const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
-  if (!jwk.d) throw new Error("Browser did not export the private key");
-  return { publicKey, privateKey: base64UrlToBytes(jwk.d) };
+export async function generateMlKem() {
+  const { publicKey, secretKey } = ml_kem1024.keygen();
+  return { publicKey: new Uint8Array(publicKey), privateKey: new Uint8Array(secretKey) };
 }
 
 export function randomRecoveryKey() {
   return crypto.getRandomValues(new Uint8Array(32));
 }
 
-async function sharedKey(privateKey: CryptoKey, publicRaw: Uint8Array, info: Uint8Array) {
-  const bits = await crypto.subtle.deriveBits({ name: "X25519", public: await importPublic(publicRaw) }, privateKey, 256);
-  return hkdf(new Uint8Array(bits), ZERO_SALT, info);
+async function wrapAesKey(shared: Uint8Array) {
+  return hkdf(shared, SHA384_ZERO_SALT, WRAP_INFO, "SHA-384");
 }
 
 export async function wrapSecret(recipientPublicHex: string, secret: Uint8Array, aad: Uint8Array) {
-  const ephemeral = (await crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"])) as CryptoKeyPair;
-  const aes = await crypto.subtle.importKey("raw", source(await sharedKey(ephemeral.privateKey, hexToBytes(recipientPublicHex), WRAP_INFO)), "AES-GCM", false, ["encrypt"]);
+  const { cipherText, sharedSecret } = ml_kem1024.encapsulate(hexToBytes(recipientPublicHex));
+  const aes = await crypto.subtle.importKey("raw", source(await wrapAesKey(new Uint8Array(sharedSecret))), "AES-GCM", false, ["encrypt"]);
   const nonce = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(secret)));
-  const ephemeralPublic = new Uint8Array(await crypto.subtle.exportKey("raw", ephemeral.publicKey));
-  const out = new Uint8Array(1 + 32 + 12 + ciphertext.length);
-  out[0] = 1;
-  out.set(ephemeralPublic, 1);
-  out.set(nonce, 33);
-  out.set(ciphertext, 45);
+  const out = new Uint8Array(1 + cipherText.length + nonce.length + ciphertext.length);
+  out[0] = WRAP_VERSION;
+  out.set(cipherText, 1);
+  out.set(nonce, 1 + cipherText.length);
+  out.set(ciphertext, 1 + cipherText.length + nonce.length);
   return bytesToHex(out);
 }
 
-export async function unwrapSecret(privateRaw: Uint8Array, publicRaw: Uint8Array, wrappedHex: string, aad: Uint8Array) {
+export async function unwrapSecret(privateRaw: Uint8Array, wrappedHex: string, aad: Uint8Array) {
   const wrapped = hexToBytes(wrappedHex);
-  if (wrapped[0] !== 1) throw new Error("Invalid key envelope");
-  const aes = await crypto.subtle.importKey(
-    "raw",
-    source(await sharedKey(await importPrivate(privateRaw, publicRaw), wrapped.slice(1, 33), WRAP_INFO)),
-    "AES-GCM",
-    false,
-    ["decrypt"],
-  );
-  const nonce = wrapped.slice(33, 45);
-  const ciphertext = wrapped.slice(45);
+  const kemEnd = 1 + KEM_CIPHERTEXT_BYTES;
+  const nonceEnd = kemEnd + 12;
+  if (wrapped[0] !== WRAP_VERSION || wrapped.length < nonceEnd + 16) throw new Error("Invalid key envelope");
+  const shared = ml_kem1024.decapsulate(wrapped.slice(1, kemEnd), privateRaw);
+  const aes = await crypto.subtle.importKey("raw", source(await wrapAesKey(new Uint8Array(shared))), "AES-GCM", false, ["decrypt"]);
+  const nonce = wrapped.slice(kemEnd, nonceEnd);
+  const ciphertext = wrapped.slice(nonceEnd);
   return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(ciphertext)));
 }
 
 export async function recoveryBackup(recoveryKey: Uint8Array, organizationId: string, keyVersion: number, privateKey: Uint8Array): Promise<RecoveryBackup> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const derived = await hkdf(recoveryKey, salt, RECOVERY_INFO);
+  const derived = await hkdf(recoveryKey, salt, RECOVERY_INFO, "SHA-256");
   const aes = await crypto.subtle.importKey("raw", source(derived), "AES-GCM", false, ["encrypt"]);
   const aad = encoder.encode(`recovery\n${organizationId}\n${keyVersion}`);
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(privateKey)));
@@ -177,7 +137,7 @@ export async function recoveryBackup(recoveryKey: Uint8Array, organizationId: st
 }
 
 export async function openRecoveryBackup(recoveryKey: Uint8Array, organizationId: string, backup: { salt: string; nonce: string; ciphertext: string; org_key_version: number }) {
-  const derived = await hkdf(recoveryKey, hexToBytes(backup.salt), RECOVERY_INFO);
+  const derived = await hkdf(recoveryKey, hexToBytes(backup.salt), RECOVERY_INFO, "SHA-256");
   const aes = await crypto.subtle.importKey("raw", source(derived), "AES-GCM", false, ["decrypt"]);
   const aad = encoder.encode(`recovery\n${organizationId}\n${backup.org_key_version}`);
   return new Uint8Array(
@@ -185,10 +145,9 @@ export async function openRecoveryBackup(recoveryKey: Uint8Array, organizationId
   );
 }
 
-export async function decryptEnvelope(privateKey: Uint8Array, publicKey: Uint8Array, organizationId: string, recordId: string, payloadType: string, envelope: PayloadEnvelope) {
+export async function decryptEnvelope(privateKey: Uint8Array, organizationId: string, recordId: string, payloadType: string, envelope: PayloadEnvelope) {
   const dek = await unwrapSecret(
     privateKey,
-    publicKey,
     envelope.wrapped_dek,
     encoder.encode(`dek\n${organizationId}\n${envelope.org_key_version}\n${recordId}\n${payloadType}`),
   );
@@ -204,7 +163,6 @@ export async function decryptEnvelope(privateKey: Uint8Array, publicKey: Uint8Ar
 
 async function openWithKey(
   privateKey: Uint8Array,
-  publicKey: Uint8Array,
   wrappedHex: string,
   wrapAad: string,
   organizationId: string,
@@ -212,7 +170,7 @@ async function openWithKey(
   payloadType: string,
   envelope: PayloadEnvelope,
 ) {
-  const dek = await unwrapSecret(privateKey, publicKey, wrappedHex, encoder.encode(wrapAad));
+  const dek = await unwrapSecret(privateKey, wrappedHex, encoder.encode(wrapAad));
   const aes = await crypto.subtle.importKey("raw", source(dek), "AES-GCM", false, ["decrypt"]);
   const aad = encoder.encode(`${organizationId}\n${recordId}\n${payloadType}\n${envelope.v}`);
   const body = await crypto.subtle.decrypt(
@@ -236,7 +194,6 @@ export async function decryptHeldEnvelope(
   if (mine && wrap?.wrapped_dek) {
     return openWithKey(
       mine.privateKey,
-      mine.publicKey,
       wrap.wrapped_dek,
       `dek\n${organizationId}\n${mine.memberKeyId}\n${recordId}\n${payloadType}`,
       organizationId,
@@ -249,7 +206,6 @@ export async function decryptHeldEnvelope(
   if (!orgPrivate || !organizationPublic || !envelope.wrapped_dek) throw new Error("organization key is locked");
   return openWithKey(
     orgPrivate,
-    organizationPublic,
     envelope.wrapped_dek,
     `dek\n${organizationId}\n${envelope.org_key_version}\n${recordId}\n${payloadType}`,
     organizationId,
@@ -340,7 +296,6 @@ export async function helpMemberAccess(request: AssistRequest) {
     const own = mine && item.own_wrap
       ? await unwrapSecret(
           mine.privateKey,
-          mine.publicKey,
           item.own_wrap,
           encoder.encode(`dek\n${orgId}\n${mine.memberKeyId}\n${item.id}\n${item.type}`),
         ).catch(() => null)
@@ -351,7 +306,6 @@ export async function helpMemberAccess(request: AssistRequest) {
       (orgPrivate && organizationPublic && item.wrapped_dek
         ? await unwrapSecret(
             orgPrivate,
-            organizationPublic,
             item.wrapped_dek,
             encoder.encode(`dek\n${orgId}\n${item.org_key_version}\n${item.id}\n${item.type}`),
           ).catch(() => null)
@@ -384,7 +338,7 @@ export async function unlockMemberKey(password: string) {
   } catch (error) {
     if (error instanceof ApiError && error.status !== 404) throw error;
     const missing = error instanceof ApiError && error.status === 404;
-    const { publicKey, privateKey } = await generateX25519();
+    const { publicKey, privateKey } = await generateMlKem();
     const backup = await passwordBackup(password, userId, privateKey);
     const registered = await registerMemberPayloadKey({
       public_key: bytesToHex(publicKey),

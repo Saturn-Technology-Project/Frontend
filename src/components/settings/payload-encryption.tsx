@@ -8,7 +8,7 @@ import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import {
   bytesToHex,
-  generateX25519,
+  generateMlKem,
   hexToBytes,
   holdOrganizationKey,
   openRecoveryBackup,
@@ -30,7 +30,7 @@ export function PayloadEncryption() {
 
   const create = useMutation({
     mutationFn: async () => {
-      const { publicKey, privateKey } = await generateX25519();
+      const { publicKey, privateKey } = await generateMlKem();
       const secret = randomRecoveryKey();
       const backup = await recoveryBackup(secret, orgId, 1, privateKey);
       await createPayloadKey({ public_key: bytesToHex(publicKey), backup });
