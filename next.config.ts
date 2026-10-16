@@ -7,10 +7,6 @@ const apiUrl = (
   ""
 );
 
-const saturnAiUrl = (
-  process.env.SATURN_AI_URL ?? "https://saturn-ai-629072855899.asia-east1.run.app"
-).replace(/\/$/, "");
-
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -42,10 +38,6 @@ const nextConfig: NextConfig = {
       {
         source: "/saturn-api/:path*",
         destination: `${apiUrl}/:path*`,
-      },
-      {
-        source: "/saturn-ai/:path*",
-        destination: `${saturnAiUrl}/:path*`,
       },
     ];
   },

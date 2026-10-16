@@ -4,7 +4,6 @@ import type {
   ApiAgent,
   ApiApproval,
   ApiHealth,
-  ApiAppMcp,
   ApiMcpServer,
   ApiPolicy,
   ApiTool,
@@ -20,7 +19,6 @@ import type {
   ActivityEvent,
   ActorKind,
   Agent,
-  AppMcp,
   Approval,
   ConsoleData,
   Integration,
@@ -403,21 +401,6 @@ function mapMcpServers(servers: ApiMcpServer[]): McpServer[] {
   }));
 }
 
-function mapAppMcp(input: ApiAppMcp | null | undefined): AppMcp {
-  return {
-    servers: (input?.servers ?? []).map((server) => ({
-      id: server.id,
-      name: server.name,
-      url: server.url,
-      tools: (server.tools ?? []).map((tool) => ({
-        toolId: tool.tool_id,
-        description: tool.description ?? "",
-      })),
-    })),
-    attachments: input?.attachments ?? {},
-  };
-}
-
 function mapToolSets(sets: ApiToolSet[]): ToolSet[] {
   return sets.map((set) => ({
     id: set.id,
@@ -444,13 +427,11 @@ export function mapConsole(input: {
   health: ApiHealth;
   mcpServers?: ApiMcpServer[];
   toolSets?: ApiToolSet[];
-  appMcp?: ApiAppMcp | null;
 }): ConsoleData {
   return {
     agents: input.agents.map((agent) => mapAgent(agent, input.tools, input.policies)),
     integrations: mapTools(input.tools, input.policies),
     mcpServers: mapMcpServers(input.mcpServers ?? []),
-    appMcp: mapAppMcp(input.appMcp),
     toolSets: mapToolSets(input.toolSets ?? []),
     policies: input.policies.map((policy) => mapPolicy(policy, input.agents)),
     runs: [],

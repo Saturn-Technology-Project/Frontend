@@ -308,28 +308,10 @@ export interface SystemService {
   status: ServiceStatus;
 }
 
-export interface AppMcpTool {
-  toolId: string;
-  description: string;
-}
-
-export interface AppMcpServer {
-  id: string;
-  name: string;
-  url: string;
-  tools: AppMcpTool[];
-}
-
-export interface AppMcp {
-  servers: AppMcpServer[];
-  attachments: Record<string, string[]>;
-}
-
 export interface ConsoleData {
   agents: Agent[];
   integrations: Integration[];
   mcpServers: McpServer[];
-  appMcp: AppMcp;
   toolSets: ToolSet[];
   policies: Policy[];
   runs: AgentRun[];

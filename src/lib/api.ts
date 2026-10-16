@@ -872,28 +872,8 @@ export async function acceptInvite(token: string, password: string, email: strin
   return result;
 }
 
-async function fetchAppMcp(): Promise<ApiAppMcp> {
-  const empty: ApiAppMcp = { servers: [], attachments: {} };
-  const token = useAuthStore.getState().token;
-  if (!token) return empty;
-  try {
-    const response = await fetch("/saturn-ai/app-mcp", {
-      headers: { authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    if (!response.ok) return empty;
-    const body = (await response.json()) as ApiAppMcp;
-    return {
-      servers: Array.isArray(body.servers) ? body.servers : [],
-      attachments: body.attachments && typeof body.attachments === "object" ? body.attachments : {},
-    };
-  } catch {
-    return empty;
-  }
-}
-
 export async function fetchConsole(): Promise<ConsoleData> {
-  const [agents, tools, policies, approvals, activity, health, mcpServers, toolSets, appMcp] =
+  const [agents, tools, policies, approvals, activity, health, mcpServers, toolSets] =
     await Promise.all([
       get<ApiAgent[]>("/agents"),
       get<ApiTool[]>("/tools"),
@@ -903,7 +883,6 @@ export async function fetchConsole(): Promise<ConsoleData> {
       get<ApiHealth>("/health"),
       get<ApiMcpServer[]>("/mcp-servers").catch(() => []),
       get<ApiToolSet[]>("/tool-sets").catch(() => []),
-      fetchAppMcp(),
     ]);
 
   return mapConsole({
@@ -915,7 +894,6 @@ export async function fetchConsole(): Promise<ConsoleData> {
     health,
     mcpServers: mcpServers ?? [],
     toolSets: toolSets ?? [],
-    appMcp: appMcp ?? { servers: [], attachments: {} },
   });
 }
 
@@ -984,11 +962,6 @@ export function deleteAgent(id: string) {
 
 export function deleteMcpServer(id: string) {
   return del(`/mcp-servers/${id}`);
-}
-
-export interface ApiAppMcp {
-  servers: { id: string; name: string; url: string; tools: { tool_id: string; description?: string }[] }[];
-  attachments: Record<string, string[]>;
 }
 
 export interface ApiMcpServer {

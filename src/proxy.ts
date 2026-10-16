@@ -41,5 +41,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|saturn-api|saturn-ai|favicon.ico|logo.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|saturn-api|favicon.ico|logo.png).*)"],
 };
