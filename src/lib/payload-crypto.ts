@@ -1,7 +1,7 @@
 import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
-import { memberWrapMaterial } from "@/lib/password";
+import { legacyWrapMaterial, memberWrapMaterial } from "@/lib/password";
 
 const encoder = new TextEncoder();
 const WRAP_INFO = encoder.encode("saturn-payload-mlkem1024-v1");
@@ -216,42 +216,54 @@ export async function decryptHeldEnvelope(
   );
 }
 
-export async function passwordBackup(password: string, userId: string, privateKey: Uint8Array): Promise<PasswordBackup> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+async function aesKey(raw: Uint8Array, usages: KeyUsage[]) {
+  return crypto.subtle.importKey("raw", source(raw), "AES-GCM", false, usages);
+}
+
+export async function passwordBackup(
+  password: string,
+  userId: string,
+  privateKey: Uint8Array,
+  email: string,
+): Promise<PasswordBackup> {
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const base = await crypto.subtle.importKey("raw", source(await memberWrapMaterial(password)), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: source(salt), iterations: PASSWORD_ITERATIONS },
-    base,
-    256,
-  );
-  const aes = await crypto.subtle.importKey("raw", source(new Uint8Array(bits)), "AES-GCM", false, ["encrypt"]);
+  const aes = await aesKey(await memberWrapMaterial(password, email), ["encrypt"]);
   const aad = encoder.encode(`password\n${userId}`);
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(privateKey)),
   );
   return {
     v: 1,
-    kdf: "PBKDF2-HMAC-SHA256",
-    iterations: PASSWORD_ITERATIONS,
-    salt: bytesToHex(salt),
+    kdf: "HKDF-SHA256",
+    iterations: 1,
+    salt: "",
     nonce: bytesToHex(nonce),
     ciphertext: bytesToHex(ciphertext),
   };
 }
 
-export async function openPasswordBackup(password: string, userId: string, backup: PasswordBackup) {
+export async function openPasswordBackup(password: string, userId: string, backup: PasswordBackup, email: string) {
+  const aad = encoder.encode(`password\n${userId}`);
+  if (backup.kdf === "HKDF-SHA256") {
+    const aes = await aesKey(await memberWrapMaterial(password, email), ["decrypt"]);
+    return new Uint8Array(
+      await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: source(hexToBytes(backup.nonce)), additionalData: source(aad) },
+        aes,
+        source(hexToBytes(backup.ciphertext)),
+      ),
+    );
+  }
   if (backup.kdf !== "PBKDF2-HMAC-SHA256" || backup.iterations !== PASSWORD_ITERATIONS) {
     throw new Error("unsupported password backup");
   }
-  const base = await crypto.subtle.importKey("raw", source(await memberWrapMaterial(password)), "PBKDF2", false, ["deriveBits"]);
+  const base = await crypto.subtle.importKey("raw", source(await legacyWrapMaterial(password)), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: source(hexToBytes(backup.salt)), iterations: PASSWORD_ITERATIONS },
     base,
     256,
   );
   const aes = await crypto.subtle.importKey("raw", source(new Uint8Array(bits)), "AES-GCM", false, ["decrypt"]);
-  const aad = encoder.encode(`password\n${userId}`);
   return new Uint8Array(
     await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: source(hexToBytes(backup.nonce)), additionalData: source(aad) },
@@ -330,17 +342,18 @@ export async function helpMemberAccess(request: AssistRequest) {
 export async function unlockMemberKey(password: string) {
   clearIgnoredAssists();
   const userId = useAuthStore.getState().user?.id ?? "";
-  if (!userId || !password) return;
+  const email = useAuthStore.getState().user?.email ?? "";
+  if (!userId || !email || !password) return;
   try {
     const backup = await fetchMemberBackup();
-    const privateKey = await openPasswordBackup(password, userId, backup);
+    const privateKey = await openPasswordBackup(password, userId, backup, email);
     holdMemberKey(privateKey, hexToBytes(backup.public_key), backup.member_key_id);
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("saturn-member-rewrap");
   } catch (error) {
     if (error instanceof ApiError && error.status !== 404) throw error;
     const missing = error instanceof ApiError && error.status === 404;
     const { publicKey, privateKey } = await generateMlKem();
-    const backup = await passwordBackup(password, userId, privateKey);
+    const backup = await passwordBackup(password, userId, privateKey, email);
     const registered = await registerMemberPayloadKey({
       public_key: bytesToHex(publicKey),
       backup,
