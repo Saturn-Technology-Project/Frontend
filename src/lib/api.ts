@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/lib/auth";
+import { loginVerifier } from "@/lib/password";
 import { localeRevisionNow, localeSavePending, useLocaleStore } from "@/stores/locale-store";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "@/types";
@@ -426,7 +427,7 @@ async function establishSession(result: LoginResponse) {
 export async function login(email: string, password: string): Promise<LoginResponse | LoginChallenge> {
   const result = await post<LoginResponse & Partial<LoginChallenge>>(
     "/auth/login",
-    { email, password, locale: useLocaleStore.getState().locale },
+    { email, password: await loginVerifier(password), locale: useLocaleStore.getState().locale },
     false
   );
   if (result.mfa_required && result.challenge) {
@@ -440,10 +441,10 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return session;
 }
 
-export function requestSignupCode(name: string, email: string, password: string) {
+export async function requestSignupCode(name: string, email: string, password: string) {
   return post<void>(
     "/auth/register/code",
-    { name, email, password, locale: useLocaleStore.getState().locale },
+    { name, email, password: await loginVerifier(password), locale: useLocaleStore.getState().locale },
     false
   );
 }
@@ -451,7 +452,7 @@ export function requestSignupCode(name: string, email: string, password: string)
 export async function registerAccount(name: string, email: string, password: string, code: string) {
   const result = await post<LoginResponse>(
     "/auth/register",
-    { name, email, password, code, locale: useLocaleStore.getState().locale },
+    { name, email, password: await loginVerifier(password), code, locale: useLocaleStore.getState().locale },
     false
   );
   await establishSession(result);
@@ -545,14 +546,14 @@ export function requestPasswordReset(email: string) {
   return post<void>("/auth/forgot-password", { email, locale: useLocaleStore.getState().locale }, false);
 }
 
-export function resetPassword(email: string, code: string, password: string) {
-  return post<void>("/auth/reset-password", { email, code, password }, false);
+export async function resetPassword(email: string, code: string, password: string) {
+  return post<void>("/auth/reset-password", { email, code, password: await loginVerifier(password) }, false);
 }
 
-export function changePassword(currentPassword: string, newPassword: string) {
+export async function changePassword(currentPassword: string, newPassword: string) {
   return patch<void>("/auth/password", {
-    current_password: currentPassword,
-    new_password: newPassword,
+    current_password: await loginVerifier(currentPassword),
+    new_password: await loginVerifier(newPassword),
   });
 }
 
@@ -580,8 +581,8 @@ export function disableEmailMfa() {
   return del("/auth/mfa/email");
 }
 
-export function reauthenticate(password: string) {
-  return post<void>("/auth/reauth", { password });
+export async function reauthenticate(password: string) {
+  return post<void>("/auth/reauth", { password: await loginVerifier(password) });
 }
 
 export function requestReauthCode() {
@@ -824,7 +825,7 @@ export function updateApprovalPolicy(
 }
 
 export async function acceptInvite(token: string, password: string) {
-  const result = await post<LoginResponse>("/auth/accept-invite", { token, password }, false);
+  const result = await post<LoginResponse>("/auth/accept-invite", { token, password: await loginVerifier(password) }, false);
   await establishSession(result);
   return result;
 }

@@ -1,6 +1,7 @@
 import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { memberWrapMaterial } from "@/lib/password";
 
 const encoder = new TextEncoder();
 const WRAP_INFO = encoder.encode("saturn-payload-mlkem1024-v1");
@@ -218,7 +219,7 @@ export async function decryptHeldEnvelope(
 export async function passwordBackup(password: string, userId: string, privateKey: Uint8Array): Promise<PasswordBackup> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const base = await crypto.subtle.importKey("raw", source(encoder.encode(password)), "PBKDF2", false, ["deriveBits"]);
+  const base = await crypto.subtle.importKey("raw", source(await memberWrapMaterial(password)), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: source(salt), iterations: PASSWORD_ITERATIONS },
     base,
@@ -243,7 +244,7 @@ export async function openPasswordBackup(password: string, userId: string, backu
   if (backup.kdf !== "PBKDF2-HMAC-SHA256" || backup.iterations !== PASSWORD_ITERATIONS) {
     throw new Error("unsupported password backup");
   }
-  const base = await crypto.subtle.importKey("raw", source(encoder.encode(password)), "PBKDF2", false, ["deriveBits"]);
+  const base = await crypto.subtle.importKey("raw", source(await memberWrapMaterial(password)), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: source(hexToBytes(backup.salt)), iterations: PASSWORD_ITERATIONS },
     base,
