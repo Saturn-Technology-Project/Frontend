@@ -17,42 +17,23 @@ type HeldMemberKey = { privateKey: Uint8Array; publicKey: Uint8Array; memberKeyI
 
 let heldMember: HeldMemberKey | null = null;
 
+function dropStoredMemberKey() {
+  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+}
+
 export function holdMemberKey(privateKey: Uint8Array, publicKey: Uint8Array, memberKeyId: string) {
   heldMember = { privateKey, publicKey, memberKeyId };
-  if (typeof sessionStorage !== "undefined") {
-    sessionStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify({
-        privateKey: bytesToHex(privateKey),
-        publicKey: bytesToHex(publicKey),
-        memberKeyId,
-      }),
-    );
-  }
+  dropStoredMemberKey();
 }
 
 export function clearMemberKey() {
   heldMember = null;
-  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+  dropStoredMemberKey();
 }
 
 export function memberKey(): HeldMemberKey | null {
-  if (heldMember) return heldMember;
-  if (typeof sessionStorage === "undefined") return null;
-  const raw = sessionStorage.getItem(SESSION_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as { privateKey?: string; publicKey?: string; memberKeyId?: string };
-    if (!parsed.privateKey || !parsed.publicKey || !parsed.memberKeyId) return null;
-    heldMember = {
-      privateKey: hexToBytes(parsed.privateKey),
-      publicKey: hexToBytes(parsed.publicKey),
-      memberKeyId: parsed.memberKeyId,
-    };
-    return heldMember;
-  } catch {
-    return null;
-  }
+  dropStoredMemberKey();
+  return heldMember;
 }
 
 let organizationPrivate: Uint8Array | null = null;

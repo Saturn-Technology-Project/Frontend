@@ -75,12 +75,21 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "saturn-auth",
+      version: 2,
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === "object") {
+          const next = { ...(persisted as { token?: unknown }) };
+          delete next.token;
+          return next as AuthState;
+        }
+        return persisted as AuthState;
+      },
       partialize: (state) => ({
-        token: state.token,
         user: state.user,
         org: state.org,
       }),
       onRehydrateStorage: () => (state) => {
+        if (state) state.token = null;
         state?.setHydrated(true);
       },
     }

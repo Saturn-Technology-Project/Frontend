@@ -68,5 +68,5 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --port 3000 \
-            --timeout 3600 \
+            --timeout 300 \
             --set-env-vars "API_URL=${API_URL}"
