@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { Providers } from "@/components/layout/providers";
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   // The proxy creates a request-specific CSP nonce. Rendering at request time
   // lets Next attach that nonce to its framework and page scripts.
   await connection();
