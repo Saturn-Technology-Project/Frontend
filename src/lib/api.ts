@@ -10,8 +10,6 @@ import type {
 } from "@simplewebauthn/browser";
 
 const API_BASE = "/saturn-api";
-const SATURN_AI_BASE =
-  process.env.NEXT_PUBLIC_SATURN_AI_URL ?? "https://saturn-ai-629072855899.asia-east1.run.app";
 
 export class ApiError extends Error {
   status: number;
@@ -879,7 +877,7 @@ async function fetchAppMcp(): Promise<ApiAppMcp> {
   const token = useAuthStore.getState().token;
   if (!token) return empty;
   try {
-    const response = await fetch(`${SATURN_AI_BASE}/app-mcp`, {
+    const response = await fetch("/saturn-ai/app-mcp", {
       headers: { authorization: `Bearer ${token}` },
       cache: "no-store",
     });

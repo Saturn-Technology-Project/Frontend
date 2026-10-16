@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AI_ORIGIN =
-  process.env.NEXT_PUBLIC_SATURN_AI_URL?.replace(/\/$/, "") ||
-  "https://saturn-ai-629072855899.asia-east1.run.app";
-
 function contentSecurityPolicy(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
   const connect = [
     "'self'",
     "https://api.saturn-core.com",
     "wss://api.saturn-core.com",
-    AI_ORIGIN,
     dev ? "http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*" : "",
   ]
     .filter(Boolean)
@@ -46,5 +41,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|saturn-api|favicon.ico|logo.png).*)"],
+  matcher: ["/((?!_next/static|_next/image|saturn-api|saturn-ai|favicon.ico|logo.png).*)"],
 };
