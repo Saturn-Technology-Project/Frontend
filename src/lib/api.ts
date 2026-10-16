@@ -1,5 +1,5 @@
 import { useAuthStore } from "@/lib/auth";
-import { loginVerifier } from "@/lib/password";
+import { legacyLoginVerifier, loginVerifier } from "@/lib/password";
 import { localeRevisionNow, localeSavePending, useLocaleStore } from "@/stores/locale-store";
 import { mapConsole } from "@/lib/mappers";
 import type { Agent, ConsoleData, Integration, Policy, PolicyDefinition } from "@/types";
@@ -14,12 +14,14 @@ const SATURN_AI_BASE =
   process.env.NEXT_PUBLIC_SATURN_AI_URL ?? "https://saturn-ai-629072855899.asia-east1.run.app";
 
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
+  status: number;
+  migration?: "v1" | "password";
+
+  constructor(status: number, message: string, migration?: "v1" | "password") {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.migration = migration;
   }
 }
 
@@ -233,28 +235,44 @@ function isSafeErrorText(value: string) {
   return true;
 }
 
-async function apiErrorMessage(response: Response): Promise<string> {
+function migrationFrom(detail: unknown): "v1" | "password" | undefined {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) return undefined;
+  const value = (detail as { migration?: unknown }).migration;
+  if (value === "v1" || value === "password") return value;
+  if (value === true) return "password";
+  return undefined;
+}
+
+async function apiErrorMessage(response: Response): Promise<{ message: string; migration?: "v1" | "password" }> {
   const fallback = response.statusText || "Request failed";
   const text = await response.text();
-  if (!text) return fallback;
+  if (!text) return { message: fallback };
   try {
     const body = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    const migration = migrationFrom(body.detail);
     if (typeof body.detail === "string" && isSafeErrorText(body.detail)) {
-      return body.detail.trim();
+      return { message: body.detail.trim(), migration };
+    }
+    if (body.detail && typeof body.detail === "object" && !Array.isArray(body.detail)) {
+      const message = (body.detail as { message?: unknown }).message;
+      if (typeof message === "string" && isSafeErrorText(message)) {
+        return { message: message.trim(), migration };
+      }
     }
     if (Array.isArray(body.detail)) {
       const first = body.detail[0] as { msg?: unknown } | undefined;
       if (typeof first?.msg === "string" && isSafeErrorText(first.msg)) {
-        return first.msg.trim();
+        return { message: first.msg.trim(), migration };
       }
     }
     if (typeof body.message === "string" && isSafeErrorText(body.message)) {
-      return body.message.trim();
+      return { message: body.message.trim(), migration };
     }
+    if (migration) return { message: fallback, migration };
   } catch {
-    if (isSafeErrorText(text)) return text.trim();
+    if (isSafeErrorText(text)) return { message: text.trim() };
   }
-  return fallback;
+  return { message: fallback };
 }
 
 async function request<T>(path: string, init?: RequestInit, auth = true): Promise<T> {
@@ -282,7 +300,8 @@ async function request<T>(path: string, init?: RequestInit, auth = true): Promis
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, await apiErrorMessage(response));
+    const parsed = await apiErrorMessage(response);
+    throw new ApiError(response.status, parsed.message, parsed.migration);
   }
 
   if (response.status === 204) {
@@ -424,12 +443,7 @@ async function establishSession(result: LoginResponse) {
   }
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse | LoginChallenge> {
-  const result = await post<LoginResponse & Partial<LoginChallenge>>(
-    "/auth/login",
-    { email, password: await loginVerifier(password), locale: useLocaleStore.getState().locale },
-    false
-  );
+async function finishLogin(result: LoginResponse & Partial<LoginChallenge>): Promise<LoginResponse | LoginChallenge> {
   if (result.mfa_required && result.challenge) {
     return { mfa_required: true, challenge: result.challenge, methods: result.methods ?? [] };
   }
@@ -441,10 +455,33 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return session;
 }
 
+export async function login(email: string, password: string): Promise<LoginResponse | LoginChallenge> {
+  const verifier = await loginVerifier(password, email);
+  const body = { email, password: verifier, locale: useLocaleStore.getState().locale };
+  const submit = async (extra: { legacy_v1?: string; legacy_password?: string } = {}) =>
+    finishLogin(
+      await post<LoginResponse & Partial<LoginChallenge>>("/auth/login", { ...body, ...extra }, false),
+    );
+  try {
+    return await submit();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.migration !== "v1") {
+      if (error instanceof ApiError && error.migration === "password") return submit({ legacy_password: password });
+      throw error;
+    }
+    try {
+      return await submit({ legacy_v1: await legacyLoginVerifier(password) });
+    } catch (next) {
+      if (!(next instanceof ApiError) || next.migration !== "password") throw next;
+      return submit({ legacy_password: password });
+    }
+  }
+}
+
 export async function requestSignupCode(name: string, email: string, password: string) {
   return post<void>(
     "/auth/register/code",
-    { name, email, password: await loginVerifier(password), locale: useLocaleStore.getState().locale },
+    { name, email, password: await loginVerifier(password, email), locale: useLocaleStore.getState().locale },
     false
   );
 }
@@ -452,7 +489,7 @@ export async function requestSignupCode(name: string, email: string, password: s
 export async function registerAccount(name: string, email: string, password: string, code: string) {
   const result = await post<LoginResponse>(
     "/auth/register",
-    { name, email, password: await loginVerifier(password), code, locale: useLocaleStore.getState().locale },
+    { name, email, password: await loginVerifier(password, email), code, locale: useLocaleStore.getState().locale },
     false
   );
   await establishSession(result);
@@ -547,13 +584,20 @@ export function requestPasswordReset(email: string) {
 }
 
 export async function resetPassword(email: string, code: string, password: string) {
-  return post<void>("/auth/reset-password", { email, code, password: await loginVerifier(password) }, false);
+  return post<void>("/auth/reset-password", { email, code, password: await loginVerifier(password, email) }, false);
+}
+
+function signedInEmail() {
+  const email = useAuthStore.getState().user?.email;
+  if (!email) throw new ApiError(401, "Not signed in");
+  return email;
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {
+  const email = signedInEmail();
   return patch<void>("/auth/password", {
-    current_password: await loginVerifier(currentPassword),
-    new_password: await loginVerifier(newPassword),
+    current_password: await loginVerifier(currentPassword, email),
+    new_password: await loginVerifier(newPassword, email),
   });
 }
 
@@ -582,7 +626,7 @@ export function disableEmailMfa() {
 }
 
 export async function reauthenticate(password: string) {
-  return post<void>("/auth/reauth", { password: await loginVerifier(password) });
+  return post<void>("/auth/reauth", { password: await loginVerifier(password, signedInEmail()) });
 }
 
 export function requestReauthCode() {
@@ -824,8 +868,8 @@ export function updateApprovalPolicy(
   return patch<ApprovalPolicyRecord>(`/org/approval-policies/${id}`, body);
 }
 
-export async function acceptInvite(token: string, password: string) {
-  const result = await post<LoginResponse>("/auth/accept-invite", { token, password: await loginVerifier(password) }, false);
+export async function acceptInvite(token: string, password: string, email: string) {
+  const result = await post<LoginResponse>("/auth/accept-invite", { token, password: await loginVerifier(password, email) }, false);
   await establishSession(result);
   return result;
 }
@@ -1083,7 +1127,10 @@ export async function streamPolicy(
     credentials: "include",
     cache: "no-store",
   });
-  if (!response.ok) throw new ApiError(response.status, await apiErrorMessage(response));
+  if (!response.ok) {
+    const parsed = await apiErrorMessage(response);
+    throw new ApiError(response.status, parsed.message, parsed.migration);
+  }
   if (!response.body) throw new ApiError(response.status, "Request failed");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -1222,7 +1269,10 @@ export async function downloadWebhookSecret(id: string) {
     credentials: "include",
     cache: "no-store",
   });
-  if (!response.ok) throw new ApiError(response.status, await apiErrorMessage(response));
+  if (!response.ok) {
+    const parsed = await apiErrorMessage(response);
+    throw new ApiError(response.status, parsed.message, parsed.migration);
+  }
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
