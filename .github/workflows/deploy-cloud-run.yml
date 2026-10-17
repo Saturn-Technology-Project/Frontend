@@ -88,4 +88,6 @@ jobs:
             --allow-unauthenticated \
             --port 3000 \
             --timeout 300 \
-            --set-env-vars "API_URL=${API_URL}"
+            --max-instances "${{ vars.MAX_INSTANCES || '10' }}" \
+            --set-env-vars "API_URL=${API_URL}" \
+            --set-secrets ORIGIN_AUTH_SECRET=ORIGIN_AUTH_SECRET:latest
