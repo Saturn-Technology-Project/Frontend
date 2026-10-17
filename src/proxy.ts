@@ -1,4 +1,19 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+
 import { NextRequest, NextResponse } from "next/server";
+
+const ORIGIN_HEADER = "x-saturn-origin-auth";
+
+function originAllowed(request: NextRequest): boolean {
+  if (request.nextUrl.pathname === "/healthz") return true;
+  const expected = process.env.ORIGIN_AUTH_SECRET || "";
+  if (!expected) return !process.env.K_SERVICE;
+  const name = (process.env.ORIGIN_AUTH_HEADER || ORIGIN_HEADER).toLowerCase();
+  const presented = request.headers.get(name) || "";
+  const left = createHash("sha256").update(presented).digest();
+  const right = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(left, right);
+}
 
 function contentSecurityPolicy(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
@@ -30,6 +45,9 @@ function contentSecurityPolicy(nonce: string) {
 }
 
 export function proxy(request: NextRequest) {
+  if (!originAllowed(request)) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
   const nonce = btoa(crypto.randomUUID());
   const policy = contentSecurityPolicy(nonce);
   const requestHeaders = new Headers(request.headers);
