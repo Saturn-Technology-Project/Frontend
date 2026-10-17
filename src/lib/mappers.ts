@@ -398,6 +398,7 @@ function mapMcpServers(servers: ApiMcpServer[]): McpServer[] {
     })),
     connected: Boolean(server.connected),
     hasAuthorization: Boolean(server.has_authorization),
+    secretStatus: server.secret_status ?? "ok",
   }));
 }
 

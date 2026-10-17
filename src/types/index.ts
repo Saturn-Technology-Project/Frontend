@@ -97,6 +97,7 @@ export interface McpServer {
   catalog: McpTool[];
   connected: boolean;
   hasAuthorization: boolean;
+  secretStatus: "ok" | "needs_reconnect" | "none";
 }
 
 export interface ToolSetItem {
