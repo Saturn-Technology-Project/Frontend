@@ -1,5 +1,5 @@
 import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
-import { ApiError, revealActivity, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
+import { ApiError, revealActivity, fetchAssistRequests, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { legacyWrapMaterial, memberWrapMaterial } from "@/lib/password";
 
@@ -279,11 +279,28 @@ export async function unlockOrganizationKey(recoveryHex: string) {
   holdOrganizationKey(privateKey, hexToBytes(status.public_key));
 }
 
+export class MemberFingerprintMismatch extends Error {
+  constructor() {
+    super("member public key fingerprint does not match");
+  }
+}
+
+async function publicKeyFingerprint(hexKey: string) {
+  const digest = await crypto.subtle.digest("SHA-256", source(hexToBytes(hexKey)));
+  return bytesToHex(new Uint8Array(digest));
+}
+
 export async function helpMemberAccess(request: AssistRequest) {
   const orgId = useAuthStore.getState().org?.id ?? "";
   const mine = memberKey();
   const orgPrivate = organizationKey();
   if (!orgId || (!mine && !orgPrivate)) throw new Error("organization key is locked");
+  const fresh = await fetchAssistRequests();
+  const registered = fresh.requests.find((item) => item.member_key_id === request.member_key_id);
+  if (!registered) throw new MemberFingerprintMismatch();
+  const presented = await publicKeyFingerprint(request.public_key);
+  const expected = await publicKeyFingerprint(registered.public_key);
+  if (presented !== expected) throw new MemberFingerprintMismatch();
   const sources = await fetchMemberRewrap(request.member_key_id);
   const records = [];
   for (const item of sources.records) {

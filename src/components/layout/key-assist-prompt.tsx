@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { fetchAssistRequests, type AssistRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { helpMemberAccess, ignoredAssists, ignoreAssist, unlockOrganizationKey } from "@/lib/payload-crypto";
+import { MemberFingerprintMismatch, helpMemberAccess, ignoredAssists, ignoreAssist, unlockOrganizationKey } from "@/lib/payload-crypto";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function KeyAssistPrompt() {
@@ -14,6 +14,8 @@ export function KeyAssistPrompt() {
   const [requests, setRequests] = useState<AssistRequest[]>([]);
   const [recovery, setRecovery] = useState("");
   const [failed, setFailed] = useState(false);
+  const [mismatch, setMismatch] = useState(false);
+  const [fingerprint, setFingerprint] = useState("");
   const [pending, setPending] = useState(false);
   const current = requests[0];
 
@@ -34,6 +36,21 @@ export function KeyAssistPrompt() {
     };
   }, [userId]);
 
+  useEffect(() => {
+    if (!current?.public_key) {
+      setFingerprint("");
+      return;
+    }
+    let cancel = false;
+    void crypto.subtle.digest("SHA-256", Uint8Array.from(current.public_key.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [])).then((digest) => {
+      if (cancel) return;
+      setFingerprint([...new Uint8Array(digest)].map((item) => item.toString(16).padStart(2, "0")).join(""));
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [current?.public_key]);
+
   function dismiss() {
     if (!current) return;
     ignoreAssist(current.member_key_id);
@@ -46,13 +63,15 @@ export function KeyAssistPrompt() {
     if (!current) return;
     setPending(true);
     setFailed(false);
+    setMismatch(false);
     try {
       if (recovery.trim()) await unlockOrganizationKey(recovery);
       setRecovery("");
       await helpMemberAccess(current);
       setRequests((items) => items.slice(1));
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      if (error instanceof MemberFingerprintMismatch) setMismatch(true);
+      else setFailed(true);
     } finally {
       setPending(false);
     }
@@ -65,6 +84,8 @@ export function KeyAssistPrompt() {
       <DialogContent showCloseButton={false} className="max-w-md">
         <DialogTitle className="text-[15px] font-medium">{t("activity.assist", { name: current?.name ?? "" })}</DialogTitle>
         <DialogDescription className="sr-only">{t("activity.assist", { name: current?.name ?? "" })}</DialogDescription>
+        {fingerprint ? <p className="mt-3 break-all font-mono text-[12px] text-muted-foreground">{fingerprint}</p> : null}
+        {mismatch ? <p className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
         {failed ? <p className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
         <input
           className="mt-4 h-9 w-full rounded-md border border-border bg-background px-3 font-mono text-[12px]"
