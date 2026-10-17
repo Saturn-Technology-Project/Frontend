@@ -76,8 +76,16 @@ export default function ConnectionsPage() {
                       {server.name}
                     </span>
                     <span className="text-[12px] text-muted-foreground">
-                      {server.connected ? t("tools.connected") : t("agents.offline")} · {t("tools.count", { n: server.tools.length })}
+                      {server.secretStatus === "needs_reconnect"
+                        ? t("tools.needsReconnect")
+                        : server.connected
+                          ? t("tools.connected")
+                          : t("agents.offline")}{" "}
+                      · {t("tools.count", { n: server.tools.length })}
                     </span>
+                    {server.secretStatus === "needs_reconnect" && canAdmin ? (
+                      <ReconnectButton server={server} />
+                    ) : null}
                     <span className="truncate font-mono text-[12px] text-muted-foreground">{server.endpoint || "—"}</span>
                   </button>
                 </li>
@@ -109,9 +117,16 @@ export default function ConnectionsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusLabel tone={server.connected ? "connected" : "disconnected"}>
-                          {server.connected ? t("tools.connected") : t("agents.offline")}
-                        </StatusLabel>
+                        {server.secretStatus === "needs_reconnect" ? (
+                          <span className="flex items-center gap-2">
+                            <StatusLabel tone="disconnected">{t("tools.needsReconnect")}</StatusLabel>
+                            {canAdmin ? <ReconnectButton server={server} /> : null}
+                          </span>
+                        ) : (
+                          <StatusLabel tone={server.connected ? "connected" : "disconnected"}>
+                            {server.connected ? t("tools.connected") : t("agents.offline")}
+                          </StatusLabel>
+                        )}
                       </td>
                       <td className="max-w-[360px] truncate px-4 py-3 font-mono text-[12px] text-muted-foreground">
                         {server.endpoint || "—"}
@@ -136,6 +151,38 @@ export default function ConnectionsPage() {
         ) : null}
       </div>
     </QueryGate>
+  );
+}
+
+function ReconnectButton({ server }: { server: McpServer }) {
+  const { t } = useI18n();
+  const client = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  return (
+    <span className="inline-flex flex-col items-start gap-1" onClick={(event) => event.stopPropagation()}>
+      <Button
+        type="button"
+        size="sm"
+        disabled={pending || !server.endpoint}
+        onClick={() => {
+          setError("");
+          setPending(true);
+          void authorizeMcp({ name: server.name, endpoint: server.endpoint })
+            .then(async (result) => {
+              if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+            })
+            .catch((caught: unknown) => {
+              setError(mcpOauthErrorText(caught, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
+            })
+            .finally(() => setPending(false));
+        }}
+      >
+        {pending ? t("marketplace.authorizing") : t("tools.reconnect")}
+      </Button>
+      {error ? <span className="text-[12px] text-destructive">{error}</span> : null}
+    </span>
   );
 }
 

@@ -975,6 +975,7 @@ export interface ApiMcpServer {
   tools: string[];
   catalog?: { id: string; name: string; description?: string }[];
   has_authorization?: boolean;
+  secret_status?: "ok" | "needs_reconnect" | "none";
 }
 
 export interface ApiToolSetItem {
