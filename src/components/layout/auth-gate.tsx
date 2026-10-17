@@ -3,9 +3,11 @@
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSessionProbe } from "@/hooks/use-session";
+import { useAuthStore } from "@/stores/auth-store";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { ready, signedIn } = useSessionProbe();
+  const mfaSetupRequired = useAuthStore((state) => state.user?.mfaSetupRequired);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -15,7 +17,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     router.replace(`/login${next}`);
   }, [ready, signedIn, pathname, router]);
 
-  if (!ready || !signedIn) {
+  useEffect(() => {
+    if (!ready || !signedIn || !mfaSetupRequired) return;
+    router.replace("/mfa");
+  }, [ready, signedIn, mfaSetupRequired, router]);
+
+  if (!ready || !signedIn || mfaSetupRequired) {
     return <div className="min-h-screen bg-background" />;
   }
 

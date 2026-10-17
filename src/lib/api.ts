@@ -173,6 +173,7 @@ export interface AuthUserResponse {
   mcp_gateway?: { status: string; connected: number; total: number };
   locale?: string;
   email_change_pending?: boolean;
+  mfa_setup_required?: boolean;
 }
 
 export interface LoginResponse {
@@ -211,6 +212,7 @@ export function toAuthSession(token: string | null, user: AuthUserResponse) {
       permissions: user.permissions,
       agentEditIds: user.agent_edit_ids ?? null,
       locale: user.locale,
+      mfaSetupRequired: Boolean(user.mfa_setup_required),
       agents: user.agents.map((agent) => ({ id: agent.id, name: agent.name })),
       mcpServers: user.mcp_servers.map((server) => ({
         id: server.id,
@@ -542,6 +544,14 @@ export async function updateOrgPhoto(photo: string | null) {
     useAuthStore.setState({ org: { ...state.org, photo: organization.photo ?? null } });
   }
   return organization;
+}
+
+export function setupTotp() {
+  return post<{ secret: string; otpauth_url: string; backup_codes: string[] }>("/auth/totp/setup", {});
+}
+
+export function confirmTotp(code: string) {
+  return post<void>("/auth/totp/confirm", { code });
 }
 
 export async function fetchMe() {

@@ -19,6 +19,7 @@ export interface AuthUser {
   };
   agentEditIds?: string[] | null;
   locale?: string;
+  mfaSetupRequired?: boolean;
   agents?: { id: string; name: string }[];
   mcpServers?: { id: string; name: string }[];
 }
