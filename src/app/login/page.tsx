@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
-import { ApiError, login, loginWithEmailCode, loginWithPasskey, requestPasswordReset, resetPassword } from "@/lib/api";
+import { ApiError, login, loginWithEmailCode, loginWithPasskey, loginWithTotp, requestPasswordReset, resetPassword } from "@/lib/api";
 import { unlockMemberKey } from "@/lib/payload-crypto";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -86,16 +86,23 @@ function LoginForm() {
     }
   }
 
+  const usesTotp = methods.includes("totp");
+  const usesCode = usesTotp || methods.includes("email");
+  // A TOTP code is 6 digits; a backup code is 16 hex characters.
+  const codeReady = usesTotp ? code.length === 6 || code.length === 16 : code.length === 6;
+
   async function onMfa(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     setPending(true);
     try {
-      await loginWithEmailCode(challenge, code.trim());
+      if (usesTotp) await loginWithTotp(challenge, code.trim());
+      else await loginWithEmailCode(challenge, code.trim());
       router.replace(next || "/overview");
       await unlockMemberKey(password).catch(() => undefined);
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 400 ? t("login.codeInvalid") : t("common.apiError"));
+      if (err instanceof ApiError && err.status === 429) setError(t("login.totpLocked"));
+      else setError(err instanceof ApiError && err.status === 400 ? t("login.codeInvalid") : t("common.apiError"));
     } finally {
       setPending(false);
     }
@@ -233,31 +240,39 @@ function LoginForm() {
       ) : null}
 
       {mode === "mfa" ? (
-        <form onSubmit={methods.includes("email") ? onMfa : (event) => event.preventDefault()}>
+        <form onSubmit={usesCode ? onMfa : (event) => event.preventDefault()}>
           <h1 className="text-[22px] font-medium tracking-tight">{t("login.mfaTitle")}</h1>
-          <p className="mt-2 text-[13px] text-muted-foreground">{t("login.mfaBody")}</p>
-          {methods.includes("email") ? (
+          <p className="mt-2 text-[13px] text-muted-foreground">{usesTotp ? t("login.mfaTotpBody") : t("login.mfaBody")}</p>
+          {usesCode ? (
             <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-              {t("login.code")}
+              {usesTotp ? t("login.totpCode") : t("login.code")}
               <input
-                inputMode="numeric"
+                inputMode={usesTotp ? "text" : "numeric"}
                 autoComplete="one-time-code"
+                autoCapitalize="off"
+                spellCheck={false}
                 value={code}
-                maxLength={6}
-                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={usesTotp ? 16 : 6}
+                onChange={(event) =>
+                  setCode(
+                    usesTotp
+                      ? event.target.value.toLowerCase().replace(/[^0-9a-f]/g, "").slice(0, 16)
+                      : event.target.value.replace(/\D/g, "").slice(0, 6),
+                  )
+                }
                 className={fieldClass}
                 required
               />
             </label>
           ) : null}
           {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
-          {methods.includes("email") ? (
-            <Button type="submit" className="mt-6 w-full" disabled={pending || code.length !== 6}>
+          {usesCode ? (
+            <Button type="submit" className="mt-6 w-full" disabled={pending || !codeReady}>
               {pending ? t("login.signingIn") : t("login.submit")}
             </Button>
           ) : null}
           {methods.includes("passkey") ? (
-            <Button type="button" variant={methods.includes("email") ? "outline" : "default"} className="mt-2 w-full" disabled={pending} onClick={onPasskey}>
+            <Button type="button" variant={usesCode ? "outline" : "default"} className="mt-2 w-full" disabled={pending} onClick={onPasskey}>
               {t("login.usePasskey")}
             </Button>
           ) : null}

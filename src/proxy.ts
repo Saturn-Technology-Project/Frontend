@@ -9,10 +9,12 @@ function originAllowed(request: NextRequest): boolean {
   const expected = process.env.ORIGIN_AUTH_SECRET || "";
   if (!expected) return !process.env.K_SERVICE;
   const name = (process.env.ORIGIN_AUTH_HEADER || ORIGIN_HEADER).toLowerCase();
-  const presented = request.headers.get(name) || "";
-  const left = createHash("sha256").update(presented).digest();
-  const right = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(left, right);
+  const presented = createHash("sha256").update(request.headers.get(name) || "").digest();
+  // During a rotation the previous secret is still accepted, matching the API.
+  const accepted = [expected, process.env.ORIGIN_AUTH_SECRET_PREVIOUS || ""].filter(Boolean);
+  return accepted
+    .map((value) => timingSafeEqual(presented, createHash("sha256").update(value).digest()))
+    .some(Boolean);
 }
 
 function contentSecurityPolicy(nonce: string) {

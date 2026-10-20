@@ -1,7 +1,8 @@
 "use client";
 
 import { QueryGate } from "@/components/layout/query-gate";
-import { useSubscription } from "@/hooks/use-team";
+import { useCanManageBilling, useSubscription } from "@/hooks/use-team";
+import { useAuthStore } from "@/stores/auth-store";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -26,6 +27,8 @@ function formatDay(iso: string, locale: "en" | "zh") {
 export default function SubscriptionPage() {
   const { t, locale } = useI18n();
   const { data, isPending, isError } = useSubscription();
+  const canManage = useCanManageBilling();
+  const orgPlan = useAuthStore((state) => state.org?.plan);
   const plans = planIds.map((id) => ({
     id,
     kind: t(`plans.${id}.kind`),
@@ -35,7 +38,20 @@ export default function SubscriptionPage() {
     tagline: t(`plans.${id}.tagline`),
     points: [1, 2, 3, 4, 5].map((index) => t(`plans.${id}.point${index}`)),
   }));
-  const currentPlan = (data?.plan.id ?? "free").toLowerCase();
+  const currentPlan = (data?.plan.id ?? orgPlan ?? "free").toLowerCase();
+
+  if (!canManage) {
+    const known = (planIds as readonly string[]).includes(currentPlan);
+    return (
+      <div className="px-4 py-6 md:px-10 md:py-8">
+        <h1 className="text-[26px] font-semibold tracking-tight">{t("subscription.title")}</h1>
+        <div className="mt-8 border-t border-border">
+          <SettingRow label={t("subscription.plan")}>{known ? t(`plans.${currentPlan}.name`) : currentPlan}</SettingRow>
+        </div>
+        <p className="mt-6 text-[13px] text-muted-foreground">{t("subscription.adminOnly")}</p>
+      </div>
+    );
+  }
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>

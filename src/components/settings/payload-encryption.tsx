@@ -110,6 +110,12 @@ export function PayloadEncryption() {
         </Button>
       </div>
       {held ? <p className="mt-2 text-[12px] text-muted-foreground">{t("settings.payloadActive")}</p> : null}
+      {status.data?.own_member_key_approval === "pending" ? (
+        <p className="mt-2 max-w-xl text-[13px] text-warning">{t("activity.ownKeyPending")}</p>
+      ) : null}
+      {status.data?.own_member_key_approval === "rejected" ? (
+        <p className="mt-2 max-w-xl text-[13px] text-destructive">{t("activity.ownKeyRejected")}</p>
+      ) : null}
       {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
       {status.data?.historical_note ? (
         <p className="mt-3 max-w-xl text-[12px] text-muted-foreground">{status.data.historical_note}</p>

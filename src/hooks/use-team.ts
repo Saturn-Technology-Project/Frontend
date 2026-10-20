@@ -93,12 +93,18 @@ export function useRevokeInvite() {
   });
 }
 
+/** Billing details are for team admins only; the API refuses everyone else. */
+export function useCanManageBilling() {
+  return canAccess(useAuthStore((state) => state.user?.permissions), "team", "write");
+}
+
 export function useSubscription() {
   const signedIn = useAuthStore((state) => Boolean(state.user));
+  const canManage = useCanManageBilling();
   return useQuery({
     queryKey: subscriptionQueryKey,
     queryFn: fetchSubscription,
-    enabled: signedIn,
+    enabled: signedIn && canManage,
   });
 }
 

@@ -8,7 +8,7 @@ import { useI18n } from "@/lib/i18n";
 import { MemberFingerprintMismatch, helpMemberAccess, ignoredAssists, ignoreAssist, unlockOrganizationKey } from "@/lib/payload-crypto";
 import { useAuthStore } from "@/stores/auth-store";
 
-export function KeyAssistPrompt() {
+export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   const { t } = useI18n();
   const userId = useAuthStore((state) => state.user?.id);
   const [requests, setRequests] = useState<AssistRequest[]>([]);
@@ -34,7 +34,7 @@ export function KeyAssistPrompt() {
     return () => {
       cancel = true;
     };
-  }, [userId]);
+  }, [userId, refreshKey]);
 
   useEffect(() => {
     if (!current?.public_key) {

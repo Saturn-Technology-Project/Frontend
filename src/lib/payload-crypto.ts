@@ -9,6 +9,11 @@ const RECOVERY_INFO = encoder.encode("saturn-recovery-v1");
 const WRAP_VERSION = 2;
 const KEM_CIPHERTEXT_BYTES = ml_kem1024.lengths.cipherText ?? 1568;
 const SHA384_ZERO_SALT = new Uint8Array(48);
+const SHA256_ZERO_SALT = new Uint8Array(32);
+const DEK_PROOF_INFO = encoder.encode("saturn-payload-dek-proof-v1");
+/** Member backups wrapped in the browser under the Argon2id/HKDF wrap key. The server never sees that key. */
+export const MEMBER_BACKUP_SCHEME = "argon2id-hkdf-aesgcm-v2";
+export const RECOVERY_ITERATIONS = 600_000;
 
 const SESSION_KEY = "saturn-member-key";
 export const PASSWORD_ITERATIONS = 600_000;
@@ -108,23 +113,54 @@ export async function unwrapSecret(privateRaw: Uint8Array, wrappedHex: string, a
   return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(ciphertext)));
 }
 
+async function recoveryKek(recoveryKey: Uint8Array, salt: Uint8Array, kdf: string, iterations: number) {
+  if (kdf === "PBKDF2-HMAC-SHA256") {
+    const base = await crypto.subtle.importKey("raw", source(recoveryKey), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: source(salt), iterations }, base, 256);
+    return new Uint8Array(bits);
+  }
+  if (kdf === "HKDF-SHA256") return hkdf(recoveryKey, salt, RECOVERY_INFO, "SHA-256");
+  throw new Error("unsupported recovery backup");
+}
+
+/** v2: the recovery key is stretched with PBKDF2-HMAC-SHA256 before it opens the organization key. */
 export async function recoveryBackup(recoveryKey: Uint8Array, organizationId: string, keyVersion: number, privateKey: Uint8Array): Promise<RecoveryBackup> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const derived = await hkdf(recoveryKey, salt, RECOVERY_INFO, "SHA-256");
+  const derived = await recoveryKek(recoveryKey, salt, "PBKDF2-HMAC-SHA256", RECOVERY_ITERATIONS);
   const aes = await crypto.subtle.importKey("raw", source(derived), "AES-GCM", false, ["encrypt"]);
   const aad = encoder.encode(`recovery\n${organizationId}\n${keyVersion}`);
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(privateKey)));
-  return { v: 1, kdf: "HKDF-SHA256", salt: bytesToHex(salt), nonce: bytesToHex(nonce), ciphertext: bytesToHex(ciphertext), org_key_version: keyVersion };
+  return {
+    v: 2,
+    kdf: "PBKDF2-HMAC-SHA256",
+    iterations: RECOVERY_ITERATIONS,
+    salt: bytesToHex(salt),
+    nonce: bytesToHex(nonce),
+    ciphertext: bytesToHex(ciphertext),
+    org_key_version: keyVersion,
+  };
 }
 
-export async function openRecoveryBackup(recoveryKey: Uint8Array, organizationId: string, backup: { salt: string; nonce: string; ciphertext: string; org_key_version: number }) {
-  const derived = await hkdf(recoveryKey, hexToBytes(backup.salt), RECOVERY_INFO, "SHA-256");
+export async function openRecoveryBackup(
+  recoveryKey: Uint8Array,
+  organizationId: string,
+  backup: { kdf?: string; iterations?: number; salt: string; nonce: string; ciphertext: string; org_key_version: number },
+) {
+  const derived = await recoveryKek(recoveryKey, hexToBytes(backup.salt), backup.kdf ?? "HKDF-SHA256", backup.iterations ?? 0);
   const aes = await crypto.subtle.importKey("raw", source(derived), "AES-GCM", false, ["decrypt"]);
   const aad = encoder.encode(`recovery\n${organizationId}\n${backup.org_key_version}`);
   return new Uint8Array(
     await crypto.subtle.decrypt({ name: "AES-GCM", iv: source(hexToBytes(backup.nonce)), additionalData: source(aad) }, aes, source(hexToBytes(backup.ciphertext))),
   );
+}
+
+/** Proves to the server that this browser holds a record's DEK, without revealing it. */
+export async function dekProof(dek: Uint8Array, organizationId: string, recordId: string, payloadType: string) {
+  const subkey = await hkdf(dek, SHA256_ZERO_SALT, DEK_PROOF_INFO, "SHA-256");
+  const key = await crypto.subtle.importKey("raw", source(subkey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, source(encoder.encode(`${organizationId}\n${recordId}\n${payloadType}`)));
+  return bytesToHex(new Uint8Array(mac));
 }
 
 export async function decryptEnvelope(privateKey: Uint8Array, organizationId: string, recordId: string, payloadType: string, envelope: PayloadEnvelope) {
@@ -213,27 +249,31 @@ export async function passwordBackup(
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt({ name: "AES-GCM", iv: source(nonce), additionalData: source(aad) }, aes, source(privateKey)),
   );
-  return {
-    v: 1,
-    kdf: "HKDF-SHA256",
-    iterations: 1,
-    salt: "",
-    nonce: bytesToHex(nonce),
-    ciphertext: bytesToHex(ciphertext),
-  };
+  // The wrap key is split from the password by Argon2id and HKDF here; the server only ever gets the
+  // separate login verifier. It stores this blob as-is.
+  return { v: 2, kdf: "CLIENT-SECRET", scheme: MEMBER_BACKUP_SCHEME, blob: `${bytesToHex(nonce)}.${bytesToHex(ciphertext)}` };
+}
+
+async function openSplitBackup(password: string, email: string, aad: Uint8Array, nonceHex: string, ciphertextHex: string) {
+  const aes = await aesKey(await memberWrapMaterial(password, email), ["decrypt"]);
+  return new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: source(hexToBytes(nonceHex)), additionalData: source(aad) },
+      aes,
+      source(hexToBytes(ciphertextHex)),
+    ),
+  );
 }
 
 export async function openPasswordBackup(password: string, userId: string, backup: PasswordBackup, email: string) {
   const aad = encoder.encode(`password\n${userId}`);
+  if ("blob" in backup) {
+    const [nonceHex, ciphertextHex] = backup.blob.split(".");
+    if (backup.scheme !== MEMBER_BACKUP_SCHEME || !nonceHex || !ciphertextHex) throw new Error("unsupported password backup");
+    return openSplitBackup(password, email, aad, nonceHex, ciphertextHex);
+  }
   if (backup.kdf === "HKDF-SHA256") {
-    const aes = await aesKey(await memberWrapMaterial(password, email), ["decrypt"]);
-    return new Uint8Array(
-      await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: source(hexToBytes(backup.nonce)), additionalData: source(aad) },
-        aes,
-        source(hexToBytes(backup.ciphertext)),
-      ),
-    );
+    return openSplitBackup(password, email, aad, backup.nonce, backup.ciphertext);
   }
   if (backup.kdf !== "PBKDF2-HMAC-SHA256" || backup.iterations !== PASSWORD_ITERATIONS) {
     throw new Error("unsupported password backup");
@@ -301,40 +341,53 @@ export async function helpMemberAccess(request: AssistRequest) {
   const presented = await publicKeyFingerprint(request.public_key);
   const expected = await publicKeyFingerprint(registered.public_key);
   if (presented !== expected) throw new MemberFingerprintMismatch();
-  const sources = await fetchMemberRewrap(request.member_key_id);
-  const records = [];
-  for (const item of sources.records) {
-    const own = mine && item.own_wrap
-      ? await unwrapSecret(
-          mine.privateKey,
-          item.own_wrap,
-          encoder.encode(`dek\n${orgId}\n${mine.memberKeyId}\n${item.id}\n${item.type}`),
-        ).catch(() => null)
-      : null;
-    const orgPrivate = organizationKey();
-    const opened =
-      own ??
-      (orgPrivate && organizationPublic && item.wrapped_dek
+  let cursor: string | null | undefined = null;
+  let seen = 0;
+  let granted = 0;
+  // The server pages the records to rewrap; read every page.
+  for (let page = 0; page < 1000; page += 1) {
+    const sources: Awaited<ReturnType<typeof fetchMemberRewrap>> = await fetchMemberRewrap(request.member_key_id, cursor);
+    const records: { id: string; type: string; wrapped_dek: string; content_sha256?: string; dek_proof?: string }[] = [];
+    for (const item of sources.records) {
+      seen += 1;
+      const own = mine && item.own_wrap
         ? await unwrapSecret(
-            orgPrivate,
-            item.wrapped_dek,
-            encoder.encode(`dek\n${orgId}\n${item.org_key_version}\n${item.id}\n${item.type}`),
+            mine.privateKey,
+            item.own_wrap,
+            encoder.encode(`dek\n${orgId}\n${mine.memberKeyId}\n${item.id}\n${item.type}`),
           ).catch(() => null)
-        : null);
-    if (!opened) continue;
-    records.push({
-      id: item.id,
-      type: item.type,
-      wrapped_dek: await wrapSecret(
-        request.public_key,
-        opened,
-        encoder.encode(`dek\n${orgId}\n${request.member_key_id}\n${item.id}\n${item.type}`),
-      ),
-      content_sha256: item.content_sha256,
-    });
+        : null;
+      const orgPrivate = organizationKey();
+      const opened =
+        own ??
+        (orgPrivate && organizationPublic && item.wrapped_dek
+          ? await unwrapSecret(
+              orgPrivate,
+              item.wrapped_dek,
+              encoder.encode(`dek\n${orgId}\n${item.org_key_version}\n${item.id}\n${item.type}`),
+            ).catch(() => null)
+          : null);
+      if (!opened) continue;
+      records.push({
+        id: item.id,
+        type: item.type,
+        wrapped_dek: await wrapSecret(
+          request.public_key,
+          opened,
+          encoder.encode(`dek\n${orgId}\n${request.member_key_id}\n${item.id}\n${item.type}`),
+        ),
+        ...(item.content_sha256 ? { content_sha256: item.content_sha256 } : {}),
+        ...(item.proof_required ? { dek_proof: await dekProof(opened, orgId, item.id, item.type) } : {}),
+      });
+    }
+    if (records.length > 0) {
+      await submitMemberRewrap({ member_key_id: request.member_key_id, records });
+      granted += records.length;
+    }
+    cursor = sources.next_cursor;
+    if (!cursor) break;
   }
-  if (sources.records.length > 0 && records.length === 0) throw new Error("organization key is locked");
-  await submitMemberRewrap({ member_key_id: request.member_key_id, records });
+  if (seen > 0 && granted === 0) throw new Error("organization key is locked");
 }
 
 export async function unlockMemberKey(password: string) {

@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { PolicyRuleDisplay } from "@/components/policies/policy-rule-display";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { StatusLabel } from "@/components/ui/status-dot";
-import { useUpdatePolicy } from "@/hooks/use-console";
+import { consoleQueryKey } from "@/hooks/use-console";
+import { ApiError, activatePolicy, validatePolicy } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
@@ -18,7 +21,34 @@ export function PolicyView({ policy }: { policy: Policy }) {
     "policies",
     "write"
   );
-  const publish = useUpdatePolicy();
+  const client = useQueryClient();
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [confirmDetail, setConfirmDetail] = useState("");
+
+  // Policies start as drafts. Publishing validates first, then activates; any allow needs an explicit confirm.
+  async function publish(confirm: boolean) {
+    setPublishing(true);
+    setPublishError("");
+    try {
+      const result = await validatePolicy(policy.id);
+      if (!result.report.ok) {
+        setPublishError(t("policies.publishInvalid"));
+        return;
+      }
+      await activatePolicy(policy.id, confirm);
+      setConfirmDetail("");
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 409 && !confirm) {
+        setConfirmDetail(caught.message);
+      } else {
+        setPublishError(caught instanceof ApiError ? caught.message : t("common.requestFailed"));
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
   const agents = policy.agents.length > 0 ? policy.agents : [t("policies.allAgents")];
   const tools = policy.tools.length > 0 ? policy.tools : ["—"];
 
@@ -70,12 +100,12 @@ export function PolicyView({ policy }: { policy: Policy }) {
       {canWrite ? (
         <div className="mt-6 flex items-center gap-2">
           {policy.status === "draft" ? (
-            <Button
-              type="button"
-              disabled={publish.isPending}
-              onClick={() => publish.mutate({ id: policy.id, body: { status: "active" } })}
-            >
-              {publish.isPending ? t("policies.publishing") : t("policies.publish")}
+            <Button type="button" disabled={publishing} onClick={() => void publish(Boolean(confirmDetail))}>
+              {publishing
+                ? t("policies.publishing")
+                : confirmDetail
+                  ? t("policies.publishConfirmButton")
+                  : t("policies.publish")}
             </Button>
           ) : null}
           <Link
@@ -86,7 +116,10 @@ export function PolicyView({ policy }: { policy: Policy }) {
           </Link>
         </div>
       ) : null}
-      {publish.isError ? <p className="mt-3 text-[13px] text-destructive">{publish.error.message}</p> : null}
+      {confirmDetail ? (
+        <p className="mt-3 max-w-xl text-[13px] text-warning">{t("policies.publishConfirm", { detail: confirmDetail })}</p>
+      ) : null}
+      {publishError ? <p className="mt-3 text-[13px] text-destructive">{publishError}</p> : null}
     </div>
   );
 }

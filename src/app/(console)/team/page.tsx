@@ -19,7 +19,7 @@ import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import type { AccessPermissions, OrgMember } from "@/lib/api";
+import { ApiError, type AccessPermissions, type OrgMember } from "@/lib/api";
 import type { Agent } from "@/types";
 
 const RESOURCES: (keyof AccessPermissions)[] = ["agents", "policies", "approvals", "team"];
@@ -59,6 +59,8 @@ export default function TeamPage() {
     role: "operator",
   });
   const [inviteToken, setInviteToken] = useState("");
+  const [invitedEmail, setInvitedEmail] = useState("");
+  const [inviteError, setInviteError] = useState("");
 
   const catalogRoles = org.data?.catalog.roles ?? [];
   const pendingInvites = (invites.data ?? []).filter((item) => item.status === "pending");
@@ -104,17 +106,25 @@ export default function TeamPage() {
             className="mt-6 max-w-2xl rounded-xl border border-border bg-card p-4"
             onSubmit={async (event) => {
               event.preventDefault();
+              const email = inviteForm.email.trim().toLowerCase();
+              setInviteError("");
+              setInvitedEmail("");
               try {
                 const result = await invite.mutateAsync({
-                  email: inviteForm.email.trim(),
+                  email,
                   name: inviteForm.name.trim(),
                   title: inviteForm.title.trim() || t("team.operator"),
                   role: inviteForm.role,
                 });
+                // Production emails the link and returns no token. Only local development returns it.
                 setInviteToken(result.token ?? "");
+                setInvitedEmail(email);
                 setInviteForm({ email: "", name: "", title: "", role: "operator" });
-              } catch {
+              } catch (err) {
                 setInviteToken("");
+                if (err instanceof ApiError && err.status === 503) setInviteError(t("team.inviteMailDown"));
+                else if (err instanceof ApiError && err.status === 409) setInviteError(t("team.inviteConflict"));
+                else setInviteError(t("common.requestFailed"));
               }
             }}
           >
@@ -157,13 +167,19 @@ export default function TeamPage() {
                 </div>
               </div>
             </div>
-            {invite.isError ? <p className="mt-3 text-[13px] text-destructive">{t("common.requestFailed")}</p> : null}
+            {inviteError ? <p className="mt-3 text-[13px] text-destructive">{inviteError}</p> : null}
             <Button type="submit" className="mt-4" disabled={invite.isPending}>
               {t("team.invite")}
             </Button>
+            {invitedEmail && !inviteToken ? (
+              <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-[12px] text-muted-foreground">
+                {t("team.inviteSent", { email: invitedEmail })}
+              </p>
+            ) : null}
             {inviteToken ? (
               <p className="mt-4 break-all rounded-lg bg-muted px-3 py-2 font-mono text-[12px] text-muted-foreground">
-                {t("team.inviteToken")} {inviteToken}
+                {t("team.inviteLink")}{" "}
+                {`/accept-invite?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(invitedEmail)}`}
               </p>
             ) : null}
           </form>

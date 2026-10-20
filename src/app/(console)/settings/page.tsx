@@ -9,6 +9,7 @@ import { PayloadEncryption } from "@/components/settings/payload-encryption";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StatusLabel } from "@/components/ui/status-dot";
+import { ApiError } from "@/lib/api";
 import { orgQueryKey, useOrg, useOrgMembers, usePayInvoice, useSubscription } from "@/hooks/use-team";
 import { canAccess } from "@/lib/access";
 import { updateOrgPhoto, type SubscriptionInvoice } from "@/lib/api";
@@ -166,7 +167,11 @@ export default function SettingsPage() {
                 <span>{money(invoice.amount, invoice.currency, locale)}</span>
               </div>
             ) : null}
-            {pay.isError ? <p className="mt-3 text-[13px] text-destructive">{t("common.requestFailed")}</p> : null}
+            {pay.isError ? (
+              <p className="mt-3 text-[13px] text-destructive">
+                {pay.error instanceof ApiError && pay.error.status === 501 ? t("subscription.payUnavailable") : t("common.requestFailed")}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4">
             <Button variant="outline" onClick={() => setInvoice(null)}>

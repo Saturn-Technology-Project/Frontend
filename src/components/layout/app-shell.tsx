@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Header } from "@/components/layout/header";
+import { KeyApprovalPrompt } from "@/components/layout/key-approval-prompt";
 import { KeyAssistPrompt } from "@/components/layout/key-assist-prompt";
 import { MobileNavProvider, useMobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -17,6 +18,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function Shell({ children }: { children: ReactNode }) {
   const { open } = useMobileNav();
+  const [approvals, setApprovals] = useState(0);
+  const [assistRound, setAssistRound] = useState(0);
   return (
     <div className="relative flex h-dvh min-w-0 overflow-hidden bg-background">
       <Sidebar />
@@ -26,7 +29,9 @@ function Shell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <KeyAssistPrompt />
+      {/* Approve new member keys first; an approved key can then be helped to open older records. */}
+      <KeyApprovalPrompt onQueue={setApprovals} onDecided={() => setAssistRound((round) => round + 1)} />
+      {approvals === 0 ? <KeyAssistPrompt refreshKey={assistRound} /> : null}
     </div>
   );
 }
