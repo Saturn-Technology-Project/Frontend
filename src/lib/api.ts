@@ -1220,6 +1220,13 @@ export interface PolicyValidation {
   insufficient: string[];
   issues: { level: string; code: string; message: string; tool?: string }[];
   probes: { tool: string; ok: boolean; message: string; expected?: string; actual?: string; arguments?: Record<string, unknown> }[];
+  review?: PolicyReview;
+}
+
+export interface PolicyReview {
+  allows: string[];
+  approvals: string[];
+  flagged_tools: { tool: string; reasons: string[] }[];
 }
 
 export async function approveApproval(approvalId: string) {

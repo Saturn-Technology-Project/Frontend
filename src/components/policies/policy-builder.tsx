@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useDeletePolicy, useUpdatePolicy } from "@/hooks/use-console";
 import { PolicyProgressBar, applyProgress, type PolicyProgress } from "@/components/policies/policy-thinking";
-import { ApiError, activatePolicy, createApprovalPolicy, fetchApprovalPolicies, fetchGroups, simulatePolicy, streamPolicy, updateApprovalPolicy, validatePolicy, type ApprovalPolicyRecord, type PolicyDiff, type PolicyValidation } from "@/lib/api";
+import { ApiError, activatePolicy, createApprovalPolicy, fetchApprovalPolicies, fetchGroups, simulatePolicy, streamPolicy, updateApprovalPolicy, validatePolicy, type ApprovalPolicyRecord, type PolicyDiff, type PolicyReview, type PolicyValidation } from "@/lib/api";
 import { useEntitlements } from "@/hooks/use-entitlements";
 import { useI18n } from "@/lib/i18n";
 import { POLICY_OPERATORS } from "@/lib/policy";
@@ -350,6 +350,12 @@ function BuilderCanvas({
       setReport(result.report);
       setPanel("validation");
       if (!result.report.ok) return;
+      const review = result.report.review;
+      if (!confirmRisk && review && (review.allows.length > 0 || review.flagged_tools.length > 0)) {
+        // Show what will be enforced first; the second click activates.
+        setConfirmRisk(true);
+        return;
+      }
       const saved = await activatePolicy(policy.id, confirmRisk);
       setStatus("active");
       setVersion(saved.version ?? version);
@@ -1054,6 +1060,38 @@ function ValidationReport({ report }: { report: PolicyValidation | null }) {
           </li>
         ))}
       </ul>
+      {report.review ? <PolicyReviewList review={report.review} /> : null}
+    </div>
+  );
+}
+
+function PolicyReviewList({ review }: { review: PolicyReview }) {
+  const { t } = useI18n();
+  const reason = (code: string) =>
+    code === "description_truncated" ? t("policies.flagDescriptionTruncated") : code === "hidden_characters" ? t("policies.flagHiddenCharacters") : code;
+  const names = (items: string[]) => (items.length ? items.join(", ") : t("policies.reviewNone"));
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <p className="font-medium">{t("policies.reviewTitle")}</p>
+      <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+        <dt className="text-muted-foreground">{t("policies.reviewAllows")}</dt>
+        <dd className={review.allows.length ? "text-destructive" : undefined}>{names(review.allows)}</dd>
+        <dt className="text-muted-foreground">{t("policies.reviewApprovals")}</dt>
+        <dd>{names(review.approvals)}</dd>
+      </dl>
+      {review.flagged_tools.length ? (
+        <div className="mt-2">
+          <p className="text-destructive">{t("policies.reviewFlagged")}</p>
+          <p className="text-muted-foreground">{t("policies.reviewFlaggedNote")}</p>
+          <ul className="mt-1 space-y-1">
+            {review.flagged_tools.map((item) => (
+              <li key={item.tool}>
+                <span className="font-mono">{item.tool}</span>: {item.reasons.map(reason).join(", ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
