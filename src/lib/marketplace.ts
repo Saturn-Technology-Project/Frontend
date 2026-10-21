@@ -313,6 +313,30 @@ export const marketCatalog: MarketEntry[] = [
     },
   },
   {
+    id: "etherfi",
+    category: "finance",
+    endpoint: "https://mcp.ether.fi/mcp",
+    publisher: "ether.fi",
+    docs: "https://help.ether.fi/en/articles/863434-how-do-i-connect-claude-chatgpt-or-another-ai-assistant-to-my-personal-account",
+    auth: "token",
+    blurb: {
+      en: "Read-only access to an ether.fi Cash personal account.",
+      zh: "唯讀存取 ether.fi Cash 個人帳戶。",
+    },
+    points: {
+      en: [
+        "Read transactions, cards, and balances you choose to share",
+        "Cannot move funds or change card and account settings",
+        "Personal accounts only; approve with your ether.fi passkey",
+      ],
+      zh: [
+        "讀取你選擇分享的交易、卡片與餘額",
+        "無法轉移資金，也不能變更卡片或帳戶設定",
+        "僅限個人帳戶，需用 ether.fi 的 Passkey 核准",
+      ],
+    },
+  },
+  {
     id: "ibkr",
     category: "finance",
     endpoint: "https://api.ibkr.com/v1/api/mcp-public",
@@ -752,6 +776,7 @@ export function marketName(id: string) {
     booking: "Booking.com",
     sumsub: "Sumsub",
     mercury: "Mercury",
+    etherfi: "ether.fi",
     ibkr: "IBKR",
     dukascopy: "Dukascopy",
     "northwest-ra": "Northwest RA",
