@@ -12,15 +12,6 @@ import { useI18n } from "@/lib/i18n";
 const fieldClass =
   "mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring";
 
-function demoUrl() {
-  const configured = process.env.NEXT_PUBLIC_LANDING_URL?.replace(/\/$/, "");
-  if (configured) return `${configured}/demo`;
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return "http://localhost:5173/demo";
-  }
-  return "https://saturn.technology/demo";
-}
-
 export default function RegisterPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-background" />}>
@@ -34,7 +25,9 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { ready, signedIn } = useSessionProbe();
-  const [step, setStep] = useState<"choose" | "personal" | "confirm">("choose");
+  const [step, setStep] = useState<"choose" | "form" | "confirm">("choose");
+  const [team, setTeam] = useState(false);
+  const [organization, setOrganization] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,7 +63,7 @@ function RegisterForm() {
     setError("");
     setPending(true);
     try {
-      await registerAccount(name.trim(), email.trim(), password, code.trim());
+      await registerAccount(name.trim(), email.trim(), password, code.trim(), team ? organization.trim() : undefined);
       router.replace(next || "/overview");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));
@@ -95,7 +88,7 @@ function RegisterForm() {
           <button
             type="button"
             className="w-full rounded-md border border-border px-4 py-4 text-left hover:border-foreground"
-            onClick={() => setStep("personal")}
+            onClick={() => { setTeam(false); setStep("form"); }}
           >
             <div className="text-[14px] font-medium">{t("login.personal")}</div>
             <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{t("login.personalBody")}</p>
@@ -103,7 +96,7 @@ function RegisterForm() {
           <button
             type="button"
             className="w-full rounded-md border border-border px-4 py-4 text-left hover:border-foreground"
-            onClick={() => window.location.assign(demoUrl())}
+            onClick={() => { setTeam(true); setStep("form"); }}
           >
             <div className="text-[14px] font-medium">{t("login.team")}</div>
             <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{t("login.teamBody")}</p>
@@ -136,7 +129,7 @@ function RegisterForm() {
           </label>
           {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           <div className="mt-6 flex gap-2">
-            <Button type="button" variant="outline" onClick={() => { setError(""); setStep("personal"); }}>
+            <Button type="button" variant="outline" onClick={() => { setError(""); setStep("form"); }}>
               {t("login.back")}
             </Button>
             <Button type="submit" className="flex-1" disabled={pending || code.length !== 6}>
@@ -151,9 +144,22 @@ function RegisterForm() {
   return (
     <AuthScreen>
       <form onSubmit={onSubmit}>
-        <h1 className="text-[22px] font-medium tracking-tight">{t("login.personal")}</h1>
-        <p className="mt-2 text-[13px] text-muted-foreground">{t("login.personalBody")}</p>
-        <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+        <h1 className="text-[22px] font-medium tracking-tight">{t(team ? "login.team" : "login.personal")}</h1>
+        <p className="mt-2 text-[13px] text-muted-foreground">{t(team ? "login.teamBody" : "login.personalBody")}</p>
+        {team ? (
+          <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            {t("login.organizationName")}
+            <input
+              value={organization}
+              onChange={(event) => setOrganization(event.target.value)}
+              autoComplete="organization"
+              maxLength={255}
+              className={fieldClass}
+              required
+            />
+          </label>
+        ) : null}
+        <label className={`${team ? "mt-4" : "mt-8"} block text-[11px] uppercase tracking-[0.08em] text-muted-foreground`}>
           {t("login.name")}
           <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className={fieldClass} required />
         </label>

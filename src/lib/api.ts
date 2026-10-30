@@ -514,10 +514,17 @@ export async function requestSignupCode(name: string, email: string, password: s
   );
 }
 
-export async function registerAccount(name: string, email: string, password: string, code: string) {
+export async function registerAccount(name: string, email: string, password: string, code: string, organization?: string) {
   const result = await post<LoginResponse>(
     "/auth/register",
-    { name, email, password: await loginVerifier(password, email), code, locale: useLocaleStore.getState().locale },
+    {
+      name,
+      email,
+      password: await loginVerifier(password, email),
+      code,
+      locale: useLocaleStore.getState().locale,
+      organization: organization || undefined,
+    },
     false
   );
   await establishSession(result);
