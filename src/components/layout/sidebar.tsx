@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/account/photo-field";
 import { NavIcon } from "@/components/layout/nav-icon";
+import { DONATE_URL } from "@/lib/donate";
 import { useMobileNav } from "@/components/layout/mobile-nav";
 import { useConsole } from "@/hooks/use-console";
 import { useEntitlements } from "@/hooks/use-entitlements";
@@ -194,6 +195,15 @@ function AccountFooter({
             </Choice>
           </div>
         ) : null}
+        <a
+          href={DONATE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <NavIcon name="heart" />
+          {t("donate.action")}
+        </a>
         <button
           type="button"
           aria-expanded={panel === "language"}

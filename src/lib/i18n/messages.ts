@@ -1080,6 +1080,11 @@ export const en = {
   actor: {
     wallet: "Wallet",
   },
+  donate: {
+    title: "Support Saturn",
+    free: "Saturn is free, with every feature on every account. If it helps you, you can sponsor the project on GitHub.",
+    action: "Donate us",
+  },
   plan: {
     upgradeTitle: "Pro includes policies and webhooks",
     upgradeBody: "Upgrade to author versioned policies and send signed approval webhooks.",
@@ -2163,6 +2168,11 @@ export const zh: DeepString<typeof en> = {
   },
   actor: {
     wallet: "錢包",
+  },
+  donate: {
+    title: "支持 Saturn",
+    free: "Saturn 完全免費，每個帳號都能使用全部功能。如果它對你有幫助，歡迎在 GitHub 上贊助這個專案。",
+    action: "贊助我們",
   },
   plan: {
     upgradeTitle: "Pro 包含政策與 Webhook",
