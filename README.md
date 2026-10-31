@@ -41,3 +41,7 @@ See [`DEPLOY.md`](DEPLOY.md) for Cloud Run.
 Wallets live at `/wallets`. Paid tools show an x402 price. Facilitator: `GET /x402/supported`.
 
 Frontend is Next.js on Cloud Run. Backend is FastAPI on Cloud Run. See `DEPLOY.md`.
+
+## License
+
+[FSL-1.1-ALv2](LICENSE.md). Copyright Rick Weng. You may read, audit, modify and self-host this code for any purpose except offering a competing commercial service. Two years after each version is released, it also becomes available under Apache 2.0.
