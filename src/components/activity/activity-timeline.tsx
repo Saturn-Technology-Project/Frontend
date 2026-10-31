@@ -412,7 +412,7 @@ export function AuditLog({
         </div>
         {detailed ? (
           <div className="flex w-full flex-col gap-2 lg:w-auto lg:items-end">
-            <input
+            <input aria-label={t("activity.search")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("activity.search")}

@@ -128,7 +128,7 @@ export default function AgentsPage() {
                         }}
                       >
                         <td className="px-4 py-3">
-                          <span className="flex items-center gap-2 font-medium">
+                          <button type="button" aria-pressed={selected?.id === agent.id} className="flex items-center gap-2 text-left font-medium">
                             <span className="flex size-7 items-center justify-center rounded-full bg-muted text-[11px]">
                               {copy.name.slice(0, 1).toUpperCase()}
                             </span>
@@ -136,7 +136,7 @@ export default function AgentsPage() {
                             {agent.registeredUserName ? (
                               <span className="truncate text-[12px] font-normal text-muted-foreground">· {agent.registeredUserName}</span>
                             ) : null}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{toolSet?.name || "—"}</td>
                         <td className="px-4 py-3 text-muted-foreground">{toolSet?.items.length ?? 0}</td>

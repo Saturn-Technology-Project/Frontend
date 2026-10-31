@@ -784,7 +784,7 @@ function NodeInspector({
       ) : null}
       {data.kind === "tool" ? (
         <>
-          <select disabled={disabled} value={data.tool ?? ""} onChange={(event) => onChange({ tool: event.target.value })} className={inputClass}>
+          <select aria-label={t("policies.capability")} disabled={disabled} value={data.tool ?? ""} onChange={(event) => onChange({ tool: event.target.value })} className={inputClass}>
             <option value="">{t("policies.capability")}</option>
             <ToolOptions names={tools} groups={groups} />
           </select>
@@ -804,7 +804,7 @@ function NodeInspector({
         <ConditionFields data={data} fields={fields} hasTool={hasTool} disabled={disabled} onChange={onChange} />
       ) : null}
       {data.kind === "logic" ? (
-        <select disabled={disabled} value={data.op ?? "and"} onChange={(event) => onChange({ op: event.target.value as FlowData["op"] })} className={inputClass}>
+        <select aria-label={t("policies.logic")} disabled={disabled} value={data.op ?? "and"} onChange={(event) => onChange({ op: event.target.value as FlowData["op"] })} className={inputClass}>
           <option value="and">AND</option>
           <option value="or">OR</option>
           <option value="not">NOT</option>
@@ -812,7 +812,7 @@ function NodeInspector({
       ) : null}
       {data.kind === "decision" ? (
         <>
-        <select
+        <select aria-label={t("policies.decision")}
           disabled={disabled}
           value={data.decision ?? "deny"}
           onChange={(event) => {
@@ -844,7 +844,7 @@ function NodeInspector({
       {data.kind === "enforcement" ? (
         <>
           <p className="text-[12px] text-muted-foreground">{t("policies.auditAlways")}</p>
-          <input disabled={disabled} value={data.rateLimit ?? ""} placeholder={t("policies.rateLimit")} onChange={(event) => onChange({ rateLimit: event.target.value })} className={inputClass} />
+          <input aria-label={t("policies.rateLimit")} disabled={disabled} value={data.rateLimit ?? ""} placeholder={t("policies.rateLimit")} onChange={(event) => onChange({ rateLimit: event.target.value })} className={inputClass} />
         </>
       ) : null}
       {disabled ? null : (
@@ -1171,7 +1171,7 @@ function ConditionFields({
   return (
     <div className="grid gap-2">
       {fields.length ? (
-        <select
+        <select aria-label={t("policies.field")}
           disabled={disabled}
           value={current}
           onChange={(event) => onChange({ field: event.target.value })}
@@ -1187,7 +1187,7 @@ function ConditionFields({
           ))}
         </select>
       ) : (
-        <input
+        <input aria-label={t("policies.field")}
           disabled={disabled}
           value={current}
           placeholder={t("policies.field")}
@@ -1203,20 +1203,20 @@ function ConditionFields({
       <p className="text-[12px] text-muted-foreground">
         {fields.length ? selected?.description || t("policies.fieldHint") : hasTool ? t("policies.fieldEmpty") : t("policies.connectTool")}
       </p>
-      <select disabled={disabled} value={data.operator ?? "eq"} onChange={(event) => onChange({ operator: event.target.value })} className={inputClass}>
+      <select aria-label={t("policies.operator")} disabled={disabled} value={data.operator ?? "eq"} onChange={(event) => onChange({ operator: event.target.value })} className={inputClass}>
         {POLICY_OPERATORS.map((item) => (
           <option key={item.value} value={item.value}>{t(item.labelKey)}</option>
         ))}
       </select>
       {selected?.enumValues.length ? (
-        <select disabled={disabled} value={String(data.value ?? "")} onChange={(event) => onChange({ value: event.target.value })} className={inputClass}>
+        <select aria-label={t("policies.value")} disabled={disabled} value={String(data.value ?? "")} onChange={(event) => onChange({ value: event.target.value })} className={inputClass}>
           <option value="">{t("policies.value")}</option>
           {selected.enumValues.map((item) => (
             <option key={item} value={item}>{item}</option>
           ))}
         </select>
       ) : selected?.type === "boolean" ? (
-        <select
+        <select aria-label={t("policies.value")}
           disabled={disabled}
           value={data.value === true ? "true" : data.value === false ? "false" : ""}
           onChange={(event) => onChange({ value: event.target.value === "true" })}
@@ -1227,7 +1227,7 @@ function ConditionFields({
           <option value="false">false</option>
         </select>
       ) : (
-        <input
+        <input aria-label={t("policies.value")}
           disabled={disabled}
           value={String(data.value ?? "")}
           placeholder={t("policies.value")}

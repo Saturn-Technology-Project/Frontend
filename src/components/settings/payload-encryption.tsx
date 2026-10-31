@@ -97,7 +97,7 @@ export function PayloadEncryption() {
         </div>
       ) : null}
       <div className="mt-4 flex max-w-xl gap-2">
-        <input
+        <input aria-label={t("settings.payloadRecovery")}
           className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-3 font-mono text-[12px]"
           value={unlock}
           autoComplete="off"

@@ -109,12 +109,12 @@ export default function ConnectionsPage() {
                       onClick={() => setSelectedId(server.id)}
                     >
                       <td className="px-4 py-3">
-                        <span className="flex items-center gap-2 font-medium">
+                        <button type="button" aria-pressed={selectedId === server.id} className="flex items-center gap-2 text-left font-medium">
                           <span className="flex size-7 items-center justify-center rounded-full bg-muted">
                             <ServerMark server={server} />
                           </span>
                           {server.name}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         {server.secretStatus === "needs_reconnect" ? (
@@ -368,7 +368,7 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
           >
             {authorizing ? t("marketplace.authorizing") : t("marketplace.useProvider")}
           </Button>
-          <input
+          <input aria-label={t("tools.token")}
             type="password"
             value={token}
             autoComplete="off"

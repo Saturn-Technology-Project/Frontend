@@ -75,7 +75,7 @@ export function PolicyRuleBuilder({
               <div className="mb-3 text-[12px] text-muted-foreground">{t("policies.and")}</div>
             ) : null}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <select
+              <select aria-label={t("policies.field")}
                 value={condition.field}
                 onChange={(event) => updateCondition(index, { field: event.target.value })}
                 className={inputClass}
@@ -90,7 +90,7 @@ export function PolicyRuleBuilder({
                   <option value={condition.field}>{condition.field}</option>
                 ) : null}
               </select>
-              <select
+              <select aria-label={t("policies.operator")}
                 value={condition.operator}
                 onChange={(event) => updateCondition(index, { operator: event.target.value })}
                 className={inputClass}
@@ -101,7 +101,7 @@ export function PolicyRuleBuilder({
                   </option>
                 ))}
               </select>
-              <input
+              <input aria-label={t("policies.value")}
                 value={condition.value}
                 onChange={(event) => updateCondition(index, { value: event.target.value })}
                 className={inputClass}
@@ -122,7 +122,7 @@ export function PolicyRuleBuilder({
         </Button>
       </div>
       <div className="mt-6 saturn-label">{t("policies.then")}</div>
-      <select
+      <select aria-label={t("policies.decision")}
         value={rule.decision}
         onChange={(event) =>
           onChange({ ...rule, decision: event.target.value as PolicyAction })

@@ -242,7 +242,7 @@ export function ToolSetEditor({
         <div className="mt-6">
           <div className="min-w-0">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input
+              <input aria-label={t("tools.search")}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("tools.search")}

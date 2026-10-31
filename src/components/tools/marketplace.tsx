@@ -90,7 +90,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
             <p className="mt-1 max-w-xl text-[13px] text-muted-foreground">{t("marketplace.lead")}</p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <input
+            <input aria-label={t("marketplace.search")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("marketplace.search")}
@@ -126,7 +126,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
           <p className="mt-2 max-w-lg text-[13px] leading-5 text-muted-foreground">{t("marketplace.heroBody")}</p>
           <div className="mt-5 flex gap-2">
             {marketCatalog.filter((entry) => entry.featured).map((entry) => (
-              <button
+              <button aria-label={marketName(entry.id)}
                 key={entry.id}
                 type="button"
                 onClick={() => open(entry)}

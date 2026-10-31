@@ -119,7 +119,7 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
                   event.currentTarget.reset();
                 }}
               >
-                <select name="employee" className={fieldClass}>
+                <select aria-label={t("team.groupMember")} name="employee" className={fieldClass}>
                   <option value="">{t("team.groupMember")}</option>
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>
@@ -137,7 +137,7 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
       </ul>
       {canWrite ? (
         <form onSubmit={submitGroup} className="mt-4 flex gap-2">
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder={t("team.groupName")} className={fieldClass} />
+          <input aria-label={t("team.groupName")} value={name} onChange={(event) => setName(event.target.value)} placeholder={t("team.groupName")} className={fieldClass} />
           <Button type="submit" disabled={addGroup.isPending || !name.trim()}>
             {t("team.addGroup")}
           </Button>

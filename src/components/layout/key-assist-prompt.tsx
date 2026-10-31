@@ -87,7 +87,7 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
         {fingerprint ? <p className="mt-3 break-all font-mono text-[12px] text-muted-foreground">{fingerprint}</p> : null}
         {mismatch ? <p className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
         {failed ? <p className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
-        <input
+        <input aria-label={t("activity.assistRecovery")}
           className="mt-4 h-9 w-full rounded-md border border-border bg-background px-3 font-mono text-[12px]"
           value={recovery}
           autoComplete="off"
