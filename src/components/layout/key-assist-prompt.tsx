@@ -15,7 +15,7 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   const [recovery, setRecovery] = useState("");
   const [failed, setFailed] = useState(false);
   const [mismatch, setMismatch] = useState(false);
-  const [fingerprint, setFingerprint] = useState("");
+  const [digest, setDigest] = useState<{ key: string; fingerprint: string } | null>(null);
   const [pending, setPending] = useState(false);
   const current = requests[0];
 
@@ -36,20 +36,20 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
     };
   }, [userId, refreshKey]);
 
+  // The fingerprint is kept with the key it was computed from, so a stale one is never shown for the next request.
+  const publicKey = current?.public_key ?? "";
+  const fingerprint = digest?.key === publicKey ? digest.fingerprint : "";
   useEffect(() => {
-    if (!current?.public_key) {
-      setFingerprint("");
-      return;
-    }
+    if (!publicKey) return;
     let cancel = false;
-    void crypto.subtle.digest("SHA-256", Uint8Array.from(current.public_key.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [])).then((digest) => {
+    void crypto.subtle.digest("SHA-256", Uint8Array.from(publicKey.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [])).then((hash) => {
       if (cancel) return;
-      setFingerprint([...new Uint8Array(digest)].map((item) => item.toString(16).padStart(2, "0")).join(""));
+      setDigest({ key: publicKey, fingerprint: [...new Uint8Array(hash)].map((item) => item.toString(16).padStart(2, "0")).join("") });
     });
     return () => {
       cancel = true;
     };
-  }, [current?.public_key]);
+  }, [publicKey]);
 
   function dismiss() {
     if (!current) return;

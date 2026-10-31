@@ -175,7 +175,7 @@ function BuilderCanvas({
   const analyses = policy.definition?.analyses ?? [];
   const unconfigured = analyses.length > 0 && analyses.every((item) => item.status !== "analyzed");
   const current = nodes.find((node) => node.id === selected) ?? null;
-  const setTools = toolSets.find((item) => item.id === setId)?.items ?? [];
+  const setTools = useMemo(() => toolSets.find((item) => item.id === setId)?.items ?? [], [toolSets, setId]);
   const toolGroups = useMemo(() => groupByServer(setTools), [setTools]);
   const schemas = useMemo(() => {
     const map = new Map<string, Record<string, unknown>>();

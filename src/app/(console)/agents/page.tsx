@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { QueryGate } from "@/components/layout/query-gate";
 import { Button } from "@/components/ui/button";
 import { useConsole, useDeleteAgent, useUpdateAgent } from "@/hooks/use-console";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { canAccess } from "@/lib/access";
 import { useAuthStore } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
@@ -41,9 +42,13 @@ export default function AgentsPage() {
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const toolSets = data?.toolSets ?? [];
 
-  useEffect(() => {
-    if (search.get("connect") === "1") setConnecting(true);
-  }, [search]);
+  // ?connect=1 opens the connect panel when it appears in the address, not on every render.
+  const connectRequested = search.get("connect") === "1";
+  const [connectSeen, setConnectSeen] = useState(false);
+  if (connectRequested !== connectSeen) {
+    setConnectSeen(connectRequested);
+    if (connectRequested) setConnecting(true);
+  }
 
   return (
     <QueryGate isPending={isPending && !data} isError={isError && !data}>
@@ -185,10 +190,7 @@ function ConnectPanel({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [origin, setOrigin] = useState("");
-  useEffect(() => {
-    setOrigin(apiOrigin());
-  }, []);
+  const origin = useHydrated() ? apiOrigin() : "";
   const endpoint = origin ? `${origin}/mcp` : "";
   const profileHeader = identity ? `X-Saturn-Profile: ${identity}` : "";
   const config = endpoint

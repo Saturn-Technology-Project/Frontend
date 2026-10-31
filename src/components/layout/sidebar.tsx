@@ -164,7 +164,12 @@ function AccountFooter({
   const [panel, setPanel] = useState<"account" | "language" | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setPanel(null), [pathname]);
+  const [shownPath, setShownPath] = useState(pathname);
+  // Moving to another page closes the account panel.
+  if (pathname !== shownPath) {
+    setShownPath(pathname);
+    setPanel(null);
+  }
   useEffect(() => {
     if (!panel) return;
     function onPointer(event: PointerEvent) {

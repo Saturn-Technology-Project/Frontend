@@ -20,6 +20,7 @@ export function Avatar({
 }) {
   const radius = shape === "rounded" ? "rounded-lg" : "rounded-full";
   if (photo) {
+    // eslint-disable-next-line @next/next/no-img-element -- the photo is a data URL the person uploaded; next/image has nothing to optimise
     return <img src={photo} alt="" className={cn(radius, "object-cover", className)} />;
   }
   return (

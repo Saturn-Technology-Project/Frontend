@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { PhotoField } from "@/components/account/photo-field";
@@ -8,6 +8,7 @@ import { EmailNotices } from "@/components/account/email-notices";
 import { ReauthForm } from "@/components/account/reauth-form";
 import { SignInSecurity } from "@/components/account/sign-in-security";
 import { Button } from "@/components/ui/button";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { ApiError, changePassword, confirmEmailChange, updatePersonalPhoto, updateProfile } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -20,7 +21,7 @@ export default function ProfilePage() {
   const { t } = useI18n();
   const user = useAuthStore((state) => state.user);
   const { resolvedTheme, setTheme } = useTheme();
-  const [ready, setReady] = useState(false);
+  const ready = useHydrated();
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [saved, setSaved] = useState(false);
@@ -35,12 +36,17 @@ export default function ProfilePage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const dark = ready && resolvedTheme === "dark";
 
-  useEffect(() => setReady(true), []);
-  useEffect(() => {
-    if (!user || pendingEmail) return;
-    setName(user.name);
-    setEmail(user.email);
-  }, [user, pendingEmail]);
+  // Follow the signed-in account into the form whenever it changes, unless an email change is waiting for a code.
+  const [shownUser, setShownUser] = useState(user);
+  const [shownPending, setShownPending] = useState(pendingEmail);
+  if (user !== shownUser || pendingEmail !== shownPending) {
+    setShownUser(user);
+    setShownPending(pendingEmail);
+    if (user && !pendingEmail) {
+      setName(user.name);
+      setEmail(user.email);
+    }
+  }
 
   const photo = useMutation({
     mutationFn: updatePersonalPhoto,

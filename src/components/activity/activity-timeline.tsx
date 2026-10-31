@@ -341,9 +341,10 @@ export function AuditLog({
   const { t, locale } = useI18n();
   const { data } = useConsole();
   const policies = data?.policies ?? [];
-  const toolSets = data?.toolSets ?? [];
-  const servers = data?.mcpServers ?? [];
+  const toolSets = useMemo(() => data?.toolSets ?? [], [data?.toolSets]);
+  const servers = useMemo(() => data?.mcpServers ?? [], [data?.mcpServers]);
   const [query, setQuery] = useState(urlQuery);
+  const [shownUrlQuery, setShownUrlQuery] = useState(urlQuery);
   const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [serverFilter, setServerFilter] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
@@ -351,22 +352,28 @@ export function AuditLog({
   const [openBody, setOpenBody] = useState<string | null>(null);
   const [exportError, setExportError] = useState("");
 
-  useEffect(() => {
+  // A new ?q= in the address replaces what is typed in the search box.
+  if (urlQuery !== shownUrlQuery) {
+    setShownUrlQuery(urlQuery);
     setQuery(urlQuery);
-  }, [urlQuery]);
+  }
 
   const needle = detailed ? query.trim().toLowerCase() : "";
   const built = useMemo(() => buildChains(events), [events]);
 
+  // The chain holding the linked event opens once when it shows up, and is scrolled to.
+  const focusChain = focusEvent
+    ? built.find((item) => item.id === focusEvent || item.events.some((event) => event.id === focusEvent || event.runId === focusEvent))
+    : undefined;
+  const focusId = focusChain?.id ?? null;
+  const [openedFocus, setOpenedFocus] = useState<string | null>(null);
+  if (detailed && focusId && focusId !== openedFocus) {
+    setOpenedFocus(focusId);
+    setOpenId(focusId);
+  }
   useEffect(() => {
-    if (!focusEvent) return;
-    const chain = built.find(
-      (item) => item.id === focusEvent || item.events.some((event) => event.id === focusEvent || event.runId === focusEvent)
-    );
-    if (!chain) return;
-    if (detailed) setOpenId(chain.id);
-    document.getElementById(`audit-${chain.id}`)?.scrollIntoView({ block: "center" });
-  }, [built, detailed, focusEvent]);
+    if (focusId) document.getElementById(`audit-${focusId}`)?.scrollIntoView({ block: "center" });
+  }, [focusId]);
   const serverOptions = useMemo(() => {
     return [...new Set(built.map((chain) => chainServer(chain, toolSets, servers)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   }, [built, servers, toolSets]);

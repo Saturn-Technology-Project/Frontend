@@ -50,7 +50,7 @@ export function ReauthForm({ onReady, busy }: { onReady: () => void; busy?: bool
     }
   }
 
-  async function usePasskey() {
+  async function confirmWithPasskey() {
     setError("");
     setPending(true);
     try {
@@ -97,7 +97,7 @@ export function ReauthForm({ onReady, busy }: { onReady: () => void; busy?: bool
         <Button type="button" variant="outline" disabled={pending || busy} onClick={() => void sendCode()}>
           {t("profile.reauthSend")}
         </Button>
-        <Button type="button" variant="outline" disabled={pending || busy} onClick={() => void usePasskey()}>
+        <Button type="button" variant="outline" disabled={pending || busy} onClick={() => void confirmWithPasskey()}>
           {t("login.usePasskey")}
         </Button>
       </div>

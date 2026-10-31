@@ -13,10 +13,13 @@ const MobileNavContext = createContext<MobileNavContextValue | null>(null);
 export function MobileNavProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [shownPath, setShownPath] = useState(pathname);
 
-  useEffect(() => {
+  // Moving to another page closes the menu.
+  if (pathname !== shownPath) {
+    setShownPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   useEffect(() => {
     if (!open) return;

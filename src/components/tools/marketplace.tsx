@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { consoleQueryKey } from "@/hooks/use-console";
@@ -407,9 +407,12 @@ function ConnectForm({
   const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [token, setToken] = useState("");
   const [paste, setPaste] = useState(false);
-  useEffect(() => {
+  const [shownConnectError, setShownConnectError] = useState(connectError);
+  // When the provider's sign-in is unavailable, offer the token field instead.
+  if (connectError !== shownConnectError) {
+    setShownConnectError(connectError);
     if (connectError === t("marketplace.signInUnavailable")) setPaste(true);
-  }, [connectError]);
+  }
   const [localError, setLocalError] = useState("");
   const [authorizing, setAuthorizing] = useState(false);
   const connect = useMutation({

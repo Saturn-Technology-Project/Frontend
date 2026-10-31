@@ -295,6 +295,7 @@ async function request<T>(path: string, init?: RequestInit, auth = true): Promis
   if (response.status === 401 && auth && path !== "/auth/login" && path !== "/auth/me") {
     useAuthStore.getState().clear();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full reload on an expired session drops every cached query of the old account
       window.location.assign("/login");
     }
   }
