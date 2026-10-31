@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useLocaleStore } from "@/stores/locale-store";
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -20,7 +20,7 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} nonce={nonce}>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delay={200}>
           <LocaleDocument>{children}</LocaleDocument>

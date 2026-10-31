@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 import { Providers } from "@/components/layout/providers";
 import "./globals.css";
@@ -23,6 +24,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The proxy creates a request-specific CSP nonce. Rendering at request time
   // lets Next attach that nonce to its framework and page scripts.
   await connection();
+  // The theme script runs before hydration, so it needs the same nonce to pass the CSP.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html
@@ -31,7 +34,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       suppressHydrationWarning
     >
       <body className="h-full overflow-hidden font-sans">
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
       </body>
     </html>
   );
