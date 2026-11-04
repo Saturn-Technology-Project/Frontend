@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
+import { safeReturnPath } from "@/lib/return-path";
 import { ApiError, login, loginWithEmailCode, loginWithPasskey, loginWithTotp, requestPasswordReset, resetPassword } from "@/lib/api";
 import { unlockMemberKey } from "@/lib/payload-crypto";
 import { useI18n } from "@/lib/i18n";
@@ -37,11 +38,11 @@ function LoginForm() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const next = searchParams.get("next");
-  const registerHref = next ? `/register?next=${encodeURIComponent(next)}` : "/register";
+  const next = safeReturnPath(searchParams.get("next"));
+  const registerHref = next === "/overview" ? "/register" : `/register?next=${encodeURIComponent(next)}`;
 
   useEffect(() => {
-    if (ready && signedIn) router.replace(next || "/overview");
+    if (ready && signedIn) router.replace(next);
   }, [ready, signedIn, router, next]);
 
   function fail(err: unknown, fallback: string) {
@@ -62,7 +63,7 @@ function LoginForm() {
         return;
       }
       await unlockMemberKey(password).catch(() => undefined);
-      router.replace(next || "/overview");
+      router.replace(next);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) setError(t("login.invalid"));
       else if (err instanceof ApiError) setError(err.message);
@@ -98,7 +99,7 @@ function LoginForm() {
     try {
       if (usesTotp) await loginWithTotp(challenge, code.trim());
       else await loginWithEmailCode(challenge, code.trim());
-      router.replace(next || "/overview");
+      router.replace(next);
       await unlockMemberKey(password).catch(() => undefined);
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) setError(t("login.totpLocked"));
@@ -113,7 +114,7 @@ function LoginForm() {
     setPending(true);
     try {
       await loginWithPasskey(challenge);
-      router.replace(next || "/overview");
+      router.replace(next);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError(t("profile.passkeyUnsupported"));

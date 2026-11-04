@@ -201,6 +201,38 @@ export const marketCatalog: MarketEntry[] = [
     },
   },
   {
+    id: "etherfi",
+    category: "finance",
+    endpoint: "https://mcp.ether.fi/mcp",
+    publisher: "ether.fi",
+    docs: "https://help.ether.fi/en/articles/863434-how-do-i-connect-claude-chatgpt-or-another-ai-assistant-to-my-personal-account",
+    auth: "token",
+    blurb: {
+      en: "Read balances, cards, and transactions from your ether.fi Cash account.",
+      zh: "唯讀查詢 ether.fi Cash 帳戶的餘額、卡片與交易。",
+    },
+    points: {
+      en: ["Review balances, holdings, and spending", "Read only the account data you approve", "Approve access on ether.fi with your passkey"],
+      zh: ["查看餘額、持倉與支出", "僅讀取你核准的帳戶資料", "在 ether.fi 使用通行金鑰核准存取"],
+    },
+  },
+  {
+    id: "coinbase",
+    category: "finance",
+    endpoint: "https://agents.coinbase.com/mcp",
+    publisher: "Coinbase",
+    docs: "https://docs.cdp.coinbase.com/ai-agents/coinbase-for-agents/coinbase-mcp",
+    auth: "token",
+    blurb: {
+      en: "Connect Coinbase trading and portfolios through its official MCP.",
+      zh: "透過官方 MCP 連接 Coinbase 交易與投資組合。",
+    },
+    points: {
+      en: ["Review balances, positions, and trading tools", "Choose portfolio access when signing in to Coinbase", "Connection availability depends on Coinbase client approval"],
+      zh: ["查看餘額、部位與交易工具", "登入 Coinbase 時選擇投資組合存取權限", "能否連線取決於 Coinbase 的用戶端審核"],
+    },
+  },
+  {
     id: "etherscan",
     category: "finance",
     endpoint: "https://mcp.etherscan.io/mcp",
@@ -745,6 +777,8 @@ export function marketName(id: string) {
     adobe: "Adobe",
     "microsoft-365": "Microsoft 365",
     shopify: "Shopify",
+    etherfi: "ether.fi",
+    coinbase: "Coinbase",
     etherscan: "Etherscan",
     vercel: "Vercel",
     indeed: "Indeed",

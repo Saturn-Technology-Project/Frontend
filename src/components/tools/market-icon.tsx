@@ -32,6 +32,8 @@ const drawn = {
   context7: Library,
   deepwiki: BookOpen,
   custom: Plug,
+  etherfi: Wallet,
+  coinbase: ChartCandlestick,
   etherscan: Hexagon,
   sumsub: ShieldCheck,
   mercury: Landmark,

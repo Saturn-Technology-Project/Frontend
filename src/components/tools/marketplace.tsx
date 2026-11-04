@@ -37,7 +37,7 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
       marketCatalog.filter((entry) => {
         if (category !== "all" && entry.category !== category) return false;
         if (!needle) return true;
-        const text = [marketName(entry.id), entry.publisher, entry.blurb.en, entry.blurb.zh, entry.category].join(" ").toLowerCase();
+        const text = [entry.id, marketName(entry.id), entry.publisher, entry.blurb.en, entry.blurb.zh, entry.category].join(" ").toLowerCase();
         return text.includes(needle);
       }),
     [category, needle]

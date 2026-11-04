@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
+import { safeReturnPath } from "@/lib/return-path";
 import { ApiError, registerAccount, requestSignupCode } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
@@ -34,11 +35,11 @@ function RegisterForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const next = searchParams.get("next");
-  const loginHref = next ? `/login?next=${encodeURIComponent(next)}` : "/login";
+  const next = safeReturnPath(searchParams.get("next"));
+  const loginHref = next === "/overview" ? "/login" : `/login?next=${encodeURIComponent(next)}`;
 
   useEffect(() => {
-    if (ready && signedIn) router.replace(next || "/overview");
+    if (ready && signedIn) router.replace(next);
   }, [ready, signedIn, router, next]);
 
   async function onSubmit(event: React.FormEvent) {
@@ -64,7 +65,7 @@ function RegisterForm() {
     setPending(true);
     try {
       await registerAccount(name.trim(), email.trim(), password, code.trim(), team ? organization.trim() : undefined);
-      router.replace(next || "/overview");
+      router.replace(next);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));
       else if (err instanceof ApiError && err.status === 400) setError(t("login.codeInvalid"));
