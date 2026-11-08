@@ -561,8 +561,10 @@ export async function logout() {
   try {
     await post<void>("/auth/logout");
   } finally {
-    const { clearMemberKey } = await import("@/lib/payload-crypto");
+    const { clearMemberKey, holdOrganizationKey } = await import("@/lib/payload-crypto");
+    // Both private keys live only in memory. Drop them so the next person on this tab cannot use them.
     clearMemberKey();
+    holdOrganizationKey(null);
     useAuthStore.getState().clear();
   }
 }
