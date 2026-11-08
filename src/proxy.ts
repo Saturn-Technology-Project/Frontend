@@ -1,21 +1,16 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 import { NextRequest, NextResponse } from "next/server";
 
-const ORIGIN_HEADER = "x-saturn-origin-auth";
+import {
+  CONSOLE_AUTH_HEADER,
+  CONSOLE_CLIENT_IP_HEADER,
+  apiPathAllowed,
+  consoleForwardHeaders,
+  isApiPath,
+  originAllowed,
+} from "@/lib/edge";
 
-function originAllowed(request: NextRequest): boolean {
-  if (request.nextUrl.pathname === "/healthz") return true;
-  const expected = process.env.ORIGIN_AUTH_SECRET || "";
-  if (!expected) return !process.env.K_SERVICE;
-  const name = (process.env.ORIGIN_AUTH_HEADER || ORIGIN_HEADER).toLowerCase();
-  const presented = createHash("sha256").update(request.headers.get(name) || "").digest();
-  // During a rotation the previous secret is still accepted, matching the API.
-  const accepted = [expected, process.env.ORIGIN_AUTH_SECRET_PREVIOUS || ""].filter(Boolean);
-  return accepted
-    .map((value) => timingSafeEqual(presented, createHash("sha256").update(value).digest()))
-    .some(Boolean);
-}
+// Responses proxied from the API are data, never pages to render on the console origin.
+const API_RESPONSE_CSP = "default-src 'none'; frame-ancestors 'none'; sandbox";
 
 function contentSecurityPolicy(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
@@ -46,9 +41,29 @@ function contentSecurityPolicy(nonce: string) {
     .join("; ");
 }
 
+function forwardToApi(request: NextRequest) {
+  if (!apiPathAllowed(request.nextUrl.pathname)) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+  const header = (name: string) => request.headers.get(name);
+  const requestHeaders = new Headers(request.headers);
+  // Only this proxy may say who the browser is; drop anything the client sent.
+  requestHeaders.delete(CONSOLE_AUTH_HEADER);
+  requestHeaders.delete(CONSOLE_CLIENT_IP_HEADER);
+  for (const [name, value] of Object.entries(consoleForwardHeaders(header, process.env))) {
+    requestHeaders.set(name, value);
+  }
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", API_RESPONSE_CSP);
+  return response;
+}
+
 export function proxy(request: NextRequest) {
-  if (!originAllowed(request)) {
+  if (!originAllowed(request.nextUrl.pathname, (name) => request.headers.get(name), process.env)) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+  if (isApiPath(request.nextUrl.pathname)) {
+    return forwardToApi(request);
   }
   const nonce = btoa(crypto.randomUUID());
   const policy = contentSecurityPolicy(nonce);
@@ -61,5 +76,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|saturn-api|favicon.ico|logo.png).*)"],
+  // /saturn-api and /_next/image are no longer exempt: the origin gate covers every dynamic route.
+  matcher: ["/((?!_next/static|favicon.ico|logo.png).*)"],
 };
