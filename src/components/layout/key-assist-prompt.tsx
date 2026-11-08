@@ -17,6 +17,9 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   const [mismatch, setMismatch] = useState(false);
   const [digest, setDigest] = useState<{ key: string; fingerprint: string } | null>(null);
   const [pending, setPending] = useState(false);
+  // Which request the helper confirmed out of band. Helping hands this key every record, so the
+  // server's own list is not proof enough that the key belongs to the colleague.
+  const [confirmedKey, setConfirmedKey] = useState("");
   const current = requests[0];
 
   useEffect(() => {
@@ -39,6 +42,7 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   // The fingerprint is kept with the key it was computed from, so a stale one is never shown for the next request.
   const publicKey = current?.public_key ?? "";
   const fingerprint = digest?.key === publicKey ? digest.fingerprint : "";
+  const confirmed = Boolean(current) && confirmedKey === current?.member_key_id;
   useEffect(() => {
     if (!publicKey) return;
     let cancel = false;
@@ -60,7 +64,7 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   }
 
   async function agree() {
-    if (!current) return;
+    if (!current || !confirmed || !fingerprint) return;
     setPending(true);
     setFailed(false);
     setMismatch(false);
@@ -95,11 +99,21 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
           placeholder={t("activity.assistRecovery")}
           onChange={(event) => setRecovery(event.target.value.trim())}
         />
+        <label className="mt-4 flex items-start gap-2 text-[13px]">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={confirmed}
+            disabled={!fingerprint}
+            onChange={(event) => setConfirmedKey(event.target.checked && current ? current.member_key_id : "")}
+          />
+          <span>{t("activity.assistConfirm", { name: current?.name ?? "" })}</span>
+        </label>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" disabled={pending} onClick={dismiss}>
             {t("activity.assistIgnore")}
           </Button>
-          <Button disabled={pending} onClick={() => void agree()}>
+          <Button disabled={pending || !confirmed || !fingerprint} onClick={() => void agree()}>
             {t("activity.assistAgree")}
           </Button>
         </div>

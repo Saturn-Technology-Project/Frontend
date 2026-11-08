@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ReauthForm } from "@/components/account/reauth-form";
 import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
-import { confirmTotp, fetchMe, setupTotp } from "@/lib/api";
+import { ApiError, confirmTotp, fetchMe, setupTotp } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -19,6 +20,8 @@ export default function MfaSetupPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  // Setting up an authenticator needs a recent sign-in. Which step to retry once it is proved.
+  const [stepUp, setStepUp] = useState<null | "start" | "confirm">(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -35,6 +38,10 @@ export default function MfaSetupPage() {
       setOtpauthUrl(setup.otpauth_url);
       setBackupCodes(setup.backup_codes);
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 403) {
+        setStepUp("start");
+        return;
+      }
       setError(caught instanceof Error ? caught.message : t("settings.mfaError"));
     } finally {
       setPending(false);
@@ -49,6 +56,10 @@ export default function MfaSetupPage() {
       await fetchMe();
       router.replace("/");
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 403) {
+        setStepUp("confirm");
+        return;
+      }
       setError(caught instanceof Error ? caught.message : t("settings.mfaError"));
     } finally {
       setPending(false);
@@ -61,6 +72,18 @@ export default function MfaSetupPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
       <h1 className="text-[22px] font-medium tracking-tight">{t("settings.mfaTitle")}</h1>
       <p className="mt-2 text-[13px] text-muted-foreground">{t("settings.mfaLead")}</p>
+      {stepUp ? (
+        <div className="mt-6">
+          <ReauthForm
+            busy={pending}
+            onReady={() => {
+              const next = stepUp;
+              setStepUp(null);
+              void (next === "start" ? start() : confirm());
+            }}
+          />
+        </div>
+      ) : null}
       {secret ? (
         <div className="mt-6 space-y-4">
           <div>

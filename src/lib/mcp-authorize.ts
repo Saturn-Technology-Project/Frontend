@@ -1,4 +1,5 @@
 import { startMcpOauth } from "@/lib/api";
+import { apiOrigin } from "@/lib/ws";
 
 export class McpAuthorizeError extends Error {
   constructor(
@@ -23,6 +24,16 @@ export async function authorizeMcp(body: { name: string; endpoint: string }): Pr
   const nonce = crypto.randomUUID();
   const started = await startMcpOauth({ ...body, nonce });
   if (!started.authorization_url) return "connected";
+  let authorizationUrl: URL;
+  try {
+    authorizationUrl = new URL(started.authorization_url);
+  } catch {
+    throw new McpAuthorizeError("The MCP provider did not grant access.", "denied");
+  }
+  // The API checks this URL, but a popup is never opened on anything but https.
+  if (authorizationUrl.protocol !== "https:") {
+    throw new McpAuthorizeError("The MCP provider did not grant access.", "denied");
+  }
   return await new Promise((resolve, reject) => {
     let popup: Window | null = null;
     const timer = window.setInterval(() => {
@@ -39,6 +50,8 @@ export async function authorizeMcp(body: { name: string; endpoint: string }): Pr
 
     function onMessage(event: MessageEvent) {
       if (!popup || event.source !== popup) return;
+      // Only the API's own callback page may report the result; the provider's pages may not.
+      if (event.origin !== apiOrigin() && process.env.NODE_ENV !== "development") return;
       const data = event.data as { type?: string; ok?: boolean; nonce?: string; error?: string } | null;
       if (!data || data.type !== "saturn-mcp-oauth" || data.nonce !== nonce) return;
       cleanup();
@@ -47,7 +60,7 @@ export async function authorizeMcp(body: { name: string; endpoint: string }): Pr
     }
 
     window.addEventListener("message", onMessage);
-    popup = window.open(started.authorization_url!, "saturn-mcp-oauth", "popup,width=520,height=720");
+    popup = window.open(authorizationUrl.href, "saturn-mcp-oauth", "popup,width=520,height=720");
     if (!popup) {
       cleanup();
       reject(new McpAuthorizeError("popup", "popup"));

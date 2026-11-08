@@ -30,6 +30,9 @@ const nextConfig: NextConfig = {
     proxyTimeout: 600_000,
   },
   ...(process.env.DOCKER_BUILD === "1" ? { output: "standalone" as const } : {}),
+  // The console uses no next/image. Without this the /_next/image optimizer is a CPU-heavy,
+  // unauthenticated endpoint on the public service.
+  images: { unoptimized: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
