@@ -177,7 +177,8 @@ export interface AuthUserResponse {
 }
 
 export interface LoginResponse {
-  token: string;
+  // Browsers get the session only as an HttpOnly cookie; the API omits the token for them.
+  token?: string | null;
   user: AuthUserResponse;
 }
 
@@ -468,7 +469,7 @@ async function establishSession(result: LoginResponse) {
   try {
     await fetchMe();
   } catch {
-    useAuthStore.getState().setSession(toAuthSession(result.token, result.user));
+    useAuthStore.getState().setSession(toAuthSession(result.token ?? null, result.user));
   }
 }
 
@@ -476,10 +477,10 @@ async function finishLogin(result: LoginResponse & Partial<LoginChallenge>): Pro
   if (result.mfa_required && result.challenge) {
     return { mfa_required: true, challenge: result.challenge, methods: result.methods ?? [] };
   }
-  if (!result.token || !result.user) {
+  if (!result.user) {
     throw new ApiError(500, "Could not sign in");
   }
-  const session = { token: result.token, user: result.user };
+  const session = { token: result.token ?? null, user: result.user };
   await establishSession(session);
   return session;
 }
