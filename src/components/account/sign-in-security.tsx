@@ -25,7 +25,7 @@ export function SignInSecurity() {
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [stepUp, setStepUp] = useState<null | { kind: "email" } | { kind: "passkey"; id: string }>(null);
+  const [stepUp, setStepUp] = useState<null | { kind: "email" } | { kind: "passkey"; id: string } | { kind: "add" }>(null);
   const status = useQuery({
     queryKey: ["mfa"],
     queryFn: fetchMfa,
@@ -41,6 +41,7 @@ export function SignInSecurity() {
     const next = stepUp;
     setStepUp(null);
     if (next.kind === "email") disable.mutate();
+    else if (next.kind === "add") add.mutate();
     else remove.mutate(next.id);
   }
 
@@ -88,11 +89,18 @@ export function SignInSecurity() {
   const add = useMutation({
     mutationFn: registerPasskey,
     onSuccess: async () => {
+      setStepUp(null);
       setError("");
       setMessage(t("profile.passkeyAdded"));
       await queryClient.invalidateQueries({ queryKey: ["mfa"] });
     },
     onError: (err) => {
+      // Adding a passkey needs a recent sign-in, like removing one.
+      if (err instanceof ApiError && err.status === 403) {
+        setError("");
+        setStepUp({ kind: "add" });
+        return;
+      }
       if (err instanceof ApiError) fail(err);
       else {
         setMessage("");
@@ -187,7 +195,7 @@ export function SignInSecurity() {
         </Button>
       </div>
 
-      {stepUp ? <ReauthForm busy={disable.isPending || remove.isPending} onReady={retryStepUp} /> : null}
+      {stepUp ? <ReauthForm busy={disable.isPending || remove.isPending || add.isPending} onReady={retryStepUp} /> : null}
       {message ? <p className="mt-3 text-[13px] text-muted-foreground">{message}</p> : null}
       {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
       {status.isError && !(status.error instanceof ApiError && status.error.status === 404) ? (
