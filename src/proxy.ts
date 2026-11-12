@@ -22,6 +22,10 @@ function contentSecurityPolicy(nonce: string) {
   ]
     .filter(Boolean)
     .join(" ");
+  // The agent sign-in page lives on the API. /connect-passkey posts the passkey answer to it.
+  const formAction = ["'self'", "https://api.saturn-core.com", dev ? "http://localhost:* http://127.0.0.1:*" : ""]
+    .filter(Boolean)
+    .join(" ");
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ""}`,
@@ -32,7 +36,7 @@ function contentSecurityPolicy(nonce: string) {
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    "form-action " + formAction,
     "frame-ancestors 'none'",
     "frame-src 'none'",
     dev ? "" : "upgrade-insecure-requests",

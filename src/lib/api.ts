@@ -533,16 +533,28 @@ export async function registerAccount(name: string, email: string, password: str
   return result;
 }
 
-export async function loginWithEmailCode(challenge: string, code: string) {
-  const result = await post<LoginResponse>("/auth/login/email", { challenge, code }, false);
-  await establishSession(result);
-  return result;
+/** An admin with a passkey or an authenticator app gets a challenge back: the emailed code is not enough. */
+export async function loginWithEmailCode(challenge: string, code: string): Promise<LoginResponse | LoginChallenge> {
+  return finishLogin(
+    await post<LoginResponse & Partial<LoginChallenge>>("/auth/login/email", { challenge, code }, false),
+  );
 }
 
 export async function loginWithTotp(challenge: string, code: string) {
   const result = await post<LoginResponse>("/auth/login/totp", { challenge, code }, false);
   await establishSession(result);
   return result;
+}
+
+/** The passkey answer for a sign-in challenge, for the caller to deliver. Does not sign in here. */
+export async function passkeyAnswer(challenge: string) {
+  const { startAuthentication } = await import("@simplewebauthn/browser");
+  const options = await post<PublicKeyCredentialRequestOptionsJSON>(
+    "/auth/login/passkey/options",
+    { challenge },
+    false
+  );
+  return startAuthentication({ optionsJSON: options });
 }
 
 export async function loginWithPasskey(challenge: string) {

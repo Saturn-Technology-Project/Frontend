@@ -57,7 +57,7 @@ The account menu at the bottom of the sidebar:
 | 🌐 **Language** | | English or 繁體中文. Saved to your account. |
 | ❤️ **Donate** | | Opens GitHub Sponsors. |
 
-Outside the console: `/login` (password, then an email code, a passkey or an authenticator code), `/register` (a personal account or a team account where you are the admin), `/mfa` (authenticator setup, required for organization admins), `/accept-invite`, `/trust` (vulnerability disclosure; also `/.well-known/security.txt`) and `/healthz`.
+Outside the console: `/login` (password, then an email code, a passkey or an authenticator code), `/register` (a personal account or a team account where you are the admin), `/mfa` (passkey or authenticator setup; organization admins need one of the two), `/connect-passkey` (the passkey step when an agent's sign-in page on the API hands over to the console), `/accept-invite`, `/trust` (vulnerability disclosure; also `/.well-known/security.txt`) and `/healthz`.
 
 ## Quick start
 
@@ -120,7 +120,7 @@ flowchart LR
 
 **One origin.** The browser calls only the console's own origin. `src/lib/api.ts` sends every API request to `/saturn-api/<path>`, and a Next.js rewrite forwards it to `API_URL`. Cookies are therefore first-party and there is no CORS to configure. Policy generation streams server-sent events through the same rewrite. The console opens no WebSocket. Agents never talk to the console; they call the API's `/mcp` endpoint directly.
 
-**Client-rendered pages.** The root layout renders on every request so that each response gets its own CSP nonce (see below). The pages themselves are client components. `src/app/(console)/` holds everything behind sign-in; its layout wraps the pages in an auth gate that sends you to `/login?next=…` without a session, or to `/mfa` when an admin has no authenticator yet.
+**Client-rendered pages.** The root layout renders on every request so that each response gets its own CSP nonce (see below). The pages themselves are client components. `src/app/(console)/` holds everything behind sign-in; its layout wraps the pages in an auth gate that sends you to `/login?next=…` without a session, or to `/mfa` when an admin has neither a passkey nor an authenticator yet.
 
 **State.**
 
@@ -134,7 +134,7 @@ flowchart LR
 | Path | Contents |
 |---|---|
 | `src/app/(console)/` | Pages behind sign-in |
-| `src/app/{login,register,mfa,accept-invite,trust,healthz}/` | Public pages and the health check |
+| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,healthz}/` | Public pages and the health check |
 | `src/components/` | UI by area: `layout`, `policies`, `tools`, `approvals`, `activity`, `account`, `settings`, `ui` |
 | `src/lib/` | The API client (`api.ts`), i18n, password hashing (`password.ts`), payload encryption (`payload-crypto.ts`), the policy graph, the MCP catalog |
 | `src/hooks/`, `src/stores/` | TanStack Query hooks and zustand stores |
@@ -152,7 +152,7 @@ How to report a vulnerability: email security@saturn-core.com ([`/.well-known/se
 
 - `script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`: only scripts carrying this response's nonce, and scripts they load. WebAssembly is allowed for Argon2id. Development adds `'unsafe-eval'`.
 - `connect-src 'self'` and the hosted API (plus `localhost` in development).
-- `object-src 'none'`, `frame-ancestors 'none'`, `frame-src 'none'`, `base-uri 'self'`, `form-action 'self'`, and `upgrade-insecure-requests` in production.
+- `object-src 'none'`, `frame-ancestors 'none'`, `frame-src 'none'`, `base-uri 'self'`, `form-action 'self'` and the hosted API (the passkey step of an agent's sign-in posts there), and `upgrade-insecure-requests` in production.
 
 The root layout calls `connection()` so every page renders per request, which is how Next.js attaches the nonce to its own scripts, and it passes the nonce to the theme script that runs before hydration. Static assets under `_next/static`, `/saturn-api` and `logo.png` skip the proxy.
 
@@ -166,7 +166,7 @@ In production the Cloud Run service is reachable only through the front door. Th
 
 - **Passwords never leave the browser.** [`src/lib/password.ts`](src/lib/password.ts) runs Argon2id over the password, salted by the email, and splits the result with HKDF into a login verifier, which is all the API receives, and a wrap key that stays in the browser.
 - **The session is an HttpOnly cookie** (`saturn_session`) set by the API. After sign-in the console holds the bearer token in memory only until the cookie is in place, and never writes it to storage.
-- **Second factor.** After the password, sign-in asks for an email code, a passkey (WebAuthn) or, for accounts that have one, an authenticator code or backup code. Organization admins must set up an authenticator before they reach the console.
+- **Second factor.** After the password, sign-in asks for an email code, a passkey (WebAuthn) or, for accounts that have one, an authenticator code or backup code. Organization admins must set up a passkey or an authenticator before they reach the console, and an email code alone does not sign them in: after it they confirm with that passkey or authenticator.
 - **Step-up.** Changing your email, turning off email codes or removing a passkey asks again for a password, an email code or a passkey when the API requires it. Changing the password asks for the current one.
 - A `401` from the API clears the local session and returns to `/login`.
 
