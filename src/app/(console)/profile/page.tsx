@@ -127,7 +127,7 @@ export default function ProfilePage() {
           pending={photo.isPending}
           onChange={(next) => photo.mutate(next)}
         />
-        {photo.isError ? <p className="mt-3 text-[13px] text-destructive">{photo.error.message}</p> : null}
+        {photo.isError ? <p role="alert" className="mt-3 text-[13px] text-destructive">{photo.error.message}</p> : null}
       </div>
 
       <form onSubmit={submit} className="mt-8 max-w-md">
@@ -190,7 +190,7 @@ export default function ProfilePage() {
               {t("profile.confirmEnable")}
             </Button>
             {confirmEmail.isError ? (
-              <p className="mt-3 text-[13px] text-destructive">{confirmEmail.error.message}</p>
+              <p role="alert" className="mt-3 text-[13px] text-destructive">{confirmEmail.error.message}</p>
             ) : null}
           </div>
         ) : null}
@@ -202,7 +202,7 @@ export default function ProfilePage() {
           {saved ? <span className="text-[13px] text-muted-foreground">{t("profile.saved")}</span> : null}
         </div>
         {save.isError && !(save.error instanceof ApiError && save.error.status === 403) ? (
-          <p className="mt-3 text-[13px] text-destructive">{save.error.message}</p>
+          <p role="alert" className="mt-3 text-[13px] text-destructive">{save.error.message}</p>
         ) : null}
       </form>
 
@@ -253,9 +253,9 @@ export default function ProfilePage() {
           </Button>
           {passwordSaved ? <span className="text-[13px] text-muted-foreground">{t("profile.passwordSaved")}</span> : null}
         </div>
-        {passwordError ? <p className="mt-3 text-[13px] text-destructive">{passwordError}</p> : null}
+        {passwordError ? <p role="alert" className="mt-3 text-[13px] text-destructive">{passwordError}</p> : null}
         {password.isError ? (
-          <p className="mt-3 text-[13px] text-destructive">
+          <p role="alert" className="mt-3 text-[13px] text-destructive">
             {password.error instanceof ApiError ? password.error.message : t("common.apiError")}
           </p>
         ) : null}

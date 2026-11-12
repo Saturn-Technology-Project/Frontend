@@ -118,7 +118,7 @@ export function PayloadEncryption() {
       ) : null}
       {recovery ? (
         <div className="mt-4 max-w-xl">
-          <p className="text-[13px] text-destructive">{t("settings.payloadRecovery")}</p>
+          <p role="alert" className="text-[13px] text-destructive">{t("settings.payloadRecovery")}</p>
           <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-[12px]">{recovery}</pre>
           <a
             className="mt-2 inline-block text-[13px] underline"
@@ -157,9 +157,9 @@ export function PayloadEncryption() {
         <p className="mt-2 max-w-xl text-[13px] text-warning">{t("activity.ownKeyPending")}</p>
       ) : null}
       {status.data?.own_member_key_approval === "rejected" ? (
-        <p className="mt-2 max-w-xl text-[13px] text-destructive">{t("activity.ownKeyRejected")}</p>
+        <p role="alert" className="mt-2 max-w-xl text-[13px] text-destructive">{t("activity.ownKeyRejected")}</p>
       ) : null}
-      {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{error}</p> : null}
       {status.data?.historical_note ? (
         <p className="mt-3 max-w-xl text-[12px] text-muted-foreground">{status.data.historical_note}</p>
       ) : null}

@@ -83,7 +83,7 @@ export function McpConnectForm() {
         {t("tools.connectAction")}
       </Button>
       {connect.isError ? (
-        <p className="mt-3 text-[13px] text-destructive">{connect.error.message}</p>
+        <p role="alert" className="mt-3 text-[13px] text-destructive">{connect.error.message}</p>
       ) : null}
     </form>
   );
@@ -362,8 +362,8 @@ export function ToolSetEditor({
             </div>
           ) : null}
         </div>
-        {save.isError ? <p className="pb-3 text-[13px] text-destructive">{save.error.message}</p> : null}
-        {remove.isError ? <p className="pb-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
+        {save.isError ? <p role="alert" className="pb-3 text-[13px] text-destructive">{save.error.message}</p> : null}
+        {remove.isError ? <p role="alert" className="pb-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
       </form>
     );
   }
@@ -451,7 +451,7 @@ export function ToolSetEditor({
           })}
         </ul>
       )}
-      {remove.isError ? <p className="mt-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
+      {remove.isError ? <p role="alert" className="mt-3 text-[13px] text-destructive">{remove.error.message}</p> : null}
     </section>
   );
 }

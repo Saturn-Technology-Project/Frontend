@@ -190,7 +190,7 @@ function LoginForm() {
           >
             {t("login.forgot")}
           </button>
-          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? t("login.signingIn") : t("login.submit")}
           </Button>
@@ -205,7 +205,7 @@ function LoginForm() {
           <h1 className="text-[22px] font-medium tracking-tight">{t("login.forgot")}</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">{t("login.forgotBody")}</p>
           <EmailField label={t("login.email")} value={email} onChange={setEmail} />
-          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? t("login.sendingCode") : t("login.sendCode")}
           </Button>
@@ -238,7 +238,7 @@ function LoginForm() {
           </label>
           <PasswordField label={t("login.newPassword")} value={nextPassword} onChange={setNextPassword} autoComplete="new-password" />
           <PasswordField label={t("login.confirmPassword")} value={confirm} onChange={setConfirm} autoComplete="new-password" />
-          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           <Button type="submit" className="mt-6 w-full" disabled={pending}>
             {pending ? t("login.updatingPassword") : t("login.updatePassword")}
           </Button>
@@ -278,7 +278,7 @@ function LoginForm() {
               />
             </label>
           ) : null}
-          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           {usesCode ? (
             <Button type="submit" className="mt-6 w-full" disabled={pending || !codeReady}>
               {pending ? t("login.signingIn") : t("login.submit")}

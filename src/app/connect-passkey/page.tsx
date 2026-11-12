@@ -70,7 +70,7 @@ export default function ConnectPasskeyPage() {
     <AuthScreen>
       <h1 className="text-[22px] font-medium tracking-tight">{t("login.connectTitle")}</h1>
       <p className="mt-2 text-[13px] text-muted-foreground">{t("login.connectBody")}</p>
-      {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
       <Button type="button" className="mt-6 w-full" disabled={pending} onClick={() => void confirm()}>
         {t("login.usePasskey")}
       </Button>

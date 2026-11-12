@@ -375,7 +375,7 @@ function AgentPanel({
         ) : (
           <p className="mt-2 text-[13px] text-muted-foreground">{t("agents.noSet")}</p>
         )}
-        {assign.isError ? <p className="mt-2 text-[13px] text-destructive">{assign.error.message}</p> : null}
+        {assign.isError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{assign.error.message}</p> : null}
 
         <h3 className="mt-6 text-[13px] font-medium">{t("agents.tools")}</h3>
         {toolSet && toolSet.items.length > 0 ? (
@@ -468,7 +468,7 @@ function AgentPanel({
             ) : (
               <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>{t("agents.remove")}</Button>
             )}
-            {remove.isError ? <p className="mt-2 text-[13px] text-destructive">{remove.error.message}</p> : null}
+            {remove.isError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{remove.error.message}</p> : null}
           </div>
         ) : null}
       </div>

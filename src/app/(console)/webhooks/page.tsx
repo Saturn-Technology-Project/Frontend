@@ -154,7 +154,7 @@ export default function WebhooksPage() {
                   {t("webhooks.save")}
                 </Button>
               ) : null}
-              {saveWindow.isError ? <p className="mt-2 text-[13px] text-destructive">{saveWindow.error.message}</p> : null}
+              {saveWindow.isError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{saveWindow.error.message}</p> : null}
             </form>
 
             {canWrite ? (
@@ -175,7 +175,7 @@ export default function WebhooksPage() {
                 <Button className="mt-4" type="submit" disabled={create.isPending || events.length === 0}>
                   {t("webhooks.create")}
                 </Button>
-                {create.isError ? <p className="mt-2 text-[13px] text-destructive">{create.error.message}</p> : null}
+                {create.isError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{create.error.message}</p> : null}
               </form>
             ) : null}
 
@@ -276,7 +276,7 @@ function EndpointCard({
           {t("webhooks.deliveries")}
         </Button>
       </div>
-      {downloadError ? <p className="mt-2 text-[12px] text-destructive">{downloadError}</p> : null}
+      {downloadError ? <p role="alert" className="mt-2 text-[12px] text-destructive">{downloadError}</p> : null}
       {open ? (
         <DeliveryList
           rows={deliveries.data ?? []}

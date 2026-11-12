@@ -62,12 +62,12 @@ export function EmailNotices() {
         />
       </ul>
       {save.isError ? (
-        <p className="mt-3 text-[13px] text-destructive">
+        <p role="alert" className="mt-3 text-[13px] text-destructive">
           {save.error instanceof ApiError ? save.error.message : t("common.apiError")}
         </p>
       ) : null}
       {status.isError && !missing ? (
-        <p className="mt-3 text-[13px] text-destructive">
+        <p role="alert" className="mt-3 text-[13px] text-destructive">
           {status.error instanceof ApiError ? status.error.message : t("common.apiError")}
         </p>
       ) : null}

@@ -55,7 +55,7 @@ export default function SettingsPage() {
               pending={photo.isPending}
               onChange={(next) => photo.mutate(next)}
             />
-            {photo.isError ? <p className="mt-2 text-[13px] text-destructive">{photo.error.message}</p> : null}
+            {photo.isError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{photo.error.message}</p> : null}
           </SettingRow>
           <SettingRow label={t("settings.name")}>{name}</SettingRow>
           {canTeam ? (

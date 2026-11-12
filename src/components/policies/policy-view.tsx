@@ -119,7 +119,7 @@ export function PolicyView({ policy }: { policy: Policy }) {
       {confirmDetail ? (
         <p className="mt-3 max-w-xl text-[13px] text-warning">{t("policies.publishConfirm", { detail: confirmDetail })}</p>
       ) : null}
-      {publishError ? <p className="mt-3 text-[13px] text-destructive">{publishError}</p> : null}
+      {publishError ? <p role="alert" className="mt-3 text-[13px] text-destructive">{publishError}</p> : null}
     </div>
   );
 }

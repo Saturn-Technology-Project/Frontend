@@ -449,7 +449,7 @@ export function AuditLog({
           </div>
         ) : null}
       </div>
-      {exportError ? <p className="mt-2 text-[13px] text-destructive">{exportError}</p> : null}
+      {exportError ? <p role="alert" className="mt-2 text-[13px] text-destructive">{exportError}</p> : null}
 
       {detailed ? <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <select
@@ -717,7 +717,7 @@ function ChainStep({
             <p className="mt-1 text-[13px] text-muted-foreground">{t("activity.noServerBody")}</p>
           )}
           {openBody === responseKey || responseView !== undefined ? <Body label={responseLabel} value={rawResponse} /> : null}
-          {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.rawLocked")}</p> : null}
+          {revealFailed ? <p role="alert" className="mt-1 text-[13px] text-destructive">{t("activity.rawLocked")}</p> : null}
         </div>
       ) : null}
       {event.event !== "tool_requested" && event.event !== "policy_evaluated" && event.event !== "tool_executed" ? (
@@ -751,7 +751,7 @@ function ChainStep({
               {t("activity.reveal")}
             </button>
           ) : null}
-          {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
+          {revealFailed ? <p role="alert" className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
           {opened ? <Body label={t("activity.reveal")} value={opened} /> : null}
           <Body label={t("activity.result")} value={typeof event.payload?.result === "object" ? event.payload.result : undefined} />
         </div>

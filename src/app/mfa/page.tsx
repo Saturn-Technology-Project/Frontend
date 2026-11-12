@@ -153,7 +153,7 @@ export default function MfaSetupPage() {
           </Button>
         </div>
       )}
-      {error ? <p className="mt-4 text-[13px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-4 text-[13px] text-destructive">{error}</p> : null}
     </main>
   );
 }

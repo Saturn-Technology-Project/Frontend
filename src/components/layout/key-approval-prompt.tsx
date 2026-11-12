@@ -94,8 +94,8 @@ export function KeyApprovalPrompt({ onDecided, onQueue }: { onDecided?: () => vo
           <p className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide">{formatFingerprint(local)}</p>
         ) : null}
         <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("activity.keyWhere")}</p>
-        {mismatch ? <p className="text-[13px] text-destructive">{t("activity.keyMismatch")}</p> : null}
-        {failed ? <p className="text-[13px] text-destructive">{t("activity.keyDecisionFailed")}</p> : null}
+        {mismatch ? <p role="alert" className="text-[13px] text-destructive">{t("activity.keyMismatch")}</p> : null}
+        {failed ? <p role="alert" className="text-[13px] text-destructive">{t("activity.keyDecisionFailed")}</p> : null}
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" disabled={pending} onClick={() => setKeys((items) => items.slice(1))}>
             {t("activity.keyLater")}

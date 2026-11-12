@@ -98,8 +98,8 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
           <p className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide">{formatFingerprint(fingerprint)}</p>
         ) : null}
         <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("activity.keyWhere")}</p>
-        {mismatch ? <p className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
-        {failed ? <p className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
+        {mismatch ? <p role="alert" className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
+        {failed ? <p role="alert" className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
         <input aria-label={t("activity.assistRecovery")}
           className="mt-4 h-9 w-full rounded-md border border-border bg-background px-3 font-mono text-[12px]"
           value={recovery}

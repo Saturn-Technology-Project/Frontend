@@ -128,7 +128,7 @@ function RegisterForm() {
               required
             />
           </label>
-          {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
           <div className="mt-6 flex gap-2">
             <Button type="button" variant="outline" onClick={() => { setError(""); setStep("form"); }}>
               {t("login.back")}
@@ -187,7 +187,7 @@ function RegisterForm() {
             required
           />
         </label>
-        {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+        {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
         <div className="mt-6 flex gap-2">
           <Button type="button" variant="outline" onClick={() => { setError(""); setStep("choose"); }}>
             {t("login.back")}
