@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# One production deploy at a time. A second run waits instead of racing the first.
+concurrency:
+  group: deploy-cloud-run-production
+  cancel-in-progress: false
+
 env:
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   GCP_REGION: ${{ vars.GCP_REGION }}
@@ -53,6 +58,9 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npx tsc --noEmit
 
@@ -62,11 +70,24 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-latest
+    # Protection rules (required reviewers, deployment branch = main) are set on this
+    # environment in GitHub, the same way as the Backend's.
+    environment: production
     permissions:
       contents: read
       id-token: write
 
     steps:
+      # "Run workflow" can be started from any branch by anyone with write access. Without
+      # this, a feature branch could be deployed to the production console, which holds the
+      # origin and console proxy secrets.
+      - name: Only deploy from main
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Production deploys run only from refs/heads/main, not ${GITHUB_REF}."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

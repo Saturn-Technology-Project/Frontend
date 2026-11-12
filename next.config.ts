@@ -25,6 +25,8 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
+  // No "X-Powered-By: Next.js" on every response.
+  poweredByHeader: false,
   experimental: {
     // Policy generation waits on the model. The default 30s proxy limit returns 500.
     proxyTimeout: 600_000,

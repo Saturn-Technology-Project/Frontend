@@ -8,3 +8,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+  # The Dockerfile base image is pinned by digest.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly

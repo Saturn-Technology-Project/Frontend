@@ -1,4 +1,7 @@
-FROM node:22-alpine AS base
+# node:22-alpine, pinned to the multi-arch index digest it pointed at on 2026-11-12, so a
+# rebuilt tag cannot change what ships. Dependabot (docker ecosystem) proposes digest bumps.
+# To re-pin by hand: docker buildx imagetools inspect node:22-alpine, and copy "Digest".
+FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS base
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
