@@ -5,14 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { approveMemberKey, fetchPendingMemberKeys, rejectMemberKey, type PendingMemberKey } from "@/lib/api";
 import { canAccess } from "@/lib/access";
+import { fingerprintOf, formatFingerprint } from "@/lib/fingerprint";
 import { useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
-
-async function fingerprintOf(publicKeyHex: string) {
-  const bytes = Uint8Array.from(publicKeyHex.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? []);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((item) => item.toString(16).padStart(2, "0")).join("");
-}
 
 /**
  * A member's new encryption key receives no payload keys until a team admin approves it.
@@ -52,9 +47,14 @@ export function KeyApprovalPrompt({ onDecided, onQueue }: { onDecided?: () => vo
     if (!publicKey) return;
     let cancel = false;
     // Recompute the fingerprint here rather than trusting the one the server sent.
-    void fingerprintOf(publicKey).then((fingerprint) => {
-      if (!cancel) setComputed({ publicKey, fingerprint });
-    });
+    void fingerprintOf(publicKey)
+      .then((fingerprint) => {
+        if (!cancel) setComputed({ publicKey, fingerprint });
+      })
+      .catch(() => {
+        // Not a key at all. With no fingerprint the Approve button stays off.
+        if (!cancel) setComputed(null);
+      });
     return () => {
       cancel = true;
     };
@@ -90,7 +90,10 @@ export function KeyApprovalPrompt({ onDecided, onQueue }: { onDecided?: () => vo
         <DialogDescription className="sr-only">
           {t("activity.keyApproval", { name: current.name, email: current.email })}
         </DialogDescription>
-        {local ? <p className="mt-3 break-all font-mono text-[12px] text-muted-foreground">{local}</p> : null}
+        {local ? (
+          <p className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide">{formatFingerprint(local)}</p>
+        ) : null}
+        <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("activity.keyWhere")}</p>
         {mismatch ? <p className="text-[13px] text-destructive">{t("activity.keyMismatch")}</p> : null}
         {failed ? <p className="text-[13px] text-destructive">{t("activity.keyDecisionFailed")}</p> : null}
         <div className="mt-4 flex justify-end gap-2">

@@ -1,6 +1,7 @@
 import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { ApiError, revealActivity, fetchAssistRequests, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { fingerprintOf, fingerprintOfBytes } from "@/lib/fingerprint";
 import { legacyWrapMaterial, memberWrapMaterial } from "@/lib/password";
 
 const encoder = new TextEncoder();
@@ -325,9 +326,17 @@ export class MemberFingerprintMismatch extends Error {
   }
 }
 
-async function publicKeyFingerprint(hexKey: string) {
-  const digest = await crypto.subtle.digest("SHA-256", source(hexToBytes(hexKey)));
-  return bytesToHex(new Uint8Array(digest));
+const publicKeyFingerprint = fingerprintOf;
+
+/**
+ * The fingerprint of the member key this browser holds, or null when none is held.
+ *
+ * It is computed here from the key in memory, not read from the server, so it is what the
+ * member's own browser really uses. An approver compares it with what their screen shows.
+ */
+export async function ownKeyFingerprint(): Promise<string | null> {
+  const mine = memberKey();
+  return mine ? fingerprintOfBytes(mine.publicKey) : null;
 }
 
 export async function helpMemberAccess(request: AssistRequest) {
