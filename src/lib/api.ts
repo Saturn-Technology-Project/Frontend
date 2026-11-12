@@ -658,11 +658,17 @@ function signedInEmail() {
   return email;
 }
 
-export async function changePassword(currentPassword: string, newPassword: string) {
+/**
+ * memberBackup is the member's private key re-wrapped for the new password. The key that wraps
+ * it comes from the password, so without a new copy the stored one can no longer be opened.
+ * Use changePasswordKeepingKey in payload-crypto, which builds it.
+ */
+export async function changePassword(currentPassword: string, newPassword: string, memberBackup?: PasswordBackup | null) {
   const email = signedInEmail();
   return patch<void>("/auth/password", {
     current_password: await loginVerifier(currentPassword, email),
     new_password: await loginVerifier(newPassword, email),
+    ...(memberBackup ? { member_backup: memberBackup } : {}),
   });
 }
 
@@ -709,10 +715,26 @@ export async function reauthenticateWithPasskey() {
   return post<void>("/auth/reauth", { credential });
 }
 
-export async function confirmEmailChange(currentCode: string, nextCode: string) {
+/**
+ * What is sent as the password is derived from the password and the email, so it changes with
+ * the email. rekey carries the password, the new address, and the re-wrapped member key, so
+ * the password keeps working afterwards. Use confirmEmailChangeKeepingKey in payload-crypto.
+ */
+export async function confirmEmailChange(
+  currentCode: string,
+  nextCode: string,
+  rekey?: { password: string; nextEmail: string; memberBackup?: PasswordBackup | null },
+) {
   const user = await post<AuthUserResponse>("/auth/email/confirm", {
     current_code: currentCode,
     next_code: nextCode,
+    ...(rekey
+      ? {
+          current_password: await loginVerifier(rekey.password, signedInEmail()),
+          new_password: await loginVerifier(rekey.password, rekey.nextEmail),
+          ...(rekey.memberBackup ? { member_backup: rekey.memberBackup } : {}),
+        }
+      : {}),
   });
   useAuthStore.getState().setSession(toAuthSession(useAuthStore.getState().token, user));
   return user;

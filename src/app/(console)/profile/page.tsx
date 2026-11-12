@@ -9,7 +9,8 @@ import { ReauthForm } from "@/components/account/reauth-form";
 import { SignInSecurity } from "@/components/account/sign-in-security";
 import { Button } from "@/components/ui/button";
 import { useHydrated } from "@/hooks/use-hydrated";
-import { ApiError, changePassword, confirmEmailChange, updatePersonalPhoto, updateProfile } from "@/lib/api";
+import { ApiError, updatePersonalPhoto, updateProfile } from "@/lib/api";
+import { changePasswordKeepingKey, confirmEmailChangeKeepingKey } from "@/lib/payload-crypto";
 import { useAuthStore } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export default function ProfilePage() {
   const [pendingEmail, setPendingEmail] = useState("");
   const [currentCode, setCurrentCode] = useState("");
   const [nextCode, setNextCode] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [nextPassword, setNextPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -70,17 +72,18 @@ export default function ProfilePage() {
   });
 
   const confirmEmail = useMutation({
-    mutationFn: () => confirmEmailChange(currentCode, nextCode),
+    mutationFn: () => confirmEmailChangeKeepingKey(currentCode, nextCode, emailPassword, pendingEmail),
     onSuccess: () => {
       setPendingEmail("");
       setCurrentCode("");
       setNextCode("");
+      setEmailPassword("");
       setSaved(true);
     },
   });
 
   const password = useMutation({
-    mutationFn: () => changePassword(currentPassword, nextPassword),
+    mutationFn: () => changePasswordKeepingKey(currentPassword, nextPassword),
     onSuccess: () => {
       setCurrentPassword("");
       setNextPassword("");
@@ -167,6 +170,17 @@ export default function ProfilePage() {
                 className={fieldClass}
               />
             </label>
+            <label className="mt-3 block text-[12px] text-muted-foreground">
+              {t("profile.currentPassword")}
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={emailPassword}
+                onChange={(event) => setEmailPassword(event.target.value)}
+                className={fieldClass}
+              />
+            </label>
+            <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("profile.emailPasswordHint")}</p>
             <Button
               type="button"
               className="mt-3"

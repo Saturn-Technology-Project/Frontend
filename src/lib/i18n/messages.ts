@@ -908,6 +908,7 @@ export const en = {
     emailChangeBody: "Enter the code sent to your current email and the code sent to the new address.",
     currentCode: "Code from current email",
     nextCode: "Code from new email",
+    emailPasswordHint: "Your password is tied to your email address. Enter it so the same password keeps working with the new address. If you leave it empty, you will need to reset your password to sign in.",
   },
   upgrade: {
     action: "Upgrade to Pro",
@@ -2010,6 +2011,7 @@ export const zh: DeepString<typeof en> = {
     emailChangeBody: "請輸入寄到目前信箱的驗證碼，以及寄到新信箱的驗證碼。",
     currentCode: "目前信箱的驗證碼",
     nextCode: "新信箱的驗證碼",
+    emailPasswordHint: "你的密碼與電子郵件綁在一起。請輸入密碼，換信箱後才能繼續用同一組密碼登入。如果留空，之後需要重設密碼才能登入。",
   },
   upgrade: {
     action: "升級至 Pro",

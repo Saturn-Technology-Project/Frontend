@@ -1,5 +1,5 @@
 import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
-import { ApiError, revealActivity, fetchAssistRequests, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
+import { ApiError, changePassword, confirmEmailChange, revealActivity, fetchAssistRequests, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { fingerprintOf, fingerprintOfBytes } from "@/lib/fingerprint";
 import { legacyWrapMaterial, memberWrapMaterial } from "@/lib/password";
@@ -422,6 +422,64 @@ export async function unlockMemberKey(password: string) {
     holdMemberKey(privateKey, publicKey, registered.id);
     if (!missing && typeof sessionStorage !== "undefined") sessionStorage.setItem("saturn-member-rewrap", "1");
   }
+}
+
+type CarriedKey = { backup: PasswordBackup; privateKey: Uint8Array; publicKey: Uint8Array; memberKeyId: string };
+
+/**
+ * The member's private key, wrapped again for a new password or email.
+ *
+ * The wrap key is derived from both, so the stored copy stops opening when either changes.
+ * Returns null when there is nothing to carry over: the member has no key, or the stored copy
+ * does not open with this password and this browser does not hold the key either.
+ */
+async function rewrapMemberKey(password: string, email: string, nextPassword: string, nextEmail: string): Promise<CarriedKey | null> {
+  const userId = useAuthStore.getState().user?.id ?? "";
+  if (!userId) return null;
+  let stored: Awaited<ReturnType<typeof fetchMemberBackup>>;
+  try {
+    stored = await fetchMemberBackup();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+  let privateKey: Uint8Array | null = null;
+  try {
+    privateKey = await openPasswordBackup(password, userId, stored, email);
+  } catch {
+    const held = memberKey();
+    if (held && held.memberKeyId === stored.member_key_id) privateKey = held.privateKey;
+  }
+  if (!privateKey) return null;
+  return {
+    backup: await passwordBackup(nextPassword, userId, privateKey, nextEmail),
+    privateKey,
+    publicKey: hexToBytes(stored.public_key),
+    memberKeyId: stored.member_key_id,
+  };
+}
+
+/** Change the password and, in the same request, store the member key wrapped for the new one. */
+export async function changePasswordKeepingKey(currentPassword: string, nextPassword: string) {
+  const email = useAuthStore.getState().user?.email ?? "";
+  const carried = email ? await rewrapMemberKey(currentPassword, email, nextPassword, email) : null;
+  await changePassword(currentPassword, nextPassword, carried?.backup);
+  if (carried) holdMemberKey(carried.privateKey, carried.publicKey, carried.memberKeyId);
+}
+
+/**
+ * Confirm an email change. With the password, the server also stores the password value and the
+ * member key for the new address, so the same password keeps signing in and opening records.
+ * Without it the change still goes through, and the password then has to be reset.
+ */
+export async function confirmEmailChangeKeepingKey(currentCode: string, nextCode: string, password: string, nextEmail: string) {
+  if (!password) return confirmEmailChange(currentCode, nextCode);
+  const email = useAuthStore.getState().user?.email ?? "";
+  const target = nextEmail.trim().toLowerCase();
+  const carried = email ? await rewrapMemberKey(password, email, password, target) : null;
+  const user = await confirmEmailChange(currentCode, nextCode, { password, nextEmail: target, memberBackup: carried?.backup });
+  if (carried) holdMemberKey(carried.privateKey, carried.publicKey, carried.memberKeyId);
+  return user;
 }
 
 export async function openSealedActivity(eventId: string, organizationId: string) {
