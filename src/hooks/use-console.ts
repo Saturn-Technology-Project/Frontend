@@ -19,18 +19,24 @@ import {
   type AgentUpdateBody,
   type PolicyWrite,
 } from "@/lib/api";
+import { usePathname } from "next/navigation";
+import { consoleRefetchInterval } from "@/lib/poll";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const consoleQueryKey = ["console"] as const;
 
 export function useConsole() {
   const signedIn = useAuthStore((state) => Boolean(state.user));
+  const pathname = usePathname();
   return useQuery({
     queryKey: consoleQueryKey,
     queryFn: fetchConsole,
     enabled: signedIn,
     staleTime: 0,
-    refetchInterval: 10_000,
+    // One refetch is eight requests. Every page mounts this through the sidebar, so at ten
+    // seconds everywhere each open tab made about fifty requests a minute, most of them on
+    // pages that show none of it changing. A change made in this tab still refreshes at once.
+    refetchInterval: consoleRefetchInterval(pathname),
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });

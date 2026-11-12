@@ -57,6 +57,10 @@ interface AuthState {
   setHydrated: (hydrated: boolean) => void;
 }
 
+function withoutPhoto<T extends { photo?: string | null }>(value: T | null): T | null {
+  return value ? { ...value, photo: null } : value;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -85,9 +89,12 @@ export const useAuthStore = create<AuthState>()(
         }
         return persisted as AuthState;
       },
+      // Photos are data URLs of up to several hundred kilobytes. Keeping them out of
+      // localStorage avoids rewriting them on every session refresh; the avatar shows initials
+      // for a moment after a reload, until the session check returns the photo again.
       partialize: (state) => ({
-        user: state.user,
-        org: state.org,
+        user: withoutPhoto(state.user),
+        org: withoutPhoto(state.org),
       }),
       onRehydrateStorage: () => (state) => {
         if (state) state.token = null;

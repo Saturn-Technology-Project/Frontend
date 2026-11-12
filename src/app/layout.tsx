@@ -14,10 +14,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Saturn",
   description: "Enterprise AI control plane",
-  icons: {
-    icon: [{ url: "/logo.png", type: "image/png" }],
-    apple: "/logo.png",
-  },
+  // The tab and home-screen icons come from app/icon.png and app/apple-icon.png, which Next
+  // links at their real sizes. Pointing both at the full logo made every visit fetch 279 KB.
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

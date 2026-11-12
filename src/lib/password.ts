@@ -1,5 +1,3 @@
-import { argon2id } from "hash-wasm";
-
 const encoder = new TextEncoder();
 const LOGIN_LABEL = "saturn-login-v1\n";
 const WRAP_LABEL = "saturn-member-wrap-v1\n";
@@ -38,6 +36,9 @@ async function splitPassword(password: string, email: string) {
   const salt = owned(
     new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(SALT_LABEL + email.trim().toLowerCase()))),
   );
+  // Loaded when a password is actually hashed. Imported at the top, the Argon2 WebAssembly
+  // module was part of every page's first download, signed in or not.
+  const { argon2id } = await import("hash-wasm");
   const master = new Uint8Array(
     await argon2id({
       password,
