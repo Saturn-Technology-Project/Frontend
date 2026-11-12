@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ReauthForm } from "@/components/account/reauth-form";
 import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
-import { ApiError, confirmTotp, fetchMe, setupTotp } from "@/lib/api";
+import { ApiError, confirmTotp, fetchMe, registerPasskey, setupTotp } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -20,8 +20,8 @@ export default function MfaSetupPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  // Setting up an authenticator needs a recent sign-in. Which step to retry once it is proved.
-  const [stepUp, setStepUp] = useState<null | "start" | "confirm">(null);
+  // Adding either factor needs a recent sign-in. Which step to retry once it is proved.
+  const [stepUp, setStepUp] = useState<null | "start" | "confirm" | "passkey">(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -43,6 +43,25 @@ export default function MfaSetupPage() {
         return;
       }
       setError(caught instanceof Error ? caught.message : t("settings.mfaError"));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function addPasskey() {
+    setError("");
+    setPending(true);
+    try {
+      await registerPasskey();
+      await fetchMe();
+      router.replace("/");
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 403) {
+        setStepUp("passkey");
+        return;
+      }
+      // Anything that is not an API error came from the browser: no passkey support, or the prompt was dismissed.
+      setError(caught instanceof ApiError ? caught.message : t("profile.passkeyUnsupported"));
     } finally {
       setPending(false);
     }
@@ -79,7 +98,7 @@ export default function MfaSetupPage() {
             onReady={() => {
               const next = stepUp;
               setStepUp(null);
-              void (next === "start" ? start() : confirm());
+              void (next === "start" ? start() : next === "passkey" ? addPasskey() : confirm());
             }}
           />
         </div>
@@ -125,9 +144,14 @@ export default function MfaSetupPage() {
           </form>
         </div>
       ) : (
-        <Button type="button" className="mt-6 w-fit" disabled={pending} onClick={() => void start()}>
-          {t("settings.mfaStart")}
-        </Button>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button type="button" disabled={pending} onClick={() => void addPasskey()}>
+            {t("settings.mfaPasskey")}
+          </Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => void start()}>
+            {t("settings.mfaStart")}
+          </Button>
+        </div>
       )}
       {error ? <p className="mt-4 text-[13px] text-destructive">{error}</p> : null}
     </main>

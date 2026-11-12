@@ -34,6 +34,8 @@ function LoginForm() {
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState("");
   const [methods, setMethods] = useState<string[]>([]);
+  // The emailed code was accepted, and the account still has to use its passkey or authenticator.
+  const [emailDone, setEmailDone] = useState(false);
   const [nextPassword, setNextPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -58,6 +60,7 @@ function LoginForm() {
       if ("mfa_required" in result) {
         setChallenge(result.challenge);
         setMethods(result.methods);
+        setEmailDone(false);
         setCode("");
         setMode("mfa");
         return;
@@ -98,7 +101,16 @@ function LoginForm() {
     setPending(true);
     try {
       if (usesTotp) await loginWithTotp(challenge, code.trim());
-      else await loginWithEmailCode(challenge, code.trim());
+      else {
+        const result = await loginWithEmailCode(challenge, code.trim());
+        if ("mfa_required" in result) {
+          setChallenge(result.challenge);
+          setMethods(result.methods);
+          setEmailDone(true);
+          setCode("");
+          return;
+        }
+      }
       router.replace(next);
       await unlockMemberKey(password).catch(() => undefined);
     } catch (err) {
@@ -243,7 +255,7 @@ function LoginForm() {
       {mode === "mfa" ? (
         <form onSubmit={usesCode ? onMfa : (event) => event.preventDefault()}>
           <h1 className="text-[22px] font-medium tracking-tight">{t("login.mfaTitle")}</h1>
-          <p className="mt-2 text-[13px] text-muted-foreground">{usesTotp ? t("login.mfaTotpBody") : t("login.mfaBody")}</p>
+          <p className="mt-2 text-[13px] text-muted-foreground">{emailDone ? t("login.mfaStrongBody") : usesTotp ? t("login.mfaTotpBody") : t("login.mfaBody")}</p>
           {usesCode ? (
             <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
               {usesTotp ? t("login.totpCode") : t("login.code")}

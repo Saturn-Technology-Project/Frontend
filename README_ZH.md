@@ -57,7 +57,7 @@
 | 🌐 **語言** | | English 或繁體中文，儲存在你的帳號。 |
 | ❤️ **贊助** | | 開啟 GitHub Sponsors。 |
 
-主控台以外的頁面：`/login`（先輸入密碼，再輸入電子郵件驗證碼、使用通行金鑰或輸入驗證器代碼）、`/register`（個人帳號，或由你擔任管理員的團隊帳號）、`/mfa`（設定驗證器，組織管理員必須完成）、`/accept-invite`、`/trust`（漏洞通報；另有 `/.well-known/security.txt`）與 `/healthz`。
+主控台以外的頁面：`/login`（先輸入密碼，再輸入電子郵件驗證碼、使用通行金鑰或輸入驗證器代碼）、`/register`（個人帳號，或由你擔任管理員的團隊帳號）、`/mfa`（設定通行金鑰或驗證器，組織管理員必須擇一完成）、`/connect-passkey`（代理人在 API 上的登入頁交給主控台完成的通行金鑰步驟）、`/accept-invite`、`/trust`（漏洞通報；另有 `/.well-known/security.txt`）與 `/healthz`。
 
 ## 快速開始
 
@@ -120,7 +120,7 @@ flowchart LR
 
 **單一來源。** 瀏覽器只呼叫主控台自己的來源。`src/lib/api.ts` 把每個 API 請求送到 `/saturn-api/<path>`，再由 Next.js rewrite 轉送到 `API_URL`。因此 cookie 都是第一方 cookie，也不需要設定 CORS。產生政策時的 server-sent events 也走同一個 rewrite。主控台不開啟任何 WebSocket。Agent 從不與主控台通訊，而是直接呼叫 API 的 `/mcp` 端點。
 
-**在用戶端繪製的頁面。** 根 layout 在每個請求時繪製，讓每個回應都有自己的 CSP nonce（見下文）。頁面本身是 client component。`src/app/(console)/` 包含所有需要登入的頁面；它的 layout 以驗證關卡包住頁面：沒有 session 時導向 `/login?next=…`，管理員尚未設定驗證器時導向 `/mfa`。
+**在用戶端繪製的頁面。** 根 layout 在每個請求時繪製，讓每個回應都有自己的 CSP nonce（見下文）。頁面本身是 client component。`src/app/(console)/` 包含所有需要登入的頁面；它的 layout 以驗證關卡包住頁面：沒有 session 時導向 `/login?next=…`，管理員尚未設定通行金鑰或驗證器時導向 `/mfa`。
 
 **狀態。**
 
@@ -134,7 +134,7 @@ flowchart LR
 | 路徑 | 內容 |
 |---|---|
 | `src/app/(console)/` | 需要登入的頁面 |
-| `src/app/{login,register,mfa,accept-invite,trust,healthz}/` | 公開頁面與健康檢查 |
+| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,healthz}/` | 公開頁面與健康檢查 |
 | `src/components/` | 依領域分類的介面：`layout`、`policies`、`tools`、`approvals`、`activity`、`account`、`settings`、`ui` |
 | `src/lib/` | API 用戶端（`api.ts`）、i18n、密碼雜湊（`password.ts`）、payload 加密（`payload-crypto.ts`）、政策圖、MCP 目錄 |
 | `src/hooks/`、`src/stores/` | TanStack Query hook 與 zustand store |
@@ -152,7 +152,7 @@ flowchart LR
 
 - `script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`：只執行帶有這個回應 nonce 的腳本，以及它們載入的腳本。允許 WebAssembly 是為了 Argon2id。開發模式另外加上 `'unsafe-eval'`。
 - `connect-src 'self'` 與正式環境的 API（開發模式另加 `localhost`）。
-- `object-src 'none'`、`frame-ancestors 'none'`、`frame-src 'none'`、`base-uri 'self'`、`form-action 'self'`，正式環境另加 `upgrade-insecure-requests`。
+- `object-src 'none'`、`frame-ancestors 'none'`、`frame-src 'none'`、`base-uri 'self'`、`form-action 'self'` 與託管的 API（代理人登入的通行金鑰步驟會送到那裡），正式環境另加 `upgrade-insecure-requests`。
 
 根 layout 呼叫 `connection()`，讓每個頁面都在請求時繪製，Next.js 才能把 nonce 加到自己的腳本上；它也把 nonce 交給在 hydration 前執行的主題腳本。`_next/static` 下的靜態檔案、`/saturn-api` 與 `logo.png` 不經過 proxy。
 
@@ -166,7 +166,7 @@ flowchart LR
 
 - **密碼不會離開瀏覽器。** [`src/lib/password.ts`](src/lib/password.ts) 以電子郵件為 salt 對密碼執行 Argon2id，再以 HKDF 拆成登入驗證值（API 只會收到這個）與留在瀏覽器中的包裝金鑰。
 - **Session 是 API 設定的 HttpOnly cookie**（`saturn_session`）。登入後，主控台只在 cookie 設定完成前把 bearer token 暫存在記憶體中，從不寫入儲存空間。
-- **第二因素。** 輸入密碼後，登入會要求電子郵件驗證碼、通行金鑰（WebAuthn），或是對已設定驗證器的帳號要求驗證器代碼或備用碼。組織管理員必須先設定驗證器才能進入主控台。
+- **第二因素。** 輸入密碼後，登入會要求電子郵件驗證碼、通行金鑰（WebAuthn），或是對已設定驗證器的帳號要求驗證器代碼或備用碼。組織管理員必須先設定通行金鑰或驗證器才能進入主控台，而且只靠電子郵件驗證碼無法登入：輸入驗證碼後還要再用通行金鑰或驗證器確認。
 - **再次驗證。** API 要求時，變更電子郵件、關閉電子郵件驗證碼或移除通行金鑰前，需要再次輸入密碼、電子郵件驗證碼或使用通行金鑰。變更密碼時需要輸入目前的密碼。
 - API 回傳 `401` 時，會清除本機 session 並回到 `/login`。
 
