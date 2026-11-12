@@ -30,3 +30,21 @@ test("the older verifier is a plain labelled hash, kept only to move old account
   assert.match(legacy, /^v1\.[0-9a-f]{64}$/);
   assert.equal(await legacyLoginVerifier("correct horse"), legacy);
 });
+
+test("known answers: an update to the hashing library must not change what is derived", async () => {
+  // Every stored password value and every wrapped member key depends on these exact bytes.
+  // If this fails after a dependency update, signing in and opening keys would break for
+  // everyone, so the update must not ship.
+  assert.equal(
+    await loginVerifier("correct horse", "member@saturn.ai"),
+    "v2.b3718a8f0672611d66b98cf3c536891f672db5be9bb45a0bf57d915633f92f36",
+  );
+  assert.equal(
+    hex(await memberWrapMaterial("correct horse", "member@saturn.ai")),
+    "838532417e6ce53b5d191c6b8d2e50daeb871dae5502fabc32c25e5738270111",
+  );
+  assert.equal(
+    await legacyLoginVerifier("correct horse"),
+    "v1.7cd65e2c355f53c06e20d3302081f8c9f0df5e18eb2eaef342439c80ed27860c",
+  );
+});
