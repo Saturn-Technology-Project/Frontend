@@ -9,9 +9,6 @@ import {
   originAllowed,
 } from "@/lib/edge";
 
-// Responses proxied from the API are data, never pages to render on the console origin.
-const API_RESPONSE_CSP = "default-src 'none'; frame-ancestors 'none'; sandbox";
-
 function contentSecurityPolicy(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
   const connect = [
@@ -57,9 +54,10 @@ function forwardToApi(request: NextRequest) {
   for (const [name, value] of Object.entries(consoleForwardHeaders(header, process.env))) {
     requestHeaders.set(name, value);
   }
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
-  response.headers.set("Content-Security-Policy", API_RESPONSE_CSP);
-  return response;
+  // No response headers are set here. A header set on this response is not added to what the
+  // rewrite proxies back; it was sent to the API as a request header instead. The API puts its
+  // own headers on every response (nosniff, frame denial, and a CSP of default-src 'none').
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export function proxy(request: NextRequest) {
