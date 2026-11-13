@@ -115,7 +115,7 @@ export default function CreatePolicyPage() {
               {generating ? t("policies.generating") : t("policies.generate")}
             </Button>
             {progress ? <PolicyProgressBar progress={progress} /> : null}
-            {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
+            {error ? <p role="alert" className="mt-3 text-[13px] text-destructive">{error}</p> : null}
           </form>
         ) : (
           <form

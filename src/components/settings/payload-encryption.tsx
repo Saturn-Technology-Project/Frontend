@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { createPayloadKey, fetchPayloadBackup, fetchPayloadKeys } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { formatFingerprint } from "@/lib/fingerprint";
 import { useI18n } from "@/lib/i18n";
 import {
   bytesToHex,
@@ -13,9 +14,50 @@ import {
   holdOrganizationKey,
   openRecoveryBackup,
   organizationKey,
+  ownKeyFingerprint,
   randomRecoveryKey,
   recoveryBackup,
 } from "@/lib/payload-crypto";
+
+/**
+ * The member's own key fingerprint. Approvers are told to check it against what the member
+ * sees, and before this there was nowhere for the member to see it.
+ */
+function OwnKeyFingerprint() {
+  const { t } = useI18n();
+  const [fingerprint, setFingerprint] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancel = false;
+    void ownKeyFingerprint()
+      .then((value) => {
+        if (!cancel) setFingerprint(value);
+      })
+      .catch(() => {
+        if (!cancel) setFingerprint(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, []);
+
+  if (fingerprint === undefined) return null;
+  return (
+    <div className="mt-6 max-w-xl">
+      <h3 className="text-[13px] font-medium">{t("settings.ownFingerprint")}</h3>
+      {fingerprint ? (
+        <>
+          <p className="mt-2 select-all rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide" data-testid="own-key-fingerprint">
+            {formatFingerprint(fingerprint)}
+          </p>
+          <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("settings.ownFingerprintHint")}</p>
+        </>
+      ) : (
+        <p className="mt-2 text-[13px] text-muted-foreground">{t("settings.ownFingerprintLocked")}</p>
+      )}
+    </div>
+  );
+}
 
 export function PayloadEncryption() {
   const { t } = useI18n();
@@ -76,7 +118,7 @@ export function PayloadEncryption() {
       ) : null}
       {recovery ? (
         <div className="mt-4 max-w-xl">
-          <p className="text-[13px] text-destructive">{t("settings.payloadRecovery")}</p>
+          <p role="alert" className="text-[13px] text-destructive">{t("settings.payloadRecovery")}</p>
           <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 font-mono text-[12px]">{recovery}</pre>
           <a
             className="mt-2 inline-block text-[13px] underline"
@@ -110,13 +152,14 @@ export function PayloadEncryption() {
         </Button>
       </div>
       {held ? <p className="mt-2 text-[12px] text-muted-foreground">{t("settings.payloadActive")}</p> : null}
+      <OwnKeyFingerprint />
       {status.data?.own_member_key_approval === "pending" ? (
         <p className="mt-2 max-w-xl text-[13px] text-warning">{t("activity.ownKeyPending")}</p>
       ) : null}
       {status.data?.own_member_key_approval === "rejected" ? (
-        <p className="mt-2 max-w-xl text-[13px] text-destructive">{t("activity.ownKeyRejected")}</p>
+        <p role="alert" className="mt-2 max-w-xl text-[13px] text-destructive">{t("activity.ownKeyRejected")}</p>
       ) : null}
-      {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{error}</p> : null}
       {status.data?.historical_note ? (
         <p className="mt-3 max-w-xl text-[12px] text-muted-foreground">{status.data.historical_note}</p>
       ) : null}

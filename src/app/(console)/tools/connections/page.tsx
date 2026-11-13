@@ -265,7 +265,7 @@ function ConnectionPanel({
           {t("tools.manageOauth")}
         </Button>
       </div>
-      {remove.isError ? <p className="mt-3 px-5 text-[13px] text-destructive">{remove.error.message}</p> : null}
+      {remove.isError ? <p role="alert" className="mt-3 px-5 text-[13px] text-destructive">{remove.error.message}</p> : null}
       {oauthOpen ? <OauthForm server={server} canAdmin={canAdmin} /> : null}
 
       <section className="mt-6 px-5">
@@ -382,8 +382,8 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
       ) : (
         <p className="text-[12px] text-muted-foreground">{t("marketplace.adminOnly")}</p>
       )}
-      {oauthError ? <p className="text-[13px] text-destructive">{oauthError}</p> : null}
-      {save.isError ? <p className="text-[13px] text-destructive">{save.error.message}</p> : null}
+      {oauthError ? <p role="alert" className="text-[13px] text-destructive">{oauthError}</p> : null}
+      {save.isError ? <p role="alert" className="text-[13px] text-destructive">{save.error.message}</p> : null}
     </form>
   );
 }

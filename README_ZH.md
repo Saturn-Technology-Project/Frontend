@@ -198,7 +198,9 @@ npm run lint    # ESLint（eslint-config-next）
 npx tsc --noEmit   # 嚴格型別檢查
 ```
 
-目前還沒有自動化測試。[Check workflow](.github/workflows/check.yml) 在每次推送到 `main` 與每個 pull request 時執行：[gitleaks](https://github.com/gitleaks/gitleaks) 秘密掃描、`npm ci` 與型別檢查。Dependabot 每週更新 npm 套件與 GitHub Actions。
+`npm test` 以 Node 內建的測試執行器跑單元測試：代理的白名單、密碼推導（含固定答案，套件更新不可能悄悄改變結果）、金鑰指紋，以及加解密與換密碼／換信箱時帶著金鑰走的流程（`fetch` 以一張回應表取代）。目前沒有瀏覽器測試。
+
+[Check workflow](.github/workflows/check.yml) 在每次推送到 `main` 與每個 pull request 時執行：[gitleaks](https://github.com/gitleaks/gitleaks) 秘密掃描、`npm ci`、正式環境相依套件稽核、lint、型別檢查、測試與正式建置。Dependabot 每週更新 npm 套件、GitHub Actions 與 Docker 基底映像。
 
 每個使用者看得到的字串都要同時加進 `messages.ts` 的 `en` 與 `zh`；每個新的控制項都要以這些訊息提供輔助使用名稱。`README.md` 與 `README_ZH.md` 一起修改。
 

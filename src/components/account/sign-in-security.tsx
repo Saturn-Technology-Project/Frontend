@@ -197,9 +197,9 @@ export function SignInSecurity() {
 
       {stepUp ? <ReauthForm busy={disable.isPending || remove.isPending || add.isPending} onReady={retryStepUp} /> : null}
       {message ? <p className="mt-3 text-[13px] text-muted-foreground">{message}</p> : null}
-      {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 text-[13px] text-destructive">{error}</p> : null}
       {status.isError && !(status.error instanceof ApiError && status.error.status === 404) ? (
-        <p className="mt-3 text-[13px] text-destructive">
+        <p role="alert" className="mt-3 text-[13px] text-destructive">
           {status.error instanceof ApiError ? status.error.message : t("common.apiError")}
         </p>
       ) : null}

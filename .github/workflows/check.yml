@@ -46,8 +46,18 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npx tsc --noEmit
 
       - name: Test
         run: npm test
+
+      # The only step that compiles the pages. A change that type-checks can still fail here,
+      # and before this the first place it failed was the deploy.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

@@ -74,7 +74,7 @@ function AcceptInviteForm() {
     return (
       <AuthScreen>
         <h1 className="text-[22px] font-medium tracking-tight">{t("invite.title")}</h1>
-        <p className="mt-2 text-[13px] text-destructive">{t("invite.missing")}</p>
+        <p role="alert" className="mt-2 text-[13px] text-destructive">{t("invite.missing")}</p>
       </AuthScreen>
     );
   }
@@ -110,7 +110,7 @@ function AcceptInviteForm() {
             required
           />
         </label>
-        {error ? <p className="mt-3 text-[12px] text-destructive">{error}</p> : null}
+        {error ? <p role="alert" className="mt-3 text-[12px] text-destructive">{error}</p> : null}
         <Button type="submit" className="mt-6 w-full" disabled={pending}>
           {pending ? t("invite.submitting") : t("invite.submit")}
         </Button>

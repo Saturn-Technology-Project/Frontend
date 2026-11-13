@@ -497,11 +497,11 @@ function BuilderCanvas({
       {unconfigured ? <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">{t("policies.unconfigured")}</p> : null}
       {converted ? <p className="border-b border-border px-4 py-2 text-[13px] text-muted-foreground">{t("policies.convertNote")}</p> : null}
       {error || remove.isError ? (
-        <p className="border-b border-border px-4 py-2 text-[13px] text-destructive">
+        <p role="alert" className="border-b border-border px-4 py-2 text-[13px] text-destructive">
           {error || (remove.error instanceof Error ? remove.error.message : t("policies.saveFailed"))}
         </p>
       ) : null}
-      {jsonError ? <p className="border-b border-border px-4 py-2 text-[13px] text-destructive">{jsonError}</p> : null}
+      {jsonError ? <p role="alert" className="border-b border-border px-4 py-2 text-[13px] text-destructive">{jsonError}</p> : null}
       <div className="flex min-h-0 flex-1">
         {view === "canvas" ? (
         <aside className="hidden w-[220px] shrink-0 overflow-y-auto border-r border-border p-3 md:block">
@@ -1081,7 +1081,7 @@ function PolicyReviewList({ review }: { review: PolicyReview }) {
       </dl>
       {review.flagged_tools.length ? (
         <div className="mt-2">
-          <p className="text-destructive">{t("policies.reviewFlagged")}</p>
+          <p role="alert" className="text-destructive">{t("policies.reviewFlagged")}</p>
           <p className="text-muted-foreground">{t("policies.reviewFlaggedNote")}</p>
           <ul className="mt-1 space-y-1">
             {review.flagged_tools.map((item) => (

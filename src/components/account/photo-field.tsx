@@ -96,7 +96,7 @@ export function PhotoField({
           ) : null}
           {fileInput}
         </div>
-        {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
+        {error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{error}</p> : null}
       </div>
     );
   }
@@ -117,7 +117,7 @@ export function PhotoField({
             ) : null}
           </div>
           <p className="mt-2 text-[12px] text-muted-foreground">{t("profile.photoHint")}</p>
-          {error ? <p className="mt-2 text-[13px] text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="mt-2 text-[13px] text-destructive">{error}</p> : null}
           {fileInput}
         </div>
       ) : null}

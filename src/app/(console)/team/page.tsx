@@ -167,7 +167,7 @@ export default function TeamPage() {
                 </div>
               </div>
             </div>
-            {inviteError ? <p className="mt-3 text-[13px] text-destructive">{inviteError}</p> : null}
+            {inviteError ? <p role="alert" className="mt-3 text-[13px] text-destructive">{inviteError}</p> : null}
             <Button type="submit" className="mt-4" disabled={invite.isPending}>
               {t("team.invite")}
             </Button>

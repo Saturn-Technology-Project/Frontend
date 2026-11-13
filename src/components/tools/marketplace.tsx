@@ -505,8 +505,8 @@ function ConnectForm({
       <button type="button" className="block text-[12px] text-muted-foreground underline" onClick={() => setPaste((current) => !current)}>
         {paste ? t("marketplace.useProvider") : t("marketplace.pasteInstead")}
       </button>
-      {shownError ? <p className="text-[13px] text-destructive">{shownError}</p> : null}
-      {connect.isError ? <p className="text-[13px] text-destructive">{connect.error.message}</p> : null}
+      {shownError ? <p role="alert" className="text-[13px] text-destructive">{shownError}</p> : null}
+      {connect.isError ? <p role="alert" className="text-[13px] text-destructive">{connect.error.message}</p> : null}
     </form>
   );
 }

@@ -144,7 +144,7 @@ export function GroupsPanel({ members, canWrite }: { members: OrgMember[]; canWr
         </form>
       ) : null}
       {addGroup.isError || membership.isError || removeGroup.isError ? (
-        <p className="mt-3 text-[13px] text-destructive">
+        <p role="alert" className="mt-3 text-[13px] text-destructive">
           {(addGroup.error || membership.error || removeGroup.error) instanceof Error
             ? (addGroup.error || membership.error || removeGroup.error)?.message
             : t("common.apiError")}

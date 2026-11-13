@@ -101,7 +101,7 @@ export function ReauthForm({ onReady, busy }: { onReady: () => void; busy?: bool
           {t("login.usePasskey")}
         </Button>
       </div>
-      {error ? <p className="mt-3 text-[13px] text-destructive">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 text-[13px] text-destructive">{error}</p> : null}
     </form>
   );
 }

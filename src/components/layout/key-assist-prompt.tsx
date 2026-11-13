@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { fetchAssistRequests, type AssistRequest } from "@/lib/api";
+import { fingerprintOf, formatFingerprint } from "@/lib/fingerprint";
 import { useI18n } from "@/lib/i18n";
 import { MemberFingerprintMismatch, helpMemberAccess, ignoredAssists, ignoreAssist, unlockOrganizationKey } from "@/lib/payload-crypto";
 import { useAuthStore } from "@/stores/auth-store";
@@ -46,10 +47,15 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   useEffect(() => {
     if (!publicKey) return;
     let cancel = false;
-    void crypto.subtle.digest("SHA-256", Uint8Array.from(publicKey.match(/.{2}/g)?.map((byte) => Number.parseInt(byte, 16)) ?? [])).then((hash) => {
-      if (cancel) return;
-      setDigest({ key: publicKey, fingerprint: [...new Uint8Array(hash)].map((item) => item.toString(16).padStart(2, "0")).join("") });
-    });
+    // Computed here from the key the server sent, the same way the member's own browser computes theirs.
+    void fingerprintOf(publicKey)
+      .then((value) => {
+        if (!cancel) setDigest({ key: publicKey, fingerprint: value });
+      })
+      .catch(() => {
+        // Not a key at all. With no fingerprint the confirmation and Agree stay off.
+        if (!cancel) setDigest(null);
+      });
     return () => {
       cancel = true;
     };
@@ -88,9 +94,12 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
       <DialogContent showCloseButton={false} className="max-w-md">
         <DialogTitle className="text-[15px] font-medium">{t("activity.assist", { name: current?.name ?? "" })}</DialogTitle>
         <DialogDescription className="sr-only">{t("activity.assist", { name: current?.name ?? "" })}</DialogDescription>
-        {fingerprint ? <p className="mt-3 break-all font-mono text-[12px] text-muted-foreground">{fingerprint}</p> : null}
-        {mismatch ? <p className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
-        {failed ? <p className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
+        {fingerprint ? (
+          <p className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide">{formatFingerprint(fingerprint)}</p>
+        ) : null}
+        <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("activity.keyWhere")}</p>
+        {mismatch ? <p role="alert" className="text-[13px] text-destructive">{t("activity.assistFingerprint")}</p> : null}
+        {failed ? <p role="alert" className="text-[13px] text-destructive">{t("activity.assistFailed")}</p> : null}
         <input aria-label={t("activity.assistRecovery")}
           className="mt-4 h-9 w-full rounded-md border border-border bg-background px-3 font-mono text-[12px]"
           value={recovery}

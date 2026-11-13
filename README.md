@@ -198,7 +198,9 @@ npm run lint    # ESLint (eslint-config-next)
 npx tsc --noEmit   # strict type check
 ```
 
-There are no automated tests yet. The [Check workflow](.github/workflows/check.yml) runs on every push to `main` and every pull request: a [gitleaks](https://github.com/gitleaks/gitleaks) secret scan, `npm ci`, and the type check. Dependabot updates npm packages and GitHub Actions weekly.
+`npm test` runs the unit tests with Node's own test runner: the proxy's allow-list, the password derivation (with known answers, so a library update cannot silently change it), key fingerprints, and the encryption and re-key flows with `fetch` replaced by a table of answers. There are no browser tests.
+
+The [Check workflow](.github/workflows/check.yml) runs on every push to `main` and every pull request: a [gitleaks](https://github.com/gitleaks/gitleaks) secret scan, `npm ci`, an audit of production dependencies, lint, the type check, the tests and a production build. Dependabot updates npm packages, GitHub Actions and the Docker base image weekly.
 
 Every user-visible string goes into both `en` and `zh` in `messages.ts`; give every new control an accessible name from those messages. `README.md` and `README_ZH.md` change together.
 

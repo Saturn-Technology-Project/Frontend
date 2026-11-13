@@ -246,7 +246,11 @@ function AccountFooter({
               className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-foreground hover:bg-muted"
               onClick={async () => {
                 setPanel(null);
-                await logout();
+                // The session lives in a cookie only the server can end. If the request fails,
+                // try once more; either way drop what this tab cached and leave the console.
+                // When both attempts fail the cookie is still valid, and the sign-in page will
+                // show the account as still signed in instead of pretending otherwise.
+                await logout().catch(() => logout().catch(() => undefined));
                 queryClient.clear();
                 router.replace("/login");
               }}

@@ -115,7 +115,7 @@ export function ApprovalPanel({
               >
                 {t("activity.reveal")}
               </button>
-              {revealFailed ? <p className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
+              {revealFailed ? <p role="alert" className="mt-1 text-[13px] text-destructive">{t("activity.revealFailed")}</p> : null}
             </div>
           ) : null}
           {approval.customer ? (
