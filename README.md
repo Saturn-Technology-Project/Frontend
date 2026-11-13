@@ -9,7 +9,7 @@
 Connect MCP servers, choose which tools each agent can see, write the policy that decides every call, approve what needs a person, and read the audit record, from one console.
 
 [![License: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE.md)
-[![Check](https://github.com/Saturn-Technology-Project/Frontend/actions/workflows/check.yml/badge.svg)](https://github.com/Saturn-Technology-Project/Frontend/actions/workflows/check.yml)
+[![Check](https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend/actions/workflows/check.yml/badge.svg)](https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend/actions/workflows/check.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-16.3-000000.svg?logo=next.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6.svg?logo=typescript&logoColor=white)
@@ -24,7 +24,7 @@ Connect MCP servers, choose which tools each agent can see, write the policy tha
 
 [Saturn MCP](https://saturn-core.com) sits between your AI agents and your MCP servers. Agents connect to one MCP endpoint and sign in with OAuth; Saturn holds the upstream credentials, shows each agent only the tools it is allowed to use, evaluates a policy on every call, holds sensitive calls for human approval, and records each step.
 
-This repository is the console for it: a Next.js app that runs on Cloud Run at **[dashboard.saturn-core.com](https://dashboard.saturn-core.com)**. It holds no data of its own. Every request goes to the Saturn API, a FastAPI service in the separate [Backend](https://github.com/Saturn-Technology-Project/Backend) repository, served at `https://api.saturn-core.com`.
+This repository is the console for it: a Next.js app that runs on Cloud Run at **[dashboard.saturn-core.com](https://dashboard.saturn-core.com)**. It holds no data of its own. Every request goes to the Saturn API, a FastAPI service in the separate [Saturn-MCP-Backend](https://github.com/Saturn-Technology-Project/Saturn-MCP-Backend) repository, served at `https://api.saturn-core.com`.
 
 - **Free.** Every feature is on every account. If Saturn helps you, you can [sponsor the project on GitHub](https://github.com/sponsors/Saturn-Technology-Project).
 - **Bilingual.** Every screen is in English and Traditional Chinese (Taiwan).
@@ -66,8 +66,8 @@ Requires Node.js 22 (the version CI and the Docker image use) or Docker.
 ### Against the hosted API
 
 ```bash
-git clone https://github.com/Saturn-Technology-Project/Frontend.git
-cd Frontend
+git clone https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend.git
+cd Saturn-MCP-Frontend
 npm ci
 npm run dev
 ```
@@ -84,7 +84,7 @@ docker compose up --build
 
 ### Against a local API
 
-Start the API from the Backend repository first (its `docker compose up --build` serves it on `http://localhost:8000`, with the admin account from `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` in its `.env`). Then:
+Start the API from the [Saturn-MCP-Backend](https://github.com/Saturn-Technology-Project/Saturn-MCP-Backend) repository first (its `docker compose up --build` serves it on `http://localhost:8000`, with the admin account from `SEED_USER_EMAIL` and `SEED_USER_PASSWORD` in its `.env`). Then:
 
 ```bash
 API_URL=http://localhost:8000 NEXT_PUBLIC_WS_URL=http://localhost:8000 npm run dev
