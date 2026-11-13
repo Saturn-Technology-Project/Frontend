@@ -9,7 +9,7 @@
 在同一個主控台連接 MCP 伺服器、決定每個 Agent 看得到哪些工具、撰寫決定每一次呼叫的政策、核准需要人工確認的操作，並查閱稽核紀錄。
 
 [![License: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE.md)
-[![Check](https://github.com/Saturn-Technology-Project/Frontend/actions/workflows/check.yml/badge.svg)](https://github.com/Saturn-Technology-Project/Frontend/actions/workflows/check.yml)
+[![Check](https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend/actions/workflows/check.yml/badge.svg)](https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend/actions/workflows/check.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-16.3-000000.svg?logo=next.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6.svg?logo=typescript&logoColor=white)
@@ -24,7 +24,7 @@
 
 [Saturn MCP](https://saturn-core.com) 位於你的 AI Agent 與 MCP 伺服器之間。Agent 只連到一個 MCP 端點，並以 OAuth 登入；Saturn 保管上游的憑證、只讓每個 Agent 看到它被允許使用的工具、對每一次呼叫評估政策、把敏感的呼叫留待人工核准，並記錄每一個步驟。
 
-這個 repository 是它的主控台：一個在 Cloud Run 上執行的 Next.js 應用程式，網址是 **[dashboard.saturn-core.com](https://dashboard.saturn-core.com)**。主控台本身不保存任何資料，每個請求都送到 Saturn API。Saturn API 是獨立的 [Backend](https://github.com/Saturn-Technology-Project/Backend) repository 中的 FastAPI 服務，位於 `https://api.saturn-core.com`。
+這個 repository 是它的主控台：一個在 Cloud Run 上執行的 Next.js 應用程式，網址是 **[dashboard.saturn-core.com](https://dashboard.saturn-core.com)**。主控台本身不保存任何資料，每個請求都送到 Saturn API。Saturn API 是獨立的 [Saturn-MCP-Backend](https://github.com/Saturn-Technology-Project/Saturn-MCP-Backend) repository 中的 FastAPI 服務，位於 `https://api.saturn-core.com`。
 
 - **免費。** 每個帳號都能使用所有功能。如果 Saturn 對你有幫助，可以[在 GitHub 上贊助這個專案](https://github.com/sponsors/Saturn-Technology-Project)。
 - **雙語。** 每個畫面都有英文與繁體中文（台灣）。
@@ -66,8 +66,8 @@
 ### 連到正式環境的 API
 
 ```bash
-git clone https://github.com/Saturn-Technology-Project/Frontend.git
-cd Frontend
+git clone https://github.com/Saturn-Technology-Project/Saturn-MCP-Frontend.git
+cd Saturn-MCP-Frontend
 npm ci
 npm run dev
 ```
@@ -84,7 +84,7 @@ docker compose up --build
 
 ### 連到本機的 API
 
-先從 Backend repository 啟動 API（它的 `docker compose up --build` 會在 `http://localhost:8000` 提供服務，管理員帳號來自其 `.env` 中的 `SEED_USER_EMAIL` 與 `SEED_USER_PASSWORD`）。接著：
+先從 [Saturn-MCP-Backend](https://github.com/Saturn-Technology-Project/Saturn-MCP-Backend) repository 啟動 API（它的 `docker compose up --build` 會在 `http://localhost:8000` 提供服務，管理員帳號來自其 `.env` 中的 `SEED_USER_EMAIL` 與 `SEED_USER_PASSWORD`）。接著：
 
 ```bash
 API_URL=http://localhost:8000 NEXT_PUBLIC_WS_URL=http://localhost:8000 npm run dev
