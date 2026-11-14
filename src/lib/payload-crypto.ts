@@ -2,6 +2,7 @@ import { ml_kem1024 } from "@noble/post-quantum/ml-kem.js";
 import { ApiError, changePassword, confirmEmailChange, revealActivity, fetchAssistRequests, fetchMemberBackup, fetchMemberRewrap, fetchPayloadBackup, fetchPayloadKeys, registerMemberPayloadKey, submitMemberRewrap, type PasswordBackup, type PayloadEnvelope, type RecoveryBackup, type AssistRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { fingerprintOf, fingerprintOfBytes } from "@/lib/fingerprint";
+import { requestKeyUnlock } from "@/lib/key-unlock";
 import { legacyWrapMaterial, memberWrapMaterial } from "@/lib/password";
 
 const encoder = new TextEncoder();
@@ -206,6 +207,10 @@ export async function decryptHeldEnvelope(
   payloadType: string,
   envelope: PayloadEnvelope & { recipient_wraps?: { member_key_id?: string; wrapped_dek?: string }[] },
 ) {
+  // The member key is only ever in memory, so it is gone after a reload. With neither key held
+  // nothing below can open the record: ask for the password now. Whatever the answer, the
+  // checks that follow decide, and a declined prompt ends in the same "locked" error as before.
+  if (!memberKey() && !organizationKey()) await requestKeyUnlock();
   const mine = memberKey();
   const wrap = mine?.memberKeyId
     ? envelope.recipient_wraps?.find((item) => item.member_key_id === mine.memberKeyId && item.wrapped_dek)
@@ -422,6 +427,34 @@ export async function unlockMemberKey(password: string) {
     holdMemberKey(privateKey, publicKey, registered.id);
     if (!missing && typeof sessionStorage !== "undefined") sessionStorage.setItem("saturn-member-rewrap", "1");
   }
+}
+
+export class MemberKeyPasswordError extends Error {
+  constructor() {
+    super("this password does not open the member key");
+  }
+}
+
+/**
+ * Put the stored member key back in memory with a password typed after sign-in.
+ *
+ * unlockMemberKey answers a backup that will not open by registering a new key, which is right
+ * at sign-in: the server has just checked that password. Here nothing has checked it, so a
+ * mistyped password must never replace the member's key. It is reported instead. A member with
+ * no stored key gets the API's 404, and the next password sign-in creates one.
+ */
+export async function reopenMemberKey(password: string) {
+  const userId = useAuthStore.getState().user?.id ?? "";
+  const email = useAuthStore.getState().user?.email ?? "";
+  if (!userId || !email || !password) throw new MemberKeyPasswordError();
+  const backup = await fetchMemberBackup();
+  let privateKey: Uint8Array;
+  try {
+    privateKey = await openPasswordBackup(password, userId, backup, email);
+  } catch {
+    throw new MemberKeyPasswordError();
+  }
+  holdMemberKey(privateKey, hexToBytes(backup.public_key), backup.member_key_id);
 }
 
 type CarriedKey = { backup: PasswordBackup; privateKey: Uint8Array; publicKey: Uint8Array; memberKeyId: string };

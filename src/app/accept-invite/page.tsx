@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AuthScreen } from "@/components/layout/auth-screen";
 import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
 import { ApiError, acceptInvite } from "@/lib/api";
+import { readInviteLink, type InviteLink } from "@/lib/invite-link";
 import { unlockMemberKey } from "@/lib/payload-crypto";
 import { useI18n } from "@/lib/i18n";
 
@@ -13,25 +14,34 @@ const fieldClass =
   "mt-2 h-9 w-full rounded-md border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-ring";
 
 export default function AcceptInvitePage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
-      <AcceptInviteForm />
-    </Suspense>
-  );
-}
-
-function AcceptInviteForm() {
   const { t } = useI18n();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { ready, signedIn } = useSessionProbe();
-  const token = searchParams.get("token") ?? "";
-  // The password hash is salted with the address, so it must be the one the invite was sent to.
-  const email = (searchParams.get("email") ?? "").trim().toLowerCase();
+  // Null until the link has been read. The token then lives only here, in memory.
+  const [invite, setInvite] = useState<InviteLink | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    function read() {
+      const found = readInviteLink(window.location.search, window.location.hash);
+      // A link with a token replaces what is held. A read that finds none keeps it: React runs
+      // this twice in development, and the second run sees the address already cleaned.
+      setInvite((current) => (found.token || !current ? found : current));
+      // Take the token out of the address bar and the history entry, so it is not copied,
+      // bookmarked or read back from the URL by anything that loads later.
+      if (window.location.search || window.location.hash) {
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+    read();
+    // Opening a "#token=…" link while this page is already showing changes only the fragment,
+    // which does not load the page again.
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
 
   useEffect(() => {
     if (ready && signedIn) router.replace("/overview");
@@ -50,7 +60,7 @@ function AcceptInviteForm() {
     }
     setPending(true);
     try {
-      await acceptInvite(token, password, email);
+      await acceptInvite(invite?.token ?? "", password, invite?.email ?? "");
       await unlockMemberKey(password).catch(() => undefined);
       router.replace("/overview");
     } catch (err) {
@@ -66,11 +76,11 @@ function AcceptInviteForm() {
     }
   }
 
-  if (!ready || signedIn) {
+  if (!ready || signedIn || !invite) {
     return <div className="min-h-screen bg-background" />;
   }
 
-  if (!token || !email) {
+  if (!invite.token || !invite.email) {
     return (
       <AuthScreen>
         <h1 className="text-[22px] font-medium tracking-tight">{t("invite.title")}</h1>
@@ -86,7 +96,7 @@ function AcceptInviteForm() {
         <p className="mt-2 text-[13px] text-muted-foreground">{t("invite.body")}</p>
         <label className="mt-8 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("invite.email")}
-          <input type="email" autoComplete="username" value={email} readOnly className={`${fieldClass} opacity-80`} />
+          <input type="email" autoComplete="username" value={invite.email} readOnly className={`${fieldClass} opacity-80`} />
         </label>
         <label className="mt-4 block text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
           {t("invite.password")}

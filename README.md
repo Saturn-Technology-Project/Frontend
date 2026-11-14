@@ -57,7 +57,7 @@ The account menu at the bottom of the sidebar:
 | 🌐 **Language** | | English or 繁體中文. Saved to your account. |
 | ❤️ **Donate** | | Opens GitHub Sponsors. |
 
-Outside the console: `/login` (password, then an email code, a passkey or an authenticator code), `/register` (a personal account or a team account where you are the admin), `/mfa` (passkey or authenticator setup; organization admins need one of the two), `/connect-passkey` (the passkey step when an agent's sign-in page on the API hands over to the console), `/accept-invite`, `/trust` (vulnerability disclosure; also `/.well-known/security.txt`) and `/healthz`.
+Outside the console: `/login` (password, then an email code, a passkey or an authenticator code), `/register` (a personal account or a team account where you are the admin), `/mfa` (passkey or authenticator setup; organization admins need one of the two), `/connect-passkey` (the passkey step when an agent's sign-in page on the API hands over to the console), `/accept-invite`, `/trust` (vulnerability disclosure; also `/.well-known/security.txt`) and `/health`.
 
 ## Quick start
 
@@ -97,15 +97,15 @@ Or put both variables in `.env.local` (see [`.env.example`](.env.example)). Rest
 | Variable | Default | Purpose |
 |---|---|---|
 | `API_URL` | `https://api.saturn-core.com` | Where `/saturn-api/*` is forwarded. Read when `next.config.ts` loads, so a Docker image has it built in (`--build-arg API_URL=…`). |
-| `NEXT_PUBLIC_WS_URL` | `https://api.saturn-core.com` | The API's public origin as the browser should see it. The console uses it only to show the MCP endpoint on the Agents page. Inlined at build time. `NEXT_PUBLIC_API_URL` is read if it is unset. |
-| `ORIGIN_AUTH_SECRET` | unset | When set, every request except `/healthz` must carry this value in the origin header, or it gets `403`. On Cloud Run (`K_SERVICE` set) the console refuses every request until it is set. |
+| `NEXT_PUBLIC_WS_URL` | `https://api.saturn-core.com` | The API's public origin as the browser should see it. Shown as the MCP endpoint on the Agents page, used as the target of the agent passkey hand-off, and allowed in the Content-Security-Policy. Inlined at build time. `NEXT_PUBLIC_API_URL` is read if it is unset. |
+| `ORIGIN_AUTH_SECRET` | unset | When set, every request except `/health` must carry this value in the origin header, or it gets `403`. On Cloud Run (`K_SERVICE` set) the console refuses every request until it is set. |
 | `ORIGIN_AUTH_HEADER` | `x-saturn-origin-auth` | The header that carries the origin secret. |
 | `ORIGIN_AUTH_SECRET_PREVIOUS` | unset | Also accepted, so the secret can be rotated without downtime. |
 | `DOCKER_BUILD` | unset | `1` builds Next.js's `standalone` output. The Dockerfile sets it. |
 
-`NEXT_PUBLIC_WS_URL` keeps its name from an earlier version, when the console opened WebSockets to the API. It no longer opens any; the value is only displayed.
+`NEXT_PUBLIC_WS_URL` keeps its name from an earlier version, when the console opened WebSockets to the API. It no longer opens any.
 
-[`next.config.ts`](next.config.ts) also sets a 600-second proxy timeout (policy generation waits on the model), the security headers listed under [Security](#security), and two redirects for old links: `/runs` to `/activity`, and `/agents/:id/runs/:runId` to `/activity?event=:runId`.
+[`next.config.ts`](next.config.ts) also sets a 290-second proxy timeout (policy generation waits on the model; it stays just under Cloud Run's 300-second request limit in the deploy workflow), the security headers listed under [Security](#security), and two redirects for old links: `/runs` to `/activity`, and `/agents/:id/runs/:runId` to `/activity?event=:runId`.
 
 ## Architecture
 
@@ -127,16 +127,16 @@ flowchart LR
 - **Server data** goes through TanStack Query. One query (`["console"]`) loads the snapshot most pages share (agents, MCP servers, tool sets, approvals, activity) and refetches every 10 seconds and on window focus. Mutations invalidate it.
 - **Client state** is two zustand stores: `auth-store` (the signed-in user and organization, persisted to `localStorage` as `saturn-auth`; the token is not persisted) and `locale-store` (`saturn-locale`).
 
-**Languages.** [`src/lib/i18n/messages.ts`](src/lib/i18n/messages.ts) holds an `en` and a `zh` object. `zh` is typed from `en`, so a missing translation fails the type check. `useI18n()` returns `t("section.key", vars)`, which falls back to English and then to the key itself. The default is Traditional Chinese. Choosing a language updates `<html lang>` (`zh-Hant` or `en-US`) and, when signed in, saves it to the account (`PATCH /auth/locale`).
+**Languages.** [`src/lib/i18n/messages/`](src/lib/i18n/messages) holds one file per language (`en.ts`, `zh.ts`). `zh` is typed from `en`, so a missing translation fails the type check. Each language is its own chunk and only the one in use is downloaded; pages render once it has arrived, so no text is drawn from a missing language. `useI18n()` returns `t("section.key", vars)`, which falls back to the key itself. The default is Traditional Chinese. Choosing a language updates `<html lang>` (`zh-Hant` or `en-US`) and, when signed in, saves it to the account (`PATCH /auth/locale`).
 
 **UI.** Tailwind CSS 4 with shadcn components on Radix and Base UI, `next-themes` for the light and dark theme, and React Flow for the policy canvas.
 
 | Path | Contents |
 |---|---|
 | `src/app/(console)/` | Pages behind sign-in |
-| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,healthz}/` | Public pages and the health check |
+| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,status,health}/` | Public pages (`/status` is the service status page) and the health check |
 | `src/components/` | UI by area: `layout`, `policies`, `tools`, `approvals`, `activity`, `account`, `settings`, `ui` |
-| `src/lib/` | The API client (`api.ts`), i18n, password hashing (`password.ts`), payload encryption (`payload-crypto.ts`), the policy graph, the MCP catalog |
+| `src/lib/` | The API client (`api.ts`, split by area under `api/`), i18n, password hashing (`password.ts`), payload encryption (`payload-crypto.ts`), the policy graph, the MCP catalog |
 | `src/hooks/`, `src/stores/` | TanStack Query hooks and zustand stores |
 | `src/proxy.ts` | Origin check and per-request CSP |
 
@@ -151,16 +151,18 @@ How to report a vulnerability: email security@saturn-core.com ([`/.well-known/se
 [`src/proxy.ts`](src/proxy.ts) runs on every page request. It generates a random nonce, puts it in the request (`x-nonce`) and sets the `Content-Security-Policy` response header:
 
 - `script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`: only scripts carrying this response's nonce, and scripts they load. WebAssembly is allowed for Argon2id. Development adds `'unsafe-eval'`.
-- `connect-src 'self'` and the hosted API (plus `localhost` in development).
-- `object-src 'none'`, `frame-ancestors 'none'`, `frame-src 'none'`, `base-uri 'self'`, `form-action 'self'` and the hosted API (the passkey step of an agent's sign-in posts there), and `upgrade-insecure-requests` in production.
+- `connect-src 'self'` and the API origin from `NEXT_PUBLIC_WS_URL` (plus `localhost` in development).
+- `object-src 'none'`, `frame-ancestors 'none'`, `frame-src 'none'`, `base-uri 'self'`, `form-action 'self'` and the same API origin (the passkey step of an agent's sign-in posts there), and `upgrade-insecure-requests` in production.
 
 The root layout calls `connection()` so every page renders per request, which is how Next.js attaches the nonce to its own scripts, and it passes the nonce to the theme script that runs before hydration. Static assets under `_next/static`, `/saturn-api` and `logo.png` skip the proxy.
 
-`next.config.ts` adds `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a `Permissions-Policy` that turns off camera, microphone, geolocation, payment, USB and motion sensors, and, in production, `Strict-Transport-Security`.
+`next.config.ts` adds `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a `Permissions-Policy` that turns off camera, microphone, geolocation, payment, USB and motion sensors, and, in production, `Strict-Transport-Security`. Every page except `/connect-passkey` also sends `Cross-Origin-Opener-Policy: same-origin-allow-popups`, so a page on another origin that opens the console gets no handle to it. `/connect-passkey` is left out because an agent's sign-in passes through it in a window the agent's client may have opened.
+
+When the console opens a provider's sign-in window to connect an MCP server, it cuts that window's link back to the console first, so no page shown there can redirect the console tab. The console learns the result by asking the API once the window closes.
 
 ### Origin check
 
-In production the Cloud Run service is reachable only through the front door. The proxy compares a secret header (`ORIGIN_AUTH_SECRET`, compared as SHA-256 digests in constant time) and answers `403` otherwise; `/healthz` is exempt so Cloud Run can probe it.
+In production the Cloud Run service is reachable only through the front door. The proxy compares a secret header (`ORIGIN_AUTH_SECRET`, compared as SHA-256 digests in constant time) and answers `403` otherwise; `/health` is exempt so Cloud Run can probe it.
 
 ### Sessions
 
@@ -175,7 +177,7 @@ In production the Cloud Run service is reachable only through the front door. Th
 Stored audit payloads (tool arguments and upstream responses) are encrypted to the organization's key, which the API cannot open.
 
 - The organization's ML-KEM-1024 key pair is generated in the browser. Its recovery key is shown once to download and is never uploaded.
-- Each member's private key is wrapped with the Argon2id-derived wrap key above, and held in memory, not in browser storage, while you use the console.
+- Each member's private key is wrapped with the Argon2id-derived wrap key above, and held in memory, not in browser storage, while you use the console. A reload empties that memory; the console then asks for the password again at the moment an encrypted record is opened. The password is not stored either.
 - Raw payloads are decrypted in the browser when an authorized member opens an audit event.
 - A member's new key must be approved by a team admin who checks its fingerprint, and a member who loses their password can be helped back to the records by another member; the console prompts for both.
 
@@ -187,6 +189,7 @@ Every control in the console has an accessible role and name, taken from the sam
 - Rows in the Agents and Connections tables are buttons, so they work from the keyboard and report whether they are selected (`aria-pressed`). Toggles such as language and theme report their state the same way.
 - Menus report `aria-expanded`, close with Escape, and the mobile sidebar is `inert` while it is closed.
 - `<html lang>` follows the chosen language.
+- Keyboard focus shows a visible outline on every control (one rule in `globals.css`), and the key approval and access prompts close with Escape, which leaves the request pending.
 
 ## Development
 

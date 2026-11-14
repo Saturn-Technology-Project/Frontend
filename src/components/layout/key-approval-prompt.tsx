@@ -77,14 +77,28 @@ export function KeyApprovalPrompt({ onDecided, onQueue }: { onDecided?: () => vo
     }
   }
 
+  // Escape and the close button mean "later": the key stays pending and is asked about again on
+  // the next visit. Nothing is approved or rejected by closing.
+  function later() {
+    setFailed(false);
+    setKeys((items) => items.slice(1));
+  }
+
   if (!current) return null;
   // The server sends a shortened fingerprint (a prefix of the SHA-256); compare the same length.
   const mismatch = Boolean(local && current.fingerprint && local.slice(0, current.fingerprint.length) !== current.fingerprint);
 
   return (
-    <Dialog open>
-      <DialogContent showCloseButton={false} className="max-w-md">
-        <DialogTitle className="text-[15px] font-medium">
+    <Dialog
+      open
+      // A stray click outside must not skip a security decision; Escape and the close button do.
+      disablePointerDismissal
+      onOpenChange={(next) => {
+        if (!next && !pending) later();
+      }}
+    >
+      <DialogContent className="max-w-md" closeLabel={t("common.close")}>
+        <DialogTitle className="pr-8 text-[15px] font-medium leading-5">
           {t("activity.keyApproval", { name: current.name, email: current.email })}
         </DialogTitle>
         <DialogDescription className="sr-only">
@@ -97,7 +111,7 @@ export function KeyApprovalPrompt({ onDecided, onQueue }: { onDecided?: () => vo
         {mismatch ? <p role="alert" className="text-[13px] text-destructive">{t("activity.keyMismatch")}</p> : null}
         {failed ? <p role="alert" className="text-[13px] text-destructive">{t("activity.keyDecisionFailed")}</p> : null}
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" disabled={pending} onClick={() => setKeys((items) => items.slice(1))}>
+          <Button variant="outline" disabled={pending} onClick={later}>
             {t("activity.keyLater")}
           </Button>
           <Button variant="outline" disabled={pending} onClick={() => void decide(false)}>

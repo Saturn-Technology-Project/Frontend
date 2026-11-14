@@ -7,6 +7,7 @@ import { createPayloadKey, fetchPayloadBackup, fetchPayloadKeys } from "@/lib/ap
 import { useAuthStore } from "@/lib/auth";
 import { formatFingerprint } from "@/lib/fingerprint";
 import { useI18n } from "@/lib/i18n";
+import { requestKeyUnlock } from "@/lib/key-unlock";
 import {
   bytesToHex,
   generateMlKem,
@@ -26,6 +27,8 @@ import {
 function OwnKeyFingerprint() {
   const { t } = useI18n();
   const [fingerprint, setFingerprint] = useState<string | null | undefined>(undefined);
+  // Bumped after an unlock, to read the fingerprint of the key that is now held.
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     let cancel = false;
@@ -39,7 +42,7 @@ function OwnKeyFingerprint() {
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [round]);
 
   if (fingerprint === undefined) return null;
   return (
@@ -53,7 +56,20 @@ function OwnKeyFingerprint() {
           <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{t("settings.ownFingerprintHint")}</p>
         </>
       ) : (
-        <p className="mt-2 text-[13px] text-muted-foreground">{t("settings.ownFingerprintLocked")}</p>
+        <>
+          <p className="mt-2 text-[13px] text-muted-foreground">{t("settings.ownFingerprintLocked")}</p>
+          <Button
+            className="mt-3"
+            variant="outline"
+            onClick={() =>
+              void requestKeyUnlock().then((unlocked) => {
+                if (unlocked) setRound((value) => value + 1);
+              })
+            }
+          >
+            {t("keyUnlock.open")}
+          </Button>
+        </>
       )}
     </div>
   );

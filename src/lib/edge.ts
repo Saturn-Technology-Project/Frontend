@@ -20,7 +20,9 @@ function secretMatches(presented: string, accepted: string[]): boolean {
 }
 
 export function originAllowed(pathname: string, header: HeaderGetter, env: Env): boolean {
-  if (pathname === "/healthz") return true;
+  // The probe: answers only {"status":"ok"}. /healthz is the older name, which Cloud Run keeps
+  // for itself and never passes on, so only /health is reachable there.
+  if (pathname === "/health" || pathname === "/healthz") return true;
   const expected = env.ORIGIN_AUTH_SECRET || "";
   // Local and tests leave the secret unset. Cloud Run must fail closed.
   if (!expected) return !env.K_SERVICE;
@@ -40,6 +42,7 @@ const API_PREFIXES = new Set([
   "mcp-servers",
   "org",
   "policies",
+  "status",
   "tool-sets",
   "tools",
 ]);
@@ -113,4 +116,18 @@ export function consoleForwardHeaders(header: HeaderGetter, env: Env): Record<st
   const ip = inboundClientIp(header, env);
   if (!secret || !ip) return {};
   return { [CONSOLE_AUTH_HEADER]: secret, [CONSOLE_CLIENT_IP_HEADER]: ip };
+}
+
+/**
+ * A configured URL as a CSP source: its origin only, or nothing when it is not an http(s) URL.
+ * The value comes from an environment variable and goes into a response header, so it is never
+ * copied in as written.
+ */
+export function cspOrigin(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.origin : "";
+  } catch {
+    return "";
+  }
 }

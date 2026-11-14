@@ -69,6 +69,16 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
     setRequests((items) => items.slice(1));
   }
 
+  // Escape and the close button skip this request for now. Unlike "Ignore" nothing is
+  // remembered, so it is asked again on the next visit; the colleague keeps waiting meanwhile.
+  function later() {
+    if (!current) return;
+    setFailed(false);
+    setMismatch(false);
+    setRecovery("");
+    setRequests((items) => items.slice(1));
+  }
+
   async function agree() {
     if (!current || !confirmed || !fingerprint) return;
     setPending(true);
@@ -90,9 +100,16 @@ export function KeyAssistPrompt({ refreshKey = 0 }: { refreshKey?: number }) {
   if (!current) return null;
 
   return (
-    <Dialog open>
-      <DialogContent showCloseButton={false} className="max-w-md">
-        <DialogTitle className="text-[15px] font-medium">{t("activity.assist", { name: current?.name ?? "" })}</DialogTitle>
+    <Dialog
+      open
+      // A stray click outside must not skip the request; Escape and the close button do.
+      disablePointerDismissal
+      onOpenChange={(next) => {
+        if (!next && !pending) later();
+      }}
+    >
+      <DialogContent className="max-w-md" closeLabel={t("common.close")}>
+        <DialogTitle className="pr-8 text-[15px] font-medium leading-5">{t("activity.assist", { name: current?.name ?? "" })}</DialogTitle>
         <DialogDescription className="sr-only">{t("activity.assist", { name: current?.name ?? "" })}</DialogDescription>
         {fingerprint ? (
           <p className="mt-3 rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-6 tracking-wide">{formatFingerprint(fingerprint)}</p>

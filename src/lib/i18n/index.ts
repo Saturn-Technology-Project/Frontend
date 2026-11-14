@@ -1,6 +1,8 @@
 "use client";
 
-import { messages, type Locale } from "@/lib/i18n/messages";
+import { useSyncExternalStore } from "react";
+import { loadMessages, lookup, translate } from "@/lib/i18n/catalog";
+import type { Locale } from "@/lib/i18n/messages";
 import { updateAccountLocale } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { beginLocaleSave, endLocaleSave, markLocaleChoice, useLocaleStore } from "@/stores/locale-store";
@@ -13,28 +15,56 @@ export function localeFromAccount(value: string | null | undefined): Locale {
   return value?.toLowerCase().startsWith("en") ? "en" : "zh";
 }
 
-function getPath(source: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((value, key) => {
-    if (value && typeof value === "object" && key in value) {
-      return (value as Record<string, unknown>)[key];
+export { translate };
+
+// The language on screen. It follows the chosen language once that language's messages have
+// arrived, so switching keeps the old text for a moment instead of showing none.
+let shown: Locale | null = null;
+const listeners = new Set<() => void>();
+const RETRY_MS = 2000;
+
+function show(locale: Locale) {
+  loadMessages(locale).then(
+    () => {
+      // A later choice may have replaced this one while it was loading.
+      if (useLocaleStore.getState().locale !== locale) return;
+      shown = locale;
+      for (const listener of listeners) listener();
+    },
+    () => {
+      window.setTimeout(() => {
+        if (useLocaleStore.getState().locale === locale) show(locale);
+      }, RETRY_MS);
     }
-    return undefined;
-  }, source);
+  );
 }
 
-export function translate(
-  locale: Locale,
-  path: string,
-  vars?: Record<string, string | number>
-) {
-  const raw = getPath(messages[locale], path) ?? getPath(messages.en, path);
-  let text = typeof raw === "string" ? raw : path;
-  if (vars) {
-    for (const [key, value] of Object.entries(vars)) {
-      text = text.replaceAll(`{${key}}`, String(value));
-    }
-  }
-  return text;
+if (typeof window !== "undefined") {
+  // Started as soon as this module loads, not in an effect, so the download runs alongside
+  // hydration. The store has already read the saved choice from localStorage by now.
+  show(useLocaleStore.getState().locale);
+  useLocaleStore.subscribe((state, previous) => {
+    if (state.locale !== previous.locale) show(state.locale);
+  });
+}
+
+function subscribeShown(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * The language whose messages are loaded and on screen. Null on the server, during hydration
+ * and until the first messages arrive; LocaleDocument renders no page before then.
+ */
+export function useShownLocale(): Locale | null {
+  return useSyncExternalStore(
+    subscribeShown,
+    () => shown,
+    () => null
+  );
 }
 
 export function chooseLocale(locale: Locale) {
@@ -56,18 +86,14 @@ export function chooseLocale(locale: Locale) {
 }
 
 export function useI18n() {
-  const locale = useLocaleStore((state) => state.locale);
+  const chosen = useLocaleStore((state) => state.locale);
+  const locale = useShownLocale() ?? chosen;
 
   function t(path: string, vars?: Record<string, string | number>) {
     return translate(locale, path, vars);
   }
 
   return { locale, setLocale: chooseLocale, t };
-}
-
-function lookup(locale: Locale, path: string): string | undefined {
-  const raw = getPath(messages[locale], path) ?? getPath(messages.en, path);
-  return typeof raw === "string" ? raw : undefined;
 }
 
 export function agentCopy(

@@ -172,6 +172,29 @@
   }
 }
 
+/* Keyboard focus is always visible on controls. This sits outside every layer on purpose: the
+   fields use the `outline-none` utility and the base layer tints outlines to a faint
+   `ring/50`, and a layered rule could not win over either. */
+:where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [role="checkbox"],
+    [role="link"],
+    [role="menuitem"],
+    [role="option"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"]
+  ):focus-visible {
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+}
+
 @utility saturn-label {
   font-size: 11px;
   font-weight: 500;

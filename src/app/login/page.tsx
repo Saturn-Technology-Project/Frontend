@@ -126,6 +126,8 @@ function LoginForm() {
     setPending(true);
     try {
       await loginWithPasskey(challenge);
+      // The password was typed in the first step; it is what opens the member key.
+      await unlockMemberKey(password).catch(() => undefined);
       router.replace(next);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);

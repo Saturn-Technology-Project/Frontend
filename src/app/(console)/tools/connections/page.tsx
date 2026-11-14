@@ -170,11 +170,9 @@ function ReconnectButton({ server }: { server: McpServer }) {
           setError("");
           setPending(true);
           void authorizeMcp({ name: server.name, endpoint: server.endpoint })
-            .then(async (result) => {
-              if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
-            })
+            .then(() => client.invalidateQueries({ queryKey: consoleQueryKey }))
             .catch((caught: unknown) => {
-              setError(mcpOauthErrorText(caught, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
+              setError(mcpOauthErrorText(caught, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable"), incomplete: t("marketplace.signInIncomplete") }));
             })
             .finally(() => setPending(false));
         }}
@@ -357,11 +355,9 @@ function OauthForm({ server, canAdmin }: { server: McpServer; canAdmin: boolean 
               setOauthError("");
               setAuthorizing(true);
               void authorizeMcp({ name: server.name, endpoint: server.endpoint })
-                .then(async (result) => {
-                  if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
-                })
+                .then(() => client.invalidateQueries({ queryKey: consoleQueryKey }))
                 .catch((error: unknown) => {
-                  setOauthError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
+                  setOauthError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable"), incomplete: t("marketplace.signInIncomplete") }));
                 })
                 .finally(() => setAuthorizing(false));
             }}
