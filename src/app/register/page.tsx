@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useSessionProbe } from "@/hooks/use-session";
 import { safeReturnPath } from "@/lib/return-path";
 import { ApiError, registerAccount, requestSignupCode } from "@/lib/api";
+import { unlockMemberKey } from "@/lib/payload-crypto";
 import { useI18n } from "@/lib/i18n";
 
 const fieldClass =
@@ -65,6 +66,8 @@ function RegisterForm() {
     setPending(true);
     try {
       await registerAccount(name.trim(), email.trim(), password, code.trim(), team ? organization.trim() : undefined);
+      // A new account has no member key yet. Create it now, while the password is at hand.
+      await unlockMemberKey(password).catch(() => undefined);
       router.replace(next);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) setError(t("login.emailUsed"));

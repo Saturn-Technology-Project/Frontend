@@ -335,18 +335,15 @@ function mapActivity(event: ApiActivity, agents: ApiAgent[]): ActivityEvent {
 }
 
 function mapServices(health: ApiHealth | undefined): SystemService[] {
-  const list = health?.services ?? [];
-  const ok = health?.status === "ok";
-  return list.map((service) => ({
+  // Each service is shown as the API reports it. One of them being down used to mark all of
+  // them down, the API included, although it was the API that answered.
+  return (health?.services ?? []).map((service) => ({
     id: service.id,
     name: service.name,
-    status: ok
-      ? service.status === "degraded" || service.status === "down"
+    status:
+      service.status === "operational" || service.status === "degraded" || service.status === "down"
         ? service.status
-        : service.status === "operational"
-          ? "operational"
-          : "degraded"
-      : "down",
+        : "degraded",
   }));
 }
 
@@ -425,7 +422,7 @@ export function mapConsole(input: {
   policies: ApiPolicy[];
   approvals: ApiApproval[];
   activity: ApiActivity[];
-  health: ApiHealth;
+  health: ApiHealth | undefined;
   mcpServers?: ApiMcpServer[];
   toolSets?: ApiToolSet[];
 }): ConsoleData {

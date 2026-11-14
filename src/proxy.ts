@@ -5,22 +5,25 @@ import {
   CONSOLE_CLIENT_IP_HEADER,
   apiPathAllowed,
   consoleForwardHeaders,
+  cspOrigin,
   isApiPath,
   originAllowed,
 } from "@/lib/edge";
+import { configuredApiOrigin } from "@/lib/ws";
 
 function contentSecurityPolicy(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
+  // The same build-time value the pages use, so the policy follows NEXT_PUBLIC_WS_URL.
+  const api = cspOrigin(configuredApiOrigin());
   const connect = [
     "'self'",
-    "https://api.saturn-core.com",
-    "wss://api.saturn-core.com",
+    api,
     dev ? "http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*" : "",
   ]
     .filter(Boolean)
     .join(" ");
   // The agent sign-in page lives on the API. /connect-passkey posts the passkey answer to it.
-  const formAction = ["'self'", "https://api.saturn-core.com", dev ? "http://localhost:* http://127.0.0.1:*" : ""]
+  const formAction = ["'self'", api, dev ? "http://localhost:* http://127.0.0.1:*" : ""]
     .filter(Boolean)
     .join(" ");
   return [

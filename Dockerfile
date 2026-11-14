@@ -12,6 +12,8 @@ RUN npm ci
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Both are compiled into the build (the /saturn-api rewrite and the pages), so they are build
+# arguments only. Setting them on the running container has no effect.
 ARG API_URL=http://api:8000
 ARG NEXT_PUBLIC_WS_URL=
 ENV API_URL=${API_URL}
@@ -25,8 +27,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ARG API_URL=http://api:8000
-ENV API_URL=${API_URL}
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs

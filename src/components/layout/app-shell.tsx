@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Header } from "@/components/layout/header";
 import { KeyApprovalPrompt } from "@/components/layout/key-approval-prompt";
 import { KeyAssistPrompt } from "@/components/layout/key-assist-prompt";
+import { KeyUnlockDialog } from "@/components/layout/key-unlock-dialog";
 import { MobileNavProvider, useMobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Approve new member keys first; an approved key can then be helped to open older records. */}
       <KeyApprovalPrompt onQueue={setApprovals} onDecided={() => setAssistRound((round) => round + 1)} />
       {approvals === 0 ? <KeyAssistPrompt refreshKey={assistRound} /> : null}
+      <KeyUnlockDialog />
     </div>
   );
 }

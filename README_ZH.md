@@ -57,7 +57,7 @@
 | 🌐 **語言** | | English 或繁體中文，儲存在你的帳號。 |
 | ❤️ **贊助** | | 開啟 GitHub Sponsors。 |
 
-主控台以外的頁面：`/login`（先輸入密碼，再輸入電子郵件驗證碼、使用通行金鑰或輸入驗證器代碼）、`/register`（個人帳號，或由你擔任管理員的團隊帳號）、`/mfa`（設定通行金鑰或驗證器，組織管理員必須擇一完成）、`/connect-passkey`（代理人在 API 上的登入頁交給主控台完成的通行金鑰步驟）、`/accept-invite`、`/trust`（漏洞通報；另有 `/.well-known/security.txt`）與 `/healthz`。
+主控台以外的頁面：`/login`（先輸入密碼，再輸入電子郵件驗證碼、使用通行金鑰或輸入驗證器代碼）、`/register`（個人帳號，或由你擔任管理員的團隊帳號）、`/mfa`（設定通行金鑰或驗證器，組織管理員必須擇一完成）、`/connect-passkey`（代理人在 API 上的登入頁交給主控台完成的通行金鑰步驟）、`/accept-invite`、`/trust`（漏洞通報；另有 `/.well-known/security.txt`）與 `/health`。
 
 ## 快速開始
 
@@ -97,15 +97,15 @@ API_URL=http://localhost:8000 NEXT_PUBLIC_WS_URL=http://localhost:8000 npm run d
 | 變數 | 預設值 | 用途 |
 |---|---|---|
 | `API_URL` | `https://api.saturn-core.com` | `/saturn-api/*` 要轉送到的位置。在載入 `next.config.ts` 時讀取，所以 Docker 映像檔會把它建置進去（`--build-arg API_URL=…`）。 |
-| `NEXT_PUBLIC_WS_URL` | `https://api.saturn-core.com` | 瀏覽器看到的 API 公開來源。主控台只用它在 Agent 頁面顯示 MCP 端點。建置時內嵌。未設定時會讀取 `NEXT_PUBLIC_API_URL`。 |
-| `ORIGIN_AUTH_SECRET` | 未設定 | 設定後，除了 `/healthz` 以外的每個請求都必須在來源標頭中帶上這個值，否則回傳 `403`。在 Cloud Run 上（有設定 `K_SERVICE`），未設定這個值時主控台會拒絕所有請求。 |
+| `NEXT_PUBLIC_WS_URL` | `https://api.saturn-core.com` | 瀏覽器看到的 API 公開來源。用來在 Agent 頁面顯示 MCP 端點、作為 Agent passkey 交接的送出目標，並列入 Content-Security-Policy。建置時內嵌。未設定時會讀取 `NEXT_PUBLIC_API_URL`。 |
+| `ORIGIN_AUTH_SECRET` | 未設定 | 設定後，除了 `/health` 以外的每個請求都必須在來源標頭中帶上這個值，否則回傳 `403`。在 Cloud Run 上（有設定 `K_SERVICE`），未設定這個值時主控台會拒絕所有請求。 |
 | `ORIGIN_AUTH_HEADER` | `x-saturn-origin-auth` | 攜帶來源密鑰的標頭。 |
 | `ORIGIN_AUTH_SECRET_PREVIOUS` | 未設定 | 同樣接受，讓密鑰可以在不中斷服務的情況下輪替。 |
 | `DOCKER_BUILD` | 未設定 | `1` 會建置 Next.js 的 `standalone` 輸出。Dockerfile 會設定它。 |
 
-`NEXT_PUBLIC_WS_URL` 沿用舊版的名稱，當時主控台會對 API 開啟 WebSocket。現在主控台不開啟任何 WebSocket，這個值只用於顯示。
+`NEXT_PUBLIC_WS_URL` 沿用舊版的名稱，當時主控台會對 API 開啟 WebSocket。現在主控台不開啟任何 WebSocket。
 
-[`next.config.ts`](next.config.ts) 另外設定了 600 秒的 proxy 逾時（產生政策要等模型回應）、[安全](#安全)一節列出的安全標頭，以及兩個給舊連結的轉址：`/runs` 轉到 `/activity`，`/agents/:id/runs/:runId` 轉到 `/activity?event=:runId`。
+[`next.config.ts`](next.config.ts) 另外設定了 290 秒的 proxy 逾時（產生政策要等模型回應；這個值刻意略低於部署 workflow 裡 Cloud Run 的 300 秒請求時限）、[安全](#安全)一節列出的安全標頭，以及兩個給舊連結的轉址：`/runs` 轉到 `/activity`，`/agents/:id/runs/:runId` 轉到 `/activity?event=:runId`。
 
 ## 架構
 
@@ -127,16 +127,16 @@ flowchart LR
 - **伺服器資料**透過 TanStack Query 取得。一個查詢（`["console"]`）載入多數頁面共用的快照（Agent、MCP 伺服器、工具集、核准、活動），每 10 秒以及視窗取得焦點時重新取得。變更操作完成後會讓它失效。
 - **用戶端狀態**是兩個 zustand store：`auth-store`（登入的使用者與組織，以 `saturn-auth` 保存在 `localStorage`；不保存 token）與 `locale-store`（`saturn-locale`）。
 
-**語言。** [`src/lib/i18n/messages.ts`](src/lib/i18n/messages.ts) 包含 `en` 與 `zh` 兩個物件。`zh` 的型別由 `en` 推導，缺少翻譯時型別檢查會失敗。`useI18n()` 回傳 `t("section.key", vars)`，找不到時先退回英文，再退回 key 本身。預設語言是繁體中文。選擇語言會更新 `<html lang>`（`zh-Hant` 或 `en-US`），登入時也會儲存到帳號（`PATCH /auth/locale`）。
+**語言。** [`src/lib/i18n/messages/`](src/lib/i18n/messages) 裡每種語言一個檔案（`en.ts`、`zh.ts`）。`zh` 的型別由 `en` 推導，缺少翻譯時型別檢查會失敗。每種語言是獨立的 chunk，只會下載使用中的那一種；頁面會等它載入後才顯示，所以不會出現缺字或 key。`useI18n()` 回傳 `t("section.key", vars)`，找不到時退回 key 本身。預設語言是繁體中文。選擇語言會更新 `<html lang>`（`zh-Hant` 或 `en-US`），登入時也會儲存到帳號（`PATCH /auth/locale`）。
 
 **介面。** Tailwind CSS 4，shadcn 元件建立在 Radix 與 Base UI 上，以 `next-themes` 切換深淺模式，政策畫布使用 React Flow。
 
 | 路徑 | 內容 |
 |---|---|
 | `src/app/(console)/` | 需要登入的頁面 |
-| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,healthz}/` | 公開頁面與健康檢查 |
+| `src/app/{login,register,mfa,connect-passkey,accept-invite,trust,status,health}/` | 公開頁面（`/status` 是服務狀態頁）與健康檢查 |
 | `src/components/` | 依領域分類的介面：`layout`、`policies`、`tools`、`approvals`、`activity`、`account`、`settings`、`ui` |
-| `src/lib/` | API 用戶端（`api.ts`）、i18n、密碼雜湊（`password.ts`）、payload 加密（`payload-crypto.ts`）、政策圖、MCP 目錄 |
+| `src/lib/` | API 用戶端（`api.ts`，依功能拆在 `api/` 底下）、i18n、密碼雜湊（`password.ts`）、payload 加密（`payload-crypto.ts`）、政策圖、MCP 目錄 |
 | `src/hooks/`、`src/stores/` | TanStack Query hook 與 zustand store |
 | `src/proxy.ts` | 來源檢查與每個請求的 CSP |
 
@@ -151,16 +151,18 @@ flowchart LR
 [`src/proxy.ts`](src/proxy.ts) 在每個頁面請求時執行。它產生一個隨機 nonce，放進請求（`x-nonce`），並設定 `Content-Security-Policy` 回應標頭：
 
 - `script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`：只執行帶有這個回應 nonce 的腳本，以及它們載入的腳本。允許 WebAssembly 是為了 Argon2id。開發模式另外加上 `'unsafe-eval'`。
-- `connect-src 'self'` 與正式環境的 API（開發模式另加 `localhost`）。
-- `object-src 'none'`、`frame-ancestors 'none'`、`frame-src 'none'`、`base-uri 'self'`、`form-action 'self'` 與託管的 API（代理人登入的通行金鑰步驟會送到那裡），正式環境另加 `upgrade-insecure-requests`。
+- `connect-src 'self'` 與 `NEXT_PUBLIC_WS_URL` 指定的 API 來源（開發模式另加 `localhost`）。
+- `object-src 'none'`、`frame-ancestors 'none'`、`frame-src 'none'`、`base-uri 'self'`、`form-action 'self'` 與同一個 API 來源（代理人登入的通行金鑰步驟會送到那裡），正式環境另加 `upgrade-insecure-requests`。
 
 根 layout 呼叫 `connection()`，讓每個頁面都在請求時繪製，Next.js 才能把 nonce 加到自己的腳本上；它也把 nonce 交給在 hydration 前執行的主題腳本。`_next/static` 下的靜態檔案、`/saturn-api` 與 `logo.png` 不經過 proxy。
 
-`next.config.ts` 另外加上 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`、關閉相機、麥克風、定位、付款、USB 與動作感測器的 `Permissions-Policy`，正式環境另加 `Strict-Transport-Security`。
+`next.config.ts` 另外加上 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`、關閉相機、麥克風、定位、付款、USB 與動作感測器的 `Permissions-Policy`，正式環境另加 `Strict-Transport-Security`。除了 `/connect-passkey` 以外，每個頁面還會送出 `Cross-Origin-Opener-Policy: same-origin-allow-popups`，其他來源的頁面即使開啟主控台，也拿不到它的視窗參照。`/connect-passkey` 不加，是因為 Agent 的登入流程會在 Agent 用戶端開啟的視窗裡經過這一頁。
+
+主控台為了連接 MCP 伺服器而開啟提供方的登入視窗時，會先切斷那個視窗回到主控台的連結，視窗裡的任何頁面都無法把主控台分頁導到別處。視窗關閉後，主控台再向 API 確認結果。
 
 ### 來源檢查
 
-在正式環境中，Cloud Run 服務只能經由前端入口存取。Proxy 會比對一個密鑰標頭（`ORIGIN_AUTH_SECRET`，以 SHA-256 摘要做固定時間比較），不符合時回傳 `403`；`/healthz` 不受限制，讓 Cloud Run 可以探測。
+在正式環境中，Cloud Run 服務只能經由前端入口存取。Proxy 會比對一個密鑰標頭（`ORIGIN_AUTH_SECRET`，以 SHA-256 摘要做固定時間比較），不符合時回傳 `403`；`/health` 不受限制，讓 Cloud Run 可以探測。
 
 ### Session
 
@@ -175,7 +177,7 @@ flowchart LR
 保存的稽核 payload（工具參數與上游回應）以組織的金鑰加密，API 無法解開。
 
 - 組織的 ML-KEM-1024 金鑰對在瀏覽器中產生。它的復原金鑰只顯示一次供下載，從不上傳。
-- 每位成員的私鑰以上述由 Argon2id 推導出的包裝金鑰加密；使用主控台期間保存在記憶體中，不寫入瀏覽器儲存空間。
+- 每位成員的私鑰以上述由 Argon2id 推導出的包裝金鑰加密；使用主控台期間保存在記憶體中，不寫入瀏覽器儲存空間。重新整理後記憶體會清空，主控台會在你開啟加密內容時再請你輸入密碼；密碼同樣不會被儲存。
 - 有權限的成員開啟稽核事件時，原始 payload 在瀏覽器中解密。
 - 成員的新金鑰必須由團隊管理員核對指紋後核准；忘記密碼的成員可以由另一位成員協助重新取得紀錄。主控台會為這兩種情況顯示提示。
 
@@ -187,6 +189,7 @@ flowchart LR
 - Agent 與連線表格中的每一列都是按鈕，可以用鍵盤操作，並回報是否被選取（`aria-pressed`）。語言與深淺模式等切換也以同樣方式回報狀態。
 - 選單會回報 `aria-expanded`，按 Escape 關閉；行動版側邊欄關閉時為 `inert`。
 - `<html lang>` 跟隨所選的語言。
+- 鍵盤焦點在每個控制項上都有清楚的外框（`globals.css` 裡的一條規則）；金鑰核准與協助存取的對話框可以按 Escape 關閉，關閉後請求維持待處理。
 
 ## 開發
 

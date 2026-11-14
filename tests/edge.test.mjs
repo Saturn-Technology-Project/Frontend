@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiPathAllowed, consoleForwardHeaders, inboundClientIp, isApiPath, originAllowed } from "../src/lib/edge.ts";
+import { apiPathAllowed, consoleForwardHeaders, cspOrigin, inboundClientIp, isApiPath, originAllowed } from "../src/lib/edge.ts";
+import { configuredApiOrigin } from "../src/lib/ws.ts";
 
 const headers = (values) => (name) => values[name.toLowerCase()] ?? null;
 
@@ -10,8 +11,13 @@ test("origin gate covers the API proxy and fails closed on Cloud Run", () => {
   assert.equal(originAllowed("/saturn-api/auth/login", headers({ "x-saturn-origin-auth": "wrong" }), env), false);
   assert.equal(originAllowed("/saturn-api/auth/login", headers({ "x-saturn-origin-auth": "edge-secret" }), env), true);
   assert.equal(originAllowed("/_next/image", headers({}), env), false);
+  assert.equal(originAllowed("/health", headers({}), env), true);
   assert.equal(originAllowed("/healthz", headers({}), env), true);
+  assert.equal(originAllowed("/health/", headers({}), env), false);
   assert.equal(originAllowed("/healthz/", headers({}), env), false);
+  // Only the console's own probe is open. The API's routes behind the proxy are not.
+  assert.equal(originAllowed("/saturn-api/health", headers({}), env), false);
+  assert.equal(originAllowed("/saturn-api/status", headers({}), env), false);
   assert.equal(originAllowed("/overview", headers({}), { K_SERVICE: "saturn-frontend" }), false);
   assert.equal(originAllowed("/overview", headers({}), {}), true);
   const rotating = { ORIGIN_AUTH_SECRET: "new", ORIGIN_AUTH_SECRET_PREVIOUS: "old" };
@@ -24,6 +30,7 @@ test("API proxy serves only the console's JSON routes", () => {
     "/saturn-api/org/payload-keys/member",
     "/saturn-api/mcp-servers/oauth/start",
     "/saturn-api/health",
+    "/saturn-api/status",
     "/saturn-api/activity/run_1/reveal",
   ]) {
     assert.equal(apiPathAllowed(path), true, path);
@@ -97,4 +104,32 @@ test("console tells the API the browser's address only behind Cloudflare and wit
     "x-saturn-console-auth": "console",
     "x-saturn-client-ip": "203.0.113.7",
   });
+});
+
+test("the CSP names the configured API by origin only, and nothing that is not a URL", () => {
+  assert.equal(cspOrigin("https://api.saturn-core.com"), "https://api.saturn-core.com");
+  assert.equal(cspOrigin("http://localhost:8000/saturn-api/"), "http://localhost:8000");
+  // A value that could add a directive of its own to the header is dropped whole.
+  assert.equal(cspOrigin("https://api.example.com; script-src *"), "");
+  assert.equal(cspOrigin("javascript:alert(1)"), "");
+  assert.equal(cspOrigin("wss://api.example.com"), "");
+  assert.equal(cspOrigin(""), "");
+});
+
+test("the API origin comes from the build-time setting, on the server too", () => {
+  const saved = { ws: process.env.NEXT_PUBLIC_WS_URL, api: process.env.NEXT_PUBLIC_API_URL };
+  try {
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    delete process.env.NEXT_PUBLIC_API_URL;
+    assert.equal(configuredApiOrigin(), "https://api.saturn-core.com");
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8000/";
+    assert.equal(configuredApiOrigin(), "http://localhost:8000");
+    process.env.NEXT_PUBLIC_WS_URL = "https://api.example.com/saturn-api";
+    assert.equal(configuredApiOrigin(), "https://api.example.com");
+  } finally {
+    for (const [name, value] of [["NEXT_PUBLIC_WS_URL", saved.ws], ["NEXT_PUBLIC_API_URL", saved.api]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
 });

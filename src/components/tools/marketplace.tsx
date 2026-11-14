@@ -71,11 +71,11 @@ export function Marketplace({ servers, canAdmin }: { servers: McpServer[]; canAd
     setConnectError("");
     setBusyId(entry.id);
     try {
-      const result = await authorizeMcp({ name: marketName(entry.id), endpoint: entry.endpoint });
-      if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+      await authorizeMcp({ name: marketName(entry.id), endpoint: entry.endpoint });
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
     } catch (error) {
       open(entry, "setup");
-      setConnectError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") }));
+      setConnectError(mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable"), incomplete: t("marketplace.signInIncomplete") }));
     } finally {
       setBusyId(null);
     }
@@ -438,10 +438,10 @@ function ConnectForm({
     }
     setAuthorizing(true);
     try {
-      const result = await authorizeMcp({ name: name.trim(), endpoint: endpoint.trim() });
-      if (result !== "cancelled") await client.invalidateQueries({ queryKey: consoleQueryKey });
+      await authorizeMcp({ name: name.trim(), endpoint: endpoint.trim() });
+      await client.invalidateQueries({ queryKey: consoleQueryKey });
     } catch (error) {
-      const message = mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable") });
+      const message = mcpOauthErrorText(error, { popup: t("marketplace.popupBlocked"), signInUnavailable: t("marketplace.signInUnavailable"), incomplete: t("marketplace.signInIncomplete") });
       if (message === t("marketplace.signInUnavailable")) setPaste(true);
       setLocalError(message);
     } finally {
